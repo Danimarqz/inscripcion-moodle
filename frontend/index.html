@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Formulario de inscripción</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+</head>
+
+<body class="py-0">
+  <header class="text-white py-3 mb-4" style="background-color: #232224;">
+    <div class="container-fluid d-flex flex-column flex-md-row align-items-center justify-content-md-between p-3">
+      <!-- IZQUIERDA: Modalidades -->
+      <nav class="mb-2 mb-md-0">
+        <ul class="nav">
+          <li class="nav-item">
+            <a class="nav-link text-white fw-semibold" href="https://opositatcae.es/modalidades/">MODALIDADES</a>
+          </li>
+        </ul>
+      </nav>
+      <!-- CENTRO: Logo (visible en el centro en móvil) -->
+      <a href="https://opositatcae.es/"
+        class="d-flex align-items-center mx-2 text-white text-decoration-none mb-2 mb-md-0">
+        <img src="https://opositatcae.es/wp-content/uploads/2024/12/LOGO-COMPLETO-SIN-FONDO.png" alt="Oposita TCAE"
+          width="70" height="70">
+      </a>
+      <!-- DERECHA: Iconos y botón de inicio de sesión -->
+      <div class="d-flex align-items-center flex-wrap justify-content-center">
+        <a href="mailto:opositatcae@gmail.com"
+          class="bg-white text-black rounded-circle d-flex align-items-center justify-content-center me-3"
+          style="width: 40px; height: 40px;" title="Email">
+          <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+            <path
+              d="M19,5H5c-1.1,0-2,.9-2,2v10c0,1.1.9,2,2,2h14c1.1,0,2-.9,2-2V7c0-1.1-.9-2-2-2zm.5,12c0,.3-.2.5-.5.5H5c-.3,0-.5-.2-.5-.5V9.8l7.5,5.6,7.5-5.6V17zm0-9.1L12,13.6,4.5,7.9V7c0-.3.2-.5.5-.5h14c.3,0,.5.2,.5.5v.9z">
+            </path>
+          </svg>
+        </a>
+        <a href="https://wa.me/603575519?text=Quiero%20información%20sobre%20OpositaTCAE"
+          class="text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+          style="width: 40px; height: 40px; background-color: #25d366;" title="WhatsApp">
+          <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+            <path
+              d="M 12.011719 2 C 6.5057187 2 2.0234844 6.478375 2.0214844 11.984375 C 2.0204844 13.744375 2.4814687 15.462563 3.3554688 16.976562 L 2 22 L 7.2324219 20.763672 C 8.6914219 21.559672 10.333859 21.977516 12.005859 21.978516 L 12.009766 21.978516 C 17.514766 21.978516 21.995047 17.499141 21.998047 11.994141 C 22.000047 9.3251406 20.962172 6.8157344 19.076172 4.9277344 C 17.190172 3.0407344 14.683719 2.001 12.011719 2 z M 12.009766 4 C 14.145766 4.001 16.153109 4.8337969 17.662109 6.3417969 C 19.171109 7.8517969 20.000047 9.8581875 19.998047 11.992188 C 19.996047 16.396187 16.413812 19.978516 12.007812 19.978516 C 10.674812 19.977516 9.3544062 19.642812 8.1914062 19.007812 L 7.5175781 18.640625 L 6.7734375 18.816406 L 4.8046875 19.28125 L 5.2851562 17.496094 L 5.5019531 16.695312 L 5.0878906 15.976562 C 4.3898906 14.768562 4.0204844 13.387375 4.0214844 11.984375 C 4.0234844 7.582375 7.6067656 4 12.009766 4 z M 8.4765625 7.375 C 8.3095625 7.375 8.0395469 7.4375 7.8105469 7.6875 C 7.5815469 7.9365 6.9355469 8.5395781 6.9355469 9.7675781 C 6.9355469 10.995578 7.8300781 12.182609 7.9550781 12.349609 C 8.0790781 12.515609 9.68175 15.115234 12.21875 16.115234 C 14.32675 16.946234 14.754891 16.782234 15.212891 16.740234 C 15.670891 16.699234 16.690438 16.137687 16.898438 15.554688 C 17.106437 14.971687 17.106922 14.470187 17.044922 14.367188 C 16.982922 14.263188 16.816406 14.201172 16.566406 14.076172 C 16.317406 13.951172 15.090328 13.348625 14.861328 13.265625 C 14.632328 13.182625 14.464828 13.140625 14.298828 13.390625 C 14.132828 13.640625 13.655766 14.201187 13.509766 14.367188 C 13.363766 14.534188 13.21875 14.556641 12.96875 14.431641 C 12.71875 14.305641 11.914938 14.041406 10.960938 13.191406 C 10.218937 12.530406 9.7182656 11.714844 9.5722656 11.464844 C 9.4272656 11.215844 9.5585938 11.079078 9.6835938 10.955078 C 9.7955938 10.843078 9.9316406 10.663578 10.056641 10.517578 C 10.180641 10.371578 10.223641 10.267562 10.306641 10.101562 C 10.389641 9.9326406 10.348141 9.787125 10.223141 9.662125 C 10.098141 9.537125 9.9316406 9.4335938 9.765625 9.4335938 C 9.599625 9.4335938 8.6435625 7.375 8.4765625 7.375 z">
+            </path>
+          </svg>
+        </a>
+        <span class="text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+          style="width: 40px; height: 40px;">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" width="28" height="28"
+            class="bi bi-cart" aria-hidden="true" focusable="false">
+            <circle cx="12.6667" cy="24.6667" r="2" fill="currentColor"></circle>
+            <circle cx="23.3333" cy="24.6667" r="2" fill="currentColor"></circle>
+            <path fill-rule="evenodd" clip-rule="evenodd"
+              d="M9.28491 10.0356C9.47481 9.80216 9.75971 9.66667 10.0606 9.66667H25.3333C25.6232 9.66667 25.8989 9.79247 26.0888 10.0115C26.2787 10.2305 26.3643 10.5211 26.3233 10.8081L24.99 20.1414C24.9196 20.6341 24.4977 21 24 21H12C11.5261 21 11.1173 20.6674 11.0209 20.2034L9.08153 10.8701C9.02031 10.5755 9.09501 10.269 9.28491 10.0356ZM11.2898 11.6667L12.8136 19H23.1327L24.1803 11.6667H11.2898Z"
+              fill="currentColor"></path>
+            <path fill-rule="evenodd" clip-rule="evenodd"
+              d="M5.66669 6.66667C5.66669 6.11438 6.1144 5.66667 6.66669 5.66667H9.33335C9.81664 5.66667 10.2308 6.01229 10.3172 6.48778L11.0445 10.4878C11.1433 11.0312 10.7829 11.5517 10.2395 11.6505C9.69614 11.7493 9.17555 11.3889 9.07676 10.8456L8.49878 7.66667H6.66669C6.1144 7.66667 5.66669 7.21895 5.66669 6.66667Z"
+              fill="currentColor"></path>
+          </svg>
+        </span>
+        <span class="text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+          style="width: 40px; height: 40px;">
+          <svg viewBox="1 1 29 29" xmlns="http://www.w3.org/2000/svg" width="28" height="28" class="bi bi-person">
+            <circle cx="16" cy="10.5" r="3.5" stroke="currentColor" stroke-width="2" fill="none"></circle>
+            <path fill-rule="evenodd" clip-rule="evenodd"
+              d="M11.5 18.5H20.5C21.8807 18.5 23 19.6193 23 21V25.5H25V21C25 18.5147 22.9853 16.5 20.5 16.5H11.5C9.01472 16.5 7 18.5147 7 21V25.5H9V21C9 19.6193 10.1193 18.5 11.5 18.5Z"
+              fill="currentColor"></path>
+          </svg>
+        </span>
+        <a class="bg-white text-black rounded-pill px-3 py-2 fw-semibold text-decoration-none"
+          href="https://moodle.opositatcae.es">
+          INICIA SESIÓN
+        </a>
+      </div>
+    </div>
+  </header>
+  <div class="container">
+    <h1 class="mb-4">FORMULARIO DE SUSCRIPCIÓN</h1>
+    <form id="inscriptionForm" class="pt-2" autocomplete="on">
+      <input type="text" name="website" id="website" style="display:none">
+      <h4 class="mt-4">Datos personales</h4>
+      <div class="col">
+        <label for="requestdate" class="form-label">Fecha de solicitud</label>
+        <input type="text" class="form-control w-auto" style="width:max-content;" id="requestdate" name="requestdate"
+          readonly disabled required>
+      </div>
+      <div class="row mb-3">
+        <div class="col">
+          <label for="name" class="form-label">Nombre</label>
+          <input type="text" class="form-control" id="name" name="name" required autocomplete="given-name"
+            placeholder="Ej: Juan">
+          <div class="invalid-feedback">Por favor, introduce tu nombre.</div>
+        </div>
+        <div class="col">
+          <label for="surname" class="form-label">Apellidos</label>
+          <input type="text" class="form-control" id="surname" name="surname" required autocomplete="family-name"
+            placeholder="Ej: Pérez García">
+          <div class="invalid-feedback">Por favor, introduce tus apellidos.</div>
+        </div>
+      </div>
+      <div class="row mb-3">
+        <div class="col">
+          <label for="dob" class="form-label">Fecha de nacimiento</label>
+          <input type="date" class="form-control" id="dob" name="dob" required autocomplete="bday"
+            placeholder="dd/mm/aaaa">
+          <div class="invalid-feedback">Por favor, introduce tu fecha de nacimiento.</div>
+        </div>
+        <div class="col">
+          <label for="dni" class="form-label">DNI</label>
+          <input type="text" class="form-control" id="dni" name="dni" required autocomplete="off"
+            placeholder="Ej: 12345678A">
+          <div class="invalid-feedback">Por favor, introduce un DNI válido.</div>
+        </div>
+      </div>
+      <div class="row mb-3">
+        <div class="col">
+          <label for="address" class="form-label">Dirección</label>
+          <input type="text" class="form-control" id="address" name="address" required autocomplete="street-address"
+            placeholder="Ej: Calle Mayor 10, 2ºB">
+          <div class="invalid-feedback">Por favor, introduce tu dirección.</div>
+        </div>
+        <div class="col">
+          <label for="city" class="form-label">Ciudad</label>
+          <input type="text" class="form-control" id="city" name="city" required autocomplete="address-level2"
+            placeholder="Ej: Madrid">
+          <div class="invalid-feedback">Por favor, introduce tu ciudad.</div>
+        </div>
+      </div>
+      <div class="row mb-3">
+        <div class="col">
+          <label for="locality" class="form-label">Localidad</label>
+          <input type="text" class="form-control" id="locality" name="locality" required autocomplete="address-level3"
+            placeholder="Ej: Chamberí">
+          <div class="invalid-feedback">Por favor, introduce tu localidad.</div>
+        </div>
+        <div class="col">
+          <label for="postalcode" class="form-label">Código Postal</label>
+          <input type="text" class="form-control" id="postalcode" name="postalcode" required autocomplete="postal-code"
+            placeholder="Ej: 28015">
+          <div class="invalid-feedback">Por favor, introduce tu código postal.</div>
+        </div>
+        <div class="col">
+          <label for="country" class="form-label">País</label>
+          <input type="text" class="form-control" id="country" name="country" required autocomplete="country-name"
+            placeholder="Ej: España">
+          <div class="invalid-feedback">Por favor, introduce tu país.</div>
+        </div>
+      </div>
+      <div class="row mb-3">
+        <div class="col">
+          <label for="phone" class="form-label">Teléfono</label>
+          <input type="tel" class="form-control" id="phone" name="phone" required autocomplete="tel"
+            placeholder="Ej: +34 600 123 456">
+          <div class="invalid-feedback">Por favor, introduce un número de teléfono válido.</div>
+        </div>
+        <div class="col">
+          <label for="email" class="form-label">Correo electrónico</label>
+          <input type="email" class="form-control" id="email" name="email" required autocomplete="email"
+            placeholder="Ej: juan@email.com">
+          <div class="invalid-feedback">Por favor, introduce una dirección de correo electrónico válida.</div>
+        </div>
+      </div>
+      <h4 class="mt-4">¿Cómo nos conociste?</h4>
+      <div class="mb-3">
+        <div class="col">
+          <label for="discover" class="form-label">Seleccione una opción</label>
+          <select class="form-select form-select-lg mb-2 shadow-sm rounded-3 bg-light focus-ring" id="discover"
+            name="discover" required autocomplete="off">
+            <option disabled selected value="Selecciona una opción...">Selecciona una opción…</option>
+            <option value="Instagram">Instagram</option>
+            <option value="Telegram">Telegram</option>
+            <option value="Amigo">Amigo</option>
+            <option value="Cartel informativo">Cartel informativo</option>
+            <option value="Grupo de Whatsapp">Grupo de Whatsapp</option>
+            <option value="Facebook">Facebook</option>
+            <option value="Tiktok">Tiktok</option>
+            <option value="Comercial">Comercial</option>
+          </select>
+        </div>
+      </div>
+      <h4 class="mt-4">Datos académicos</h4>
+      <div class="mb-3">
+        <div class="col">
+          <label for="course" class="form-label">Curso del que me matriculo</label>
+          <select class="form-select form-select-lg mb-2 shadow-sm rounded-3 bg-light focus-ring" id="course"
+            name="course" required autocomplete="off">
+            <option value="" disabled selected>Selecciona un curso…</option>
+            <option value="ingesa">INGESA (CEUTA Y MELILLA)</option>
+            <option value="sergas">SERGAS (GALICIA)</option>
+            <option value="gva">COMUNIDAD VALENCIANA (GVA)</option>
+            <option value="aragon">SERVICIO ARAGONÉS DE SALUD</option>
+            <option value="sescam">SESCAM (CASTILLA LA MANCHA)</option>
+            <option value="osakidetza">OSAKIDETZA (PAÍS VASCO)</option>
+            <option value="sacyl">SACYL (CASTILLA Y LEÓN)</option>
+            <option value="osasunbidea">OSASUNBIDEA (NAVARRA)</option>
+            <option value="seris">SERIS (LA RIOJA)</option>
+            <option value="cantabria">SCS (CANTABRIA)</option>
+            <option value="canarias">SCS (CANARIAS)</option>
+            <option value="sms">SMS (MURCIA)</option>
+            <option value="sespa">SESPA (ASTURIAS)</option>
+            <option value="imserso">IMSERSO</option>
+            <option value="ses">SES (EXTREMADURA)</option>
+            <option value="era">ERA (ASTURIAS) *CONSULTAR*</option>
+          </select>
+        </div>
+      </div>
+      <h4 class="mt-4">Forma de pago</h4>
+      <div class="row mb-3">
+        <div class="col">
+          <label for="modality" class="form-label">Modalidad</label>
+          <input type="text" class="form-control" id="modality" name="modality" required autocomplete="off"
+            placeholder="40€/mes, 80€/mes...">
+        </div>
+        <div class="col">
+          <label for="payment" class="form-label">Forma de pago</label><br>
+          <div class="col d-flex align-items-center">
+            <div class="form-check">
+              <input class="form-check-input" type="radio" id="payment" name="payment" required autocomplete="off"
+                value="Domiciliación bancaria">
+              <label class="form-check-label ms-2" for="payment">Domiciliación bancaria</label>
+            </div>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label for="iban" class="form-label">IBAN</label>
+          <input type="text" class="form-control" id="iban" name="iban" required autocomplete="off"
+            placeholder="Ej: ES12 3456 7890 1234 5678 9012">
+          <div class="invalid-feedback">Por favor, introduce un IBAN válido.</div>
+        </div>
+        <div class="mb-3">
+          <label for="startdate" class="form-label">Fecha de inicio</label>
+          <input type="month" class="form-control" id="startdate" name="startdate" required autocomplete="off"
+            placeholder="Selecciona un mes">
+        </div>
+      </div>
+      <h4 class="mt-4">Consentimiento</h4>
+      <div class="row mb-3 ps-3">
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="terms" required>
+          <label class="form-check-label" for="terms">
+            He leído y acepto los <a href="https://opositatcae.es/terminos-y-condiciones/">términos y condiciones</a>
+          </label>
+          <div class="invalid-feedback">Debes aceptar los términos y condiciones.</div>
+        </div>
+        <div class="form-check mb-4">
+          <input class="form-check-input" type="checkbox" id="privacy" required>
+          <label class="form-check-label" for="privacy">
+            He leído y acepto la <a href="https://opositatcae.es/politica-de-privacidad/">política de privacidad</a>
+          </label>
+          <div class="invalid-feedback">Debes aceptar la política de privacidad.</div>
+        </div>
+      </div>
+      <h4>Firma</h4>
+      <canvas id="signature-pad" class="border mb-3" style="background-color: #dee2e6;"></canvas><br>
+      <button type="button" class="btn btn-secondary" id="clear">Limpiar firma</button>
+      <button type="submit" class="btn btn-primary ms-3">
+        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true" style="display: none;"></span>
+        Enviar
+      </button>
+    </form>
+  </div>
+  <div id="form-message"></div>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/monthSelectPlugin.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+  <script src="main.js"></script>
+
+  <!-- Modal -->
+  <div class="modal fade" id="responseModal" tabindex="-1" aria-labelledby="responseModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="responseModalLabel"></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="responseModalBody">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>

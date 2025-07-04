@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+
+# VSCode settings
+.vscode/
+
+# Byte-compiled / optimized / DLL files
+*.so
+*.dll
+*.dylib
+*.pkl
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# PDF y archivos generados
+backend/generated_pdfs/
+*.pdf
+
+# Archivos de entorno y configuración sensibles
+*.env
+.env.*
+
+# Archivos temporales
+*.tmp
+*.log
+
+# Paquetes
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Otros
