@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const responseModalBody = document.getElementById('responseModalBody');
 
   // --- INICIALIZAR LA FIRMA Y EL FORMULARIO ---
-  
+
 
   const signaturePad = new SignaturePad(canvas);
   setSignaturePadDimensions();
@@ -27,9 +27,9 @@ document.addEventListener('DOMContentLoaded', function () {
   } else {
     console.log('requestdate input not found!');
   }
-  
 
-  
+
+
 
   // --- EVENT LISTENERS ---
   clearBtn.addEventListener('click', () => signaturePad.clear());
@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', function () {
     signaturePad.clear(); // Borra la firma al cambiar el tamaño
   }
 
-  
+
 
   /**
    * Gestiona el envío del formulario.
@@ -63,9 +63,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
     data.signature = signaturePad.toDataURL();
-
+    console.log('Form data:', data);
     try {
-            const res = await fetch('/register', {
+      const res = await fetch('/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)

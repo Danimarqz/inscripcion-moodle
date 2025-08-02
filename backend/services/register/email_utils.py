@@ -1,15 +1,6 @@
 import smtplib
 from email.message import EmailMessage
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-SMTP_USER = os.environ["SMTP_USER"]
-SMTP_PASS = os.environ["SMTP_PASS"]
-SMTP_SERVER = os.environ["SMTP_SERVER"]
-SMTP_PORT = int(os.environ["SMTP_PORT"])
-ADMIN_EMAIL = os.environ["ADMIN_EMAIL"]
+from config import SMTP_USER, SMTP_PASS, SMTP_SERVER, SMTP_PORT, ADMIN_EMAIL
 
 def send_emails(user_email: str, pdf_bytes: bytes, user_name: str, user_surname: str) -> None:
     subject = "Confirmación de inscripción"

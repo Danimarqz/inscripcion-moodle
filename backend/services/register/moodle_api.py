@@ -1,11 +1,5 @@
 import requests
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-MOODLE_URL = os.environ["MOODLE_URL"]
-MOODLE_TOKEN = os.environ["MOODLE_TOKEN"]
+from config import MOODLE_URL, MOODLE_TOKEN
 
 def create_moodle_user(data: dict):
     username = data["email"]
@@ -45,7 +39,7 @@ def create_moodle_user(data: dict):
         payload[f"users[0][customfields][{i}][value]"] = field["value"]
 
     response = requests.post(f"{MOODLE_URL}/webservice/rest/server.php", data=payload)
-
+    print(response.text)
     if response.status_code != 200:
         raise Exception(f"Error al conectar con Moodle: {response.text}")
 

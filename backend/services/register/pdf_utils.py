@@ -5,7 +5,7 @@ from io import BytesIO
 from PIL import Image
 import tempfile
 import os
-from registerdata import RegisterData
+from models.registerdata import RegisterData
 
 MESES = {
     'JANUARY': 'ENERO', 'FEBRUARY': 'FEBRERO', 'MARCH': 'MARZO', 'APRIL': 'ABRIL',
@@ -15,8 +15,8 @@ MESES = {
 
 class PDF(FPDF):
     def header(self):
-        if os.path.exists("assets/opositalogo.png"):
-            self.image("assets/opositalogo.png", x=10, y=8, w=10)
+        if os.path.exists("opositalogo.png"):
+            self.image("opositalogo.png", x=10, y=8, w=10)
         self.set_font('Arial', 'B', 14)
         self.set_text_color(0, 51, 102)
         self.cell(0, 10, 'FORMULARIO DE SUSCRIPCIÓN', ln=True, align='C')
@@ -35,8 +35,8 @@ def generate_pdf(data: RegisterData) -> str:
     pdf = PDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_font('DejaVu', '', 'assets/DejaVuSans.ttf', uni=True)
-    pdf.add_font('DejaVu', 'B', 'assets/DejaVuSans-Bold.ttf', uni=True)
+    pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
+    pdf.add_font('DejaVu', 'B', 'DejaVuSans-Bold.ttf', uni=True)
     pdf.set_font('DejaVu', size=10)
     pdf.set_text_color(0)
 
@@ -54,7 +54,7 @@ def generate_pdf(data: RegisterData) -> str:
         pdf.cell(width_value, 10, value, ln=True)
 
     # Fecha de solicitud
-    labeled_line("Fecha de solicitud:", datetime.strptime(data["requestdate"], "%Y-%m-%d").strftime("%d-%m-%Y"))
+    labeled_line("Fecha de solicitud:", datetime.today().strftime("%d-%m-%Y"))
 
     # Datos personales
     add_section_title("Datos personales")
