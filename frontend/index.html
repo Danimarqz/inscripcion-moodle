@@ -78,10 +78,10 @@
       </div>
     </div>
   </header>
-  <div class="container">
+  <main class="container">
     <h1 class="mb-4">FORMULARIO DE SUSCRIPCIÓN</h1>
     <form id="inscriptionForm" class="pt-2" autocomplete="on">
-      <input type="text" name="website" id="website" style="display:none">
+      <input type="text" name="website" id="website" class="website-visual">
       <h4 class="mt-4">Datos personales</h4>
       <div class="col">
         <label for="requestdate" class="form-label">Fecha de solicitud</label>
@@ -110,10 +110,10 @@
           <div class="invalid-feedback">Por favor, introduce tu fecha de nacimiento.</div>
         </div>
         <div class="col">
-          <label for="dni" class="form-label">DNI</label>
+          <label for="dni" class="form-label">NIF</label>
           <input type="text" class="form-control" id="dni" name="dni" required autocomplete="off"
             placeholder="Ej: 12345678A">
-          <div class="invalid-feedback">Por favor, introduce un DNI válido.</div>
+          <div class="invalid-feedback">Por favor, introduce un NIF válido.</div>
         </div>
       </div>
       <div class="row mb-3">
@@ -212,8 +212,14 @@
       <div class="row mb-3">
         <div class="col">
           <label for="modality" class="form-label">Modalidad</label>
-          <input type="text" class="form-control" id="modality" name="modality" required autocomplete="off"
-            placeholder="40€/mes, 80€/mes...">
+          <select class="form-select form-select-lg mb-2 shadow-sm rounded-3 bg-light focus-ring" id="modality"
+            name="modality" required autocomplete="off">
+            <option value="" disabled selected>Selecciona una modalidad…</option>
+            <option value="40€/mes (2 temas/mes)">40€/mes (2 temas/mes)</option>
+            <option value="80€/mes (4 temas/mes)">80€/mes (4 temas/mes)</option>
+            <option value="100€/mes (5 temas/mes)">100€/mes (5 temas/mes)</option>
+            <option value="120€/mes (6 temas/mes)">120€/mes (6 temas/mes)</option>
+          </select>
         </div>
         <div class="col">
           <label for="payment" class="form-label">Forma de pago</label><br>
@@ -255,14 +261,16 @@
         </div>
       </div>
       <h4>Firma</h4>
-      <canvas id="signature-pad" class="border mb-3" style="background-color: #dee2e6;"></canvas><br>
+      <div class="signature-container">
+        <canvas id="signature-pad" class="border mb-3" style="background-color: #dee2e6;"></canvas>
+      </div><br>
       <button type="button" class="btn btn-secondary" id="clear">Limpiar firma</button>
       <button type="submit" class="btn btn-primary ms-3">
         <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true" style="display: none;"></span>
         Enviar
       </button>
     </form>
-  </div>
+  </main>
   <div id="form-message"></div>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>

@@ -3,6 +3,8 @@
 body {
   font-family: sans-serif;
   background-color: #f8f9fa;
+  min-width: 373px;
+  overflow-x: auto;
 }
 
 .container {
@@ -51,16 +53,25 @@ header {
 }
 
 /* Lienzo de la firma */
-#signature-pad {
-  display: block; /* Asegura un comportamiento de bloque adecuado */
+.signature-container {
+  width: 100%;
+  max-width: 500px;
+  aspect-ratio: 2 / 1;
   background-color: #dee2e6;
   border-radius: 0.25rem;
-  width: 100%;
-  max-width: 500px; /* Un límite para pantallas grandes */
-  aspect-ratio: 2 / 1; /* Mantiene una relación de aspecto de 2:1 (ancho:alto) */
-  cursor: crosshair;
-  touch-action: none; /* Mejora la experiencia en dispositivos táctiles */
 }
+
+#signature-pad {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  -ms-touch-action: none;
+  cursor: crosshair;
+  background-color: transparent; /* ya el contenedor tiene color */
+  border-radius: 0.25rem;
+}
+
 
 /* Botones */
 .btn-primary {
@@ -125,4 +136,11 @@ header {
     width: 100%;
     margin-bottom: 1rem;
   }
+}
+.website-visual {
+  position: absolute !important;
+  height: 1px; width: 1px;
+  overflow: hidden;
+  clip: rect(1px, 1px, 1px, 1px);
+  white-space: nowrap;
 }

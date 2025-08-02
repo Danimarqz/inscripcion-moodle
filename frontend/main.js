@@ -43,10 +43,23 @@ document.addEventListener('DOMContentLoaded', function () {
    */
   function setSignaturePadDimensions() {
     const ratio = Math.max(window.devicePixelRatio || 1, 1);
-    canvas.width = canvas.offsetWidth * ratio;
-    canvas.height = canvas.offsetHeight * ratio;
-    canvas.getContext('2d').scale(ratio, ratio);
-    signaturePad.clear(); // Borra la firma al cambiar el tamaño
+
+    // Obtiene tamaño real en CSS del canvas (considera aspect-ratio)
+    const width = canvas.offsetWidth;
+    const height = canvas.offsetHeight;
+
+    // Ajusta tamaño físico para resolución retina
+    canvas.width = width * ratio;
+    canvas.height = height * ratio;
+
+    // Ajusta tamaño CSS igual que el offset para que no haya distorsión
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+
+    const ctx = canvas.getContext('2d');
+    ctx.scale(ratio, ratio);
+
+    signaturePad.clear();
   }
 
 
@@ -63,7 +76,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
     data.signature = signaturePad.toDataURL();
-    console.log('Form data:', data);
+    console.log('Data to send: ', data)
     try {
       const res = await fetch('/register', {
         method: 'POST',
@@ -166,22 +179,47 @@ document.addEventListener('DOMContentLoaded', function () {
    */
   function validateDNI(id) {
     const dniInput = document.getElementById(id);
-    const dni = dniInput.value.trim().toUpperCase();
+    let dni = dniInput.value.trim().toUpperCase();
     const dniRegex = /^\d{8}[A-Z]$/;
-    if (!dniRegex.test(dni)) {
-      dniInput.classList.add('is-invalid');
-      return false;
-    }
-    const letter = dni.charAt(8);
-    const numbers = parseInt(dni.substring(0, 8), 10);
-    const validLetter = 'TRWAGMYFPDXBNJZSQVHLCKE'.charAt(numbers % 23);
-    if (letter !== validLetter) {
-      dniInput.classList.add('is-invalid');
-      return false;
-    }
-    return true;
-  }
+    const nieRegex = /^[XYZ]\d{7}[A-Z]$/;
 
+    function calcLetter(number) {
+      const letters = 'TRWAGMYFPDXBNJZSQVHLCKE';
+      return letters.charAt(number % 23);
+    }
+    if (dniRegex.test(dni)) {
+      // DNI normal
+      const numbers = parseInt(dni.substring(0, 8), 10);
+      const letter = dni.charAt(8);
+      if (letter !== calcLetter(numbers)) {
+        dniInput.classList.add('is-invalid');
+        return false;
+      }
+      return true;
+    } else if (nieRegex.test(dni)) {
+      // NIE
+      // Sustituir la letra inicial por su valor numérico
+      let prefixNumber;
+      switch (dni.charAt(0)) {
+        case 'X': prefixNumber = '0'; break;
+        case 'Y': prefixNumber = '1'; break;
+        case 'Z': prefixNumber = '2'; break;
+        default:
+          dniInput.classList.add('is-invalid');
+          return false;
+      }
+      const numbers = parseInt(prefixNumber + dni.substring(1, 8), 10);
+      const letter = dni.charAt(8);
+      if (letter !== calcLetter(numbers)) {
+        dniInput.classList.add('is-invalid');
+        return false;
+      }
+      return true;
+    } else {
+      dniInput.classList.add('is-invalid');
+      return false;
+    }
+  }
   /**
    * Valida una dirección de correo electrónico.
    * @param {string} id - El ID del campo.
