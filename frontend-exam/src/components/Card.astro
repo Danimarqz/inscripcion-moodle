@@ -1,0 +1,73 @@
+---
+interface Props {
+	href: string;
+	title: string;
+	body: string;
+}
+
+const { href, title, body } = Astro.props;
+---
+<li class="link-card">
+	<a href={href}>
+		<h2>
+			{title}
+			<span>&rarr;</span>
+		</h2>
+		<p>
+			{body}
+		</p>
+	</a>
+</li>
+<style>
+	.link-card {
+		list-style: none;
+		display: flex;
+		padding: 2px;
+		background-image: linear-gradient(to right, rgb(var(--accent)), rgb(var(--accent-light)) 50%, #23262d 100%);
+		background-size: 200% 100%;
+		background-position: 100% 0;
+		transition: background-position 0.5s ease-out, box-shadow 0.3s ease;
+		border-radius: 10px;
+		box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+	}
+	.link-card > a {
+		width: 100%;
+		text-decoration: none;
+		line-height: 1.5;
+		padding: 1.5rem;
+		border-radius: 8px;
+		color: white;
+		background-color: #23262d;
+		opacity: 0.95;
+		transition: background-color 0.3s ease;
+	}
+	h2 {
+		margin: 0;
+		font-size: 1.5rem;
+		font-weight: 700;
+		transition: color 0.3s ease;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+	}
+	h2 span {
+		font-size: 1.8rem;
+		transition: transform 0.3s ease;
+	}
+	p {
+		margin-top: 0.8rem;
+		margin-bottom: 0;
+		font-size: 1rem;
+		color: #cccccc;
+	}
+	.link-card:is(:hover, :focus-within) {
+		background-position: 0 0;
+		box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+	}
+	.link-card:is(:hover, :focus-within) h2 {
+		color: rgb(var(--accent-light));
+	}
+	.link-card:is(:hover, :focus-within) h2 span {
+		transform: translateX(5px);
+	}
+</style>
