@@ -33,7 +33,7 @@ const examId = Astro.params.id;
       </div>
       <div class="form-group">
         <label for="dni">DNI:</label>
-        <input type="text" id="dni" name="dni" required pattern="^[XYZ]?\d{7,8}[A-Z]$" title="Introduce un DNI (8 números y 1 letra) o NIE (X, Y o Z seguido de 7 u 8 números y 1 letra) válido.">
+        <input type="text" id="dni" name="dni" required pattern="^[XYZ]?\\d{7,8}[A-Z]$" title="Introduce un DNI (8 números y 1 letra) o NIE (X, Y o Z seguido de 7 u 8 números y 1 letra) válido.">
       </div>
       <div id="questions-container"></div>
       <button type="submit" class="submit-button">Entregar Examen</button>
@@ -84,6 +84,7 @@ const examId = Astro.params.id;
       examForm.style.display = 'none';
       return;
     }
+
     questions.forEach((question: Question, index: number) => {
       const questionElement = document.createElement('div');
       questionElement.classList.add('question-block');
@@ -110,14 +111,16 @@ const examId = Astro.params.id;
       // Validación de email
       const emailRegex = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
       if (!emailRegex.test(email)) {
-        alert('Por favor, introduce un email válido.');
+        errorMessageDisplay.textContent = 'Por favor, introduce un email válido.';
+        errorMessageDisplay.style.display = 'block';
         return;
       }
 
       // Validación de DNI
-      const dniRegex = /^[XYZ]?\d{7,8}[A-Z]$/i;
+      const dniRegex = /^[XYZ]?\\d{7,8}[A-Z]$/i;
       if (!dniRegex.test(dni)) {
-        alert('Por favor, introduce un DNI válido (8 números seguidos de una letra mayúscula) o NIE (X, Y o Z seguido de 7 u 8 números y 1 letra) válido.');
+        errorMessageDisplay.textContent = 'Por favor, introduce un DNI válido (8 números seguidos de una letra mayúscula) o NIE (X, Y o Z seguido de 7 u 8 números y 1 letra) válido.';
+        errorMessageDisplay.style.display = 'block';
         return;
       }
 
@@ -144,7 +147,8 @@ const examId = Astro.params.id;
         window.location.href = '/';
       } catch (error) {
         console.error('Error submitting exam:', error);
-        alert('Error al entregar el examen.');
+        errorMessageDisplay.textContent = 'Error al entregar el examen.';
+        errorMessageDisplay.style.display = 'block';
       }
     });
   });
