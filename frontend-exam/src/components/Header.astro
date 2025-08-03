@@ -1,0 +1,95 @@
+---
+---
+
+<header>
+  <div class="header-content">
+    <a href="/" class="site-title">
+      <h1>OpositaTest</h1>
+    </a>
+    <div id="admin-button-container">
+    </div>
+  </div>
+</header>
+
+<script>
+  import { getAuthToken } from '../services/adminService';
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const adminButtonContainer = document.getElementById('admin-button-container');
+    if (!adminButtonContainer) return;
+
+    const currentPath = window.location.pathname;
+    const isAdminDashboard = currentPath.startsWith('/admin/dashboard');
+
+    const authToken = getAuthToken();
+
+    let buttonHtml = '';
+    if (isAdminDashboard) {
+      // Do not show button on dashboard
+      buttonHtml = '';
+    } else if (authToken) {
+      buttonHtml = '<a href="/admin/dashboard" class="admin-button">Admin Dashboard</a>';
+    } else {
+      buttonHtml = '<a href="/admin/login" class="admin-button">Admin Login</a>';
+    }
+
+    adminButtonContainer.innerHTML = buttonHtml;
+  });
+</script>
+
+<style is:global>
+  header {
+    background-color: #1a1c22;
+    padding: 1rem 2rem;
+    border-bottom: 1px solid #333;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    margin-bottom: 2rem; /* Add some space below the header */
+  }
+
+  .header-content {
+    max-width: 1000px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .site-title {
+    text-decoration: none;
+    color: white;
+  }
+
+  .site-title h1 {
+    font-size: 2.5rem;
+    font-weight: 800;
+    margin: 0;
+    background-image: var(--accent-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-size: 400%;
+    background-position: 0%;
+    transition: background-position 0.8s ease-in-out;
+  }
+
+  .site-title h1:hover {
+    background-position: 100%;
+  }
+
+  .admin-button {
+    padding: 0.8rem 1.5rem;
+    background-color: transparent;
+    color: rgb(var(--accent));
+    text-decoration: none;
+    border: 2px solid rgb(var(--accent));
+    border-radius: 5px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+  }
+
+  .admin-button:hover {
+    background-color: rgb(var(--accent));
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(var(--accent), 0.4);
+  }
+</style>

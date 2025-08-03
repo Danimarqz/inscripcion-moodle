@@ -21,8 +21,8 @@ try {
 
 <Layout title="Welcome to OpositaTest">
 	<main>
-		<h1>Welcome to <span class="text-gradient">OpositaTest</span></h1>
-
+		<h1>Bienvenid@ a <span class="text-gradient">OpositaTest</span></h1>
+		<p>Elige tu examen:</p>
 		{error && <p class="error">{error}</p>}
 
 		<section class="exams-section">
@@ -45,6 +45,7 @@ try {
 
 <style>
 	main {
+		position: relative; /* Added for positioning the button */
 		margin: auto;
 		padding: 2rem;
 		width: 90%;
@@ -99,4 +100,6 @@ try {
     background-color: rgba(107, 255, 107, 0.1);
     border: 1px solid #6bff6b;
   }
+
+  
 </style>
