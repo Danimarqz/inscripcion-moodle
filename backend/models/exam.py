@@ -14,7 +14,6 @@ class ExamSubmission(BaseModel):
 class ExamOut(BaseModel):
     id: int
     name: str
-    description: str
 
     class Config:
         from_attributes = True
@@ -26,9 +25,9 @@ class QuestionStubOut(BaseModel):
         from_attributes = True
 
 class QuestionCreate(BaseModel):
+    text: str
     correct_option: str  # 'A', 'B', 'C' o 'D'
 
 class ExamCreateWithQuestions(BaseModel):
     name: str
-    description: str | None = None
     questions: List[QuestionCreate]

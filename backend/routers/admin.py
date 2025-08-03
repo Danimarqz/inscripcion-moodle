@@ -3,18 +3,33 @@ from sqlalchemy.orm import Session
 from db.database import SessionLocal, get_db
 from db.models import AdminUser, Exam, Question
 from models.exam import ExamCreateWithQuestions
-from services.auth.auth_service import authenticate_admin, get_current_admin_user, verify_password, create_access_token
-from models.admin import AdminLogin, TokenResponse
+from services.auth.auth_service import authenticate_admin, get_current_admin_user, get_password_hash, create_access_token
+from models.admin import AdminCreate, AdminLogin, TokenResponse
 
-router = APIRouter(prefix="/admin")
+router = APIRouter()
+
+@router.post("/create-admin", status_code=201)
+def create_admin(data: AdminCreate, db: Session = Depends(get_db)):
+    # Verificar si ya existe un administrador
+    if db.query(AdminUser).first():
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Ya existe un administrador")
+
+    # Crear el nuevo administrador
+    hashed_password = get_password_hash(data.password)
+    new_admin = AdminUser(username=data.username, password_hash=hashed_password)
+    db.add(new_admin)
+    db.commit()
+    db.refresh(new_admin)
+    return {"message": "Administrador creado con éxito"}
+
 
 @router.post("/login", response_model=TokenResponse)
 def login(data: AdminLogin, db: Session = Depends(get_db)):
-    admin = authenticate_admin(db, data.email, data.password)
+    admin = authenticate_admin(db, data.username, data.password)
     if not admin:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales inválidas")
 
-    token = create_access_token({"sub": admin.email})
+    token = create_access_token({"sub": admin.username})
     return {"access_token": token}
 
 @router.post("/exams", status_code=201)
@@ -29,7 +44,6 @@ def create_exam_with_answers(
 
     new_exam = Exam(
         name=exam_data.name,
-        description=exam_data.description
     )
     db.add(new_exam)
     db.flush()  # para obtener new_exam.id
