@@ -1,6 +1,8 @@
 export interface Exam {
   id: number;
   name: string;
+  is_active: boolean;
+  show_responses: boolean;
 }
 
 export interface Question {

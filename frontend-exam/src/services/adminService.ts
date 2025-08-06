@@ -28,26 +28,47 @@ export async function adminLogin(payload: AdminLoginPayload): Promise<TokenRespo
 
   return response.json();
 }
-
-export async function getExamsAdmin(token: string): Promise<Exam[]> {
-  const response = await fetch(`${API_URL}/exams`);
-
+export async function createExam(examData: Exam, token: string): Promise<Exam> {
+  const response = await fetch(`${API_URL}/exams`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(examData)
+  });
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(errorData.detail || 'Error al obtener exámenes');
+    throw new Error(errorData.detail || 'Error creating exam');
   }
-
   return response.json();
 }
 
-export function saveAuthToken(token: string) {
-  localStorage.setItem('admin_access_token', token);
+export async function editExam(examId: number, examData: Exam, token: string): Promise<Exam> {
+  const response = await fetch(`${API_URL}/exams/${examId}/edit`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(examData)
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.detail || 'Error editing exam');
+  }
+  return response.json();
 }
 
-export function getAuthToken(): string | null {
-  return localStorage.getItem('admin_access_token');
-}
-
-export function removeAuthToken() {
-  localStorage.removeItem('admin_access_token');
+export async function deleteExam(examId: number, token: string): Promise<void> {
+  const response = await fetch(`${API_URL}/exams/${examId}/delete`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    }
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.detail || 'Error deleting exam');
+  }
 }
