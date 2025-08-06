@@ -62,7 +62,7 @@ def create_exam_with_answers(
         "questions_count": len(new_exam.questions)
     }
 
-@router.post("/exams/{exam_id}/edit", status_code=200)
+@router.put("/exams/{exam_id}/edit", status_code=200)
 def edit_exam_with_answers(
     exam_id: int,
     exam_data: ExamEdit,
@@ -100,7 +100,7 @@ def edit_exam_with_answers(
         "questions_count": len(existing_exam.questions)
     }
 
-@router.post("/exams/{exam_id}/delete", status_code=200)
+@router.delete("/exams/{exam_id}/delete", status_code=200)
 def delete_exam(
     exam_id: int,
     db: Session = Depends(get_db),
