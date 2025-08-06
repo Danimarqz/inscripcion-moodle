@@ -75,7 +75,12 @@ export default function AdminDashboard() {
 ;
 
   return (
-    <>
+    <div className="admin-dashboard">
+      <div class="logout-container">
+        <button className="submit-button logout-button" onClick={handleLogout}>
+          Cerrar Sesión
+        </button>
+      </div>
       {error && <p className="error-message">Error: {error}</p>}
       <h2>Exámenes Disponibles</h2>
         <button className="submit-button" onClick={() => window.location.href = '/admin/exams/create'}>
@@ -96,9 +101,6 @@ export default function AdminDashboard() {
           ))}
         </ul>
       )}
-      <button className="submit-button" onClick={handleLogout}>
-        Cerrar Sesión
-      </button>
-    </>
+    </div>
   );
 }

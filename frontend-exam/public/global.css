@@ -1,0 +1,187 @@
+:root {
+  --accent: 136, 58, 234;
+  --accent-light: 224, 204, 250;
+  --accent-dark: 49, 10, 101;
+  --accent-gradient: linear-gradient(
+    45deg,
+    rgb(var(--accent)),
+    rgb(var(--accent-light)) 30%,
+    white 60%
+  );
+}
+
+html {
+  font-family: system-ui, sans-serif;
+  background: #13151a;
+  background-size: 224px;
+  color: white;
+}
+
+header {
+  background-color: #1a1c22;
+  padding: 1rem 2rem;
+  border-bottom: 1px solid #333;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  margin-bottom: 2rem;
+}
+
+.header-content {
+  max-width: 1000px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.site-title {
+  text-decoration: none;
+  color: white;
+}
+
+.site-title h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin: 0;
+  background-image: var(--accent-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-size: 400%;
+  background-position: 0%;
+  transition: background-position 0.8s ease-in-out;
+}
+
+.site-title h1:hover {
+  background-position: 100%;
+}
+
+.admin-button {
+  padding: 0.5rem 1.2rem;
+  background-color: transparent;
+  color: rgb(var(--accent));
+  text-decoration: none;
+  border: 2px solid rgb(var(--accent));
+  border-radius: 5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.admin-button:hover {
+  background-color: rgb(var(--accent));
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(var(--accent), 0.4);
+}
+
+/* Page Header */
+.page-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.page-header h1 {
+    font-size: 2.8rem;
+    color: rgb(var(--accent-light));
+    margin-bottom: 0.5rem;
+}
+
+.page-header p {
+    font-size: 1.2rem;
+    color: #a0aec0;
+}
+
+/* Admin Dashboard Styles */
+.admin-dashboard {
+  max-width: 1000px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background-color: #1a1c22;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+}
+
+.admin-dashboard h2 {
+  color: rgb(var(--accent-light));
+  border-bottom: 2px solid rgb(var(--accent));
+  padding-bottom: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.admin-dashboard .error-message {
+  color: #ff6b6b;
+  background-color: rgba(255, 107, 107, 0.1);
+  border: 1px solid #ff6b6b;
+  padding: 1rem;
+  border-radius: 5px;
+  margin-bottom: 1.5rem;
+}
+
+.admin-dashboard ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.admin-dashboard li {
+  background-color: #2a2d34;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1rem;
+  border-radius: 5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background-color 0.3s ease;
+}
+
+.admin-dashboard li:hover {
+  background-color: #3a3d44;
+}
+
+.admin-dashboard .submit-button,
+.admin-dashboard li button {
+  padding: 0.6rem 1.3rem;
+  background-color: rgb(var(--accent));
+  color: white;
+  text-decoration: none;
+  border: none;
+  border-radius: 5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.admin-dashboard .submit-button:hover,
+.admin-dashboard li button:hover {
+  background-color: rgb(var(--accent-dark));
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(var(--accent), 0.4);
+}
+
+.admin-dashboard li button.delete-button {
+  background-color: #ff6b6b;
+}
+
+.admin-dashboard li button.delete-button:hover {
+  background-color: #e04848;
+}
+
+.admin-dashboard .create-button-container {
+  margin-bottom: 1.5rem;
+  text-align: right;
+}
+
+/* Logout Button */
+.logout-container {
+    text-align: center;
+    margin-top: 2rem;
+}
+
+.logout-button {
+    background-color: #4a5568;
+}
+
+.logout-button:hover {
+    background-color: #2d3748;
+}

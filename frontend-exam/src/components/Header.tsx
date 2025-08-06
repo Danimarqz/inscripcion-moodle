@@ -3,14 +3,11 @@ import { getAuthToken } from './AdminDashboard';
 
 export default function Header() {
   const [authToken, setAuthToken] = useState<string | null>(null);
-  const [isAdminDashboard, setIsAdminDashboard] = useState(false);
 
   useEffect(() => {
-    setAuthToken(getAuthToken());
-    setIsAdminDashboard(window.location.pathname.startsWith('/admin/dashboard'));
+    setAuthToken(getAuthToken());;
   }, []);
 
-  if (isAdminDashboard) return null;
 
   return (
     <header>
