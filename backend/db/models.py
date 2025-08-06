@@ -9,17 +9,16 @@ class Exam(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String(255), nullable=False)
-    is_active = Column(Boolean, default=True)
-
-    questions = relationship('Question', back_populates='exam')
-    submissions = relationship('UserExamSubmission', back_populates='exam')
+    is_active = Column(Boolean, default=False)
+    show_response = Column(Boolean, default=False)
+    questions = relationship('Question', back_populates='exam', cascade="all, delete-orphan")
+    submissions = relationship('UserExamSubmission', back_populates='exam', cascade="all, delete-orphan")
 
 class Question(Base):
     __tablename__ = 'question'
 
     id = Column(Integer, primary_key=True)
     exam_id = Column(Integer, ForeignKey('exam.id'), nullable=False)
-    text = Column(String(1000), nullable=False)
     correct_option = Column(String(1), nullable=False)  # 'A', 'B', 'C', 'D'
 
     exam = relationship('Exam', back_populates='questions')
