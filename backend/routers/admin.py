@@ -115,6 +115,15 @@ def delete_exam(
 
     return {"detail": f"Examen {exam_id} eliminado correctamente."}
 
-@router.get("/auth/check-token")
+@router.get("/check-token")
 def check_token(user: AdminUser = Depends(get_current_admin_user)):
     return {"detail": "Token válido", "user": user.username}
+
+@router.get("/exams/{exam_id}", response_model=ExamEdit)
+def get_exam_by_id(
+    exam_id: int,
+    db: Session = Depends(get_db), 
+    admin: AdminUser = Depends(get_current_admin_user)
+):
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    return exam
