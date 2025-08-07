@@ -3,10 +3,6 @@ import { getExams } from '../services/examService';
 import { deleteExam } from '../services/adminService';
 import type { Exam } from '../types/exam';
 
-export function saveAuthToken(token: string) {
-  localStorage.setItem('admin_access_token', token);
-}
-
 export function getAuthToken(): string | null {
   return localStorage.getItem('admin_access_token');
 }
@@ -23,7 +19,7 @@ export default function AdminDashboard() {
   const rawToken = getAuthToken();
   if (!rawToken) {
     window.location.href = '/admin/login';
-    return;
+    return null;
   }
   const authToken: string = rawToken;
 
@@ -72,30 +68,36 @@ export default function AdminDashboard() {
   }
 
   if (loading) return <p>Cargando exámenes...</p>;
-;
 
   return (
     <div className="admin-dashboard">
-      <div class="logout-container">
+      <div className="logout-container">
         <button className="submit-button logout-button" onClick={handleLogout}>
           Cerrar Sesión
         </button>
       </div>
+
       {error && <p className="error-message">Error: {error}</p>}
+
       <h2>Exámenes Disponibles</h2>
-        <button className="submit-button" onClick={() => window.location.href = '/admin/exams/create'}>
-          Crear Nuevo Examen
-        </button>
+
+      <button
+        className="submit-button"
+        onClick={() => window.location.href = '/admin/exam/create'}
+      >
+        Crear Nuevo Examen
+      </button>
+
       {exams.length === 0 ? (
         <p>No hay exámenes disponibles.</p>
       ) : (
         <ul>
           {exams.map((exam: Exam) => (
             <li key={exam.id}>
-              {exam.name} (ID: {exam.id})
-              <button onClick={() => (window.location.href = `/admin/exams/${exam.id}/edit`)}>
+              {exam.name} (ID: {exam.id}){' '}
+              <button onClick={() => (window.location.href = `/admin/exam/${exam.id}/edit`)}>
                 Editar
-              </button>
+              </button>{' '}
               <button onClick={() => handleDelete(exam.id)}>Borrar</button>
             </li>
           ))}

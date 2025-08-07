@@ -1,4 +1,4 @@
-import type { Exam } from '../types/exam';
+import type { Exam, ExamCreateWithQuestions, ExamEdit } from '../types/exam';
 
 const API_URL = import.meta.env.PUBLIC_API_URL;
 
@@ -28,8 +28,9 @@ export async function adminLogin(payload: AdminLoginPayload): Promise<TokenRespo
 
   return response.json();
 }
-export async function createExam(examData: Exam, token: string): Promise<Exam> {
-  const response = await fetch(`${API_URL}/exams`, {
+export async function createExam(examData: ExamCreateWithQuestions, token: string): Promise<Exam> {
+  console.log(JSON.stringify(examData, null, 2));
+  const response = await fetch(`${API_URL}/admin/exams`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -44,8 +45,8 @@ export async function createExam(examData: Exam, token: string): Promise<Exam> {
   return response.json();
 }
 
-export async function editExam(examId: number, examData: Exam, token: string): Promise<Exam> {
-  const response = await fetch(`${API_URL}/exams/${examId}/edit`, {
+export async function editExam(examId: number, examData: ExamEdit, token: string): Promise<Exam> {
+  const response = await fetch(`${API_URL}/admin/exams/${examId}/edit`, {
     method: 'PUT',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -61,7 +62,7 @@ export async function editExam(examId: number, examData: Exam, token: string): P
 }
 
 export async function deleteExam(examId: number, token: string): Promise<void> {
-  const response = await fetch(`${API_URL}/exams/${examId}/delete`, {
+  const response = await fetch(`${API_URL}/admin/exams/${examId}/delete`, {
     method: 'DELETE',
     headers: {
       'Authorization': `Bearer ${token}`,

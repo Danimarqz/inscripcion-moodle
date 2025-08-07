@@ -27,7 +27,7 @@ class QuestionStubOut(BaseModel):
         from_attributes = True
 
 class QuestionCreate(BaseModel):
-    text: str
+    # text: str
     correct_option: str  # 'A', 'B', 'C' o 'D'
 
 class ExamCreateWithQuestions(BaseModel):
@@ -38,7 +38,7 @@ class ExamCreateWithQuestions(BaseModel):
 
 class QuestionEdit(BaseModel):
     id: Optional[int] = None
-    text: Optional[str] = None
+    # text: Optional[str] = None
     correct_option: str
 
 class ExamEdit(BaseModel):

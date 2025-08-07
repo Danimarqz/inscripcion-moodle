@@ -13,8 +13,8 @@
 html {
   font-family: system-ui, sans-serif;
   background: #13151a;
-  background-size: 224px;
   color: white;
+  scroll-behavior: smooth;
 }
 
 header {
@@ -50,7 +50,6 @@ header {
   background-position: 0%;
   transition: background-position 0.8s ease-in-out;
 }
-
 .site-title h1:hover {
   background-position: 100%;
 }
@@ -59,15 +58,14 @@ header {
   padding: 0.5rem 1.2rem;
   background-color: transparent;
   color: rgb(var(--accent));
-  text-decoration: none;
   border: 2px solid rgb(var(--accent));
   border-radius: 5px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
   white-space: nowrap;
+  text-decoration: none;
 }
-
 .admin-button:hover {
   background-color: rgb(var(--accent));
   color: white;
@@ -75,83 +73,71 @@ header {
   box-shadow: 0 4px 10px rgba(var(--accent), 0.4);
 }
 
-/* Page Header */
-.page-header {
-    text-align: center;
-    margin-bottom: 2rem;
-}
-
-.page-header h1 {
-    font-size: 2.8rem;
-    color: rgb(var(--accent-light));
-    margin-bottom: 0.5rem;
-}
-
-.page-header p {
-    font-size: 1.2rem;
-    color: #a0aec0;
-}
-
-/* Admin Dashboard Styles */
-.admin-dashboard {
-  max-width: 1000px;
-  margin: 2rem auto;
+/* Main layout */
+main {
+  position: relative;
+  margin: auto;
   padding: 2rem;
+  width: 90%;
+  max-width: 1000px;
+  color: white;
+  font-size: 1.1rem;
+  line-height: 1.6;
   background-color: #1a1c22;
-  border-radius: 8px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
-.admin-dashboard h2 {
+/* Headings */
+h1 {
+  font-size: 3rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 2rem;
   color: rgb(var(--accent-light));
-  border-bottom: 2px solid rgb(var(--accent));
-  padding-bottom: 0.5rem;
-  margin-bottom: 1.5rem;
+  text-shadow: 0 0 15px rgba(var(--accent), 0.7);
 }
 
-.admin-dashboard .error-message {
-  color: #ff6b6b;
-  background-color: rgba(255, 107, 107, 0.1);
-  border: 1px solid #ff6b6b;
-  padding: 1rem;
-  border-radius: 5px;
-  margin-bottom: 1.5rem;
+.page-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+.page-header h1 {
+  font-size: 2.8rem;
+  color: rgb(var(--accent-light));
+  margin-bottom: 0.5rem;
+}
+.page-header p {
+  font-size: 1.2rem;
+  color: #a0aec0;
 }
 
-.admin-dashboard ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.admin-dashboard li {
-  background-color: #2a2d34;
-  padding: 1rem 1.5rem;
-  margin-bottom: 1rem;
-  border-radius: 5px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  transition: background-color 0.3s ease;
-}
-
-.admin-dashboard li:hover {
-  background-color: #3a3d44;
-}
-
+/* Buttons and links */
+.submit-button,
 .admin-dashboard .submit-button,
 .admin-dashboard li button {
   padding: 0.6rem 1.3rem;
   background-color: rgb(var(--accent));
   color: white;
-  text-decoration: none;
   border: none;
   border-radius: 5px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  text-decoration: none;
+  display: inline-block;
+  width: auto;
 }
 
+.submit-button {
+  display: block;
+  width: 100%;
+  font-size: 1.2rem;
+  font-weight: bold;
+  margin-top: 2rem;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+.submit-button:hover,
 .admin-dashboard .submit-button:hover,
 .admin-dashboard li button:hover {
   background-color: rgb(var(--accent-dark));
@@ -162,26 +148,280 @@ header {
 .admin-dashboard li button.delete-button {
   background-color: #ff6b6b;
 }
-
 .admin-dashboard li button.delete-button:hover {
   background-color: #e04848;
 }
 
+.back-button {
+  display: inline-block;
+  margin-bottom: 1.5rem;
+  color: rgb(var(--accent-light));
+  text-decoration: none;
+  font-weight: bold;
+  padding: 0.5rem 1rem;
+  border: 1px solid rgb(var(--accent-light));
+  border-radius: 5px;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+.back-button:hover {
+  background-color: rgb(var(--accent-light));
+  color: #1a1c22;
+}
+
+/* Admin dashboard */
+.admin-dashboard {
+  max-width: 1000px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background-color: #1a1c22;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+}
+.admin-dashboard h2 {
+  color: rgb(var(--accent-light));
+  border-bottom: 2px solid rgb(var(--accent));
+  padding-bottom: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+.admin-dashboard ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.admin-dashboard li {
+  background-color: #2a2d34;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1rem;
+  border-radius: 5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background-color 0.3s ease;
+}
+.admin-dashboard li:hover {
+  background-color: #3a3d44;
+}
+.admin-dashboard .error-message {
+  color: #ff6b6b;
+  background-color: rgba(255, 107, 107, 0.1);
+  border: 1px solid #ff6b6b;
+  padding: 1rem;
+  border-radius: 5px;
+  margin-bottom: 1.5rem;
+}
 .admin-dashboard .create-button-container {
   margin-bottom: 1.5rem;
   text-align: right;
 }
 
-/* Logout Button */
+/* Logout */
 .logout-container {
-    text-align: center;
-    margin-top: 2rem;
+  text-align: center;
+  margin-top: 2rem;
 }
-
 .logout-button {
-    background-color: #4a5568;
+  background-color: #4a5568;
+  cursor: pointer;
+  border: none;
+  padding: 0.5rem 1.2rem;
+  border-radius: 5px;
+  color: white;
+  transition: background-color 0.3s ease;
+}
+.logout-button:hover {
+  background-color: #2d3748;
 }
 
-.logout-button:hover {
-    background-color: #2d3748;
+/* Forms */
+.form-group {
+  margin-bottom: 1.5rem;
+}
+.form-group label {
+  display: block;
+  margin-bottom: 0.6rem;
+  font-weight: bold;
+  color: rgb(var(--accent));
+}
+.form-group input[type="email"],
+.form-group input[type="text"],
+.form-group input[type="password"] {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #444;
+  border-radius: 5px;
+  background-color: #2a2d33;
+  color: white;
+  font-size: 1rem;
+  box-sizing: border-box;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.form-group input[type="email"]:focus,
+.form-group input[type="text"]:focus,
+.form-group input[type="password"]:focus {
+  outline: none;
+  border-color: rgb(var(--accent-light));
+  box-shadow: 0 0 0 3px rgba(var(--accent-light), 0.3);
+}
+
+/* Questions */
+.question-block {
+  background-color: #2a2d33;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+.question-text {
+  font-size: 1.2rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+  color: rgb(var(--accent-light));
+}
+
+/* Options list */
+.options-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.options-list li {
+  margin-bottom: 0.8rem;
+}
+.options-list input[type="radio"] {
+  margin-right: 0.8rem;
+  transform: scale(1.2);
+}
+.options-list label {
+  color: #e0e0e0;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+/* Messages */
+.error-message,
+.info-message {
+  text-align: center;
+  font-size: 1.2rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 8px;
+  user-select: text;
+}
+.error-message {
+  color: #ff6b6b;
+  background-color: rgba(255, 107, 107, 0.1);
+  border: 1px solid #ff6b6b;
+}
+.info-message {
+  color: #6bff6b;
+  background-color: rgba(107, 255, 107, 0.1);
+  border: 1px solid #6bff6b;
+}
+.exam-form {
+  max-width: 700px;
+  margin: auto;
+  color: white;
+  font-family: system-ui, sans-serif;
+}
+
+.error-message {
+  background-color: rgba(255, 107, 107, 0.2);
+  color: #ff6b6b;
+  padding: 10px;
+  border-radius: 5px;
+  margin-bottom: 1rem;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 1rem;
+  font-weight: bold;
+  color: rgb(var(--accent));
+}
+
+.form-input,
+.form-select {
+  width: 100%;
+  padding: 8px;
+  border-radius: 5px;
+  border: 1px solid #444;
+  background-color: #2a2d33;
+  color: white;
+  box-sizing: border-box;
+}
+
+.form-checkbox-label {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1rem;
+  font-weight: bold;
+  color: rgb(var(--accent));
+  cursor: pointer;
+}
+
+.form-checkbox {
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+
+.question-fieldset {
+  border: 1px solid #444;
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+.question-block {
+  background-color: #2a2d33;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.question-text-input {
+  margin-bottom: 0.5rem;
+}
+
+.delete-question-button {
+  margin-top: 0.5rem;
+  background-color: #ff6b6b;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.delete-question-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.add-question-button {
+  background-color: rgb(var(--accent));
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 10px 15px;
+  cursor: pointer;
+  margin-top: 1rem;
+}
+
+.submit-button {
+  margin-top: 1.5rem;
+  width: 100%;
+  background-color: rgb(var(--accent));
+  color: white;
+  font-weight: bold;
+  font-size: 1.1rem;
+  padding: 12px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.submit-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
 }

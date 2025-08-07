@@ -1,89 +1,55 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import Card from '../components/Card.astro';
-import { getExams } from '../services/examService';
-import type { Exam } from '../types/exam';
-
-let exams: Exam[] = [];
-let error: string | null = null;
-
-try {
-  exams = await getExams();
-  if (!Array.isArray(exams)) {
-    exams = [];
-    throw new Error('La respuesta de la API no es un array de exámenes.');
-  }
-} catch (e) {
-  console.error('Error fetching exams:', e);
-  error = 'No se pudieron cargar los exámenes. Por favor, inténtalo de nuevo más tarde.';
-}
+import IndexPage from '../components/IndexPage.tsx';
 ---
 
 <Layout title="Welcome to OpositaTest">
-	<main>
-		<h1>Bienvenid@ a <span class="text-gradient">OpositaTest</span></h1>
-		<p>Elige tu examen:</p>
-		{error && <p class="error">{error}</p>}
-
-		<section class="exams-section">
-			{exams.length === 0 && !error ? (
-				<p class="no-exams">No hay exámenes disponibles en este momento.</p>
-			) : (
-				<ul role="list" class="link-card-grid">
-					{exams.map((exam) => (
-						<Card
-							href={`/exam/${exam.id}`}
-							title={exam.name}
-							body="Comienza tu examen de oposición."
-						/>
-					))}
-				</ul>
-			)}
-		</section>
-	</main>
+  <main>
+    <IndexPage client:load />
+  </main>
 </Layout>
 
 <style>
-	main {
-		position: relative; /* Added for positioning the button */
-		margin: auto;
-		padding: 2rem;
-		width: 90%;
-		max-width: 1000px;
-		color: white;
-		font-size: 1.1rem;
-		line-height: 1.6;
-		background-color: #1a1c22;
-		border-radius: 10px;
-		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-	}
-	h1 {
-		font-size: 3.5rem;
-		font-weight: 800;
-		line-height: 1.1;
-		text-align: center;
-		margin-bottom: 1.5em;
-		text-shadow: 0 0 15px rgba(var(--accent), 0.7);
-	}
-	.text-gradient {
-		background-image: var(--accent-gradient);
-		-webkit-background-clip: text;
-		-webkit-text-fill-color: transparent;
-		background-size: 400%;
-		background-position: 0%;
-		transition: background-position 0.8s ease-in-out;
-	}
-	.text-gradient:hover {
-		background-position: 100%;
-	}
-	.link-card-grid {
-		width: 100%;
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-		gap: 2rem;
-		padding: 0;
-		list-style: none;
-	}
+  main {
+    position: relative; /* Para posicionar el botón o lo que quieras */
+    margin: auto;
+    padding: 2rem;
+    width: 90%;
+    max-width: 1000px;
+    color: white;
+    font-size: 1.1rem;
+    line-height: 1.6;
+    background-color: #1a1c22;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  }
+  h1 {
+    font-size: 3.5rem;
+    font-weight: 800;
+    line-height: 1.1;
+    text-align: center;
+    margin-bottom: 1.5em;
+    text-shadow: 0 0 15px rgba(var(--accent), 0.7);
+  }
+  .text-gradient {
+    background-image: var(--accent-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-size: 400%;
+    background-position: 0%;
+    transition: background-position 0.8s ease-in-out;
+  }
+  .text-gradient:hover {
+    background-position: 100%;
+  }
+  .link-card-grid {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 2rem;
+    padding: 0;
+    list-style: none;
+  }
   .error,
   .no-exams {
     color: #ff6b6b;
@@ -100,6 +66,4 @@ try {
     background-color: rgba(107, 255, 107, 0.1);
     border: 1px solid #6bff6b;
   }
-
-  
 </style>
