@@ -2,9 +2,9 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from db.database import SessionLocal, get_db
+from db.database import get_db
 from db.models import Exam
-from models.exam import AnswerSubmission, ExamOut, ExamSubmission, QuestionStubOut
+from models.exam import ExamOut, ExamSubmission, QuestionStubOut
 from rate_limiter import check_rate_limit
 from services.exam.submit_exam import process_exam_submission
 

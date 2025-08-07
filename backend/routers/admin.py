@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from db.database import SessionLocal, get_db
+from db.database import get_db
 from db.models import AdminUser, Exam, Question
 from models.exam import ExamCreateWithQuestions, ExamEdit
 from services.auth.auth_service import authenticate_admin, get_current_admin_user, get_password_hash, create_access_token
@@ -114,3 +114,7 @@ def delete_exam(
     db.commit()
 
     return {"detail": f"Examen {exam_id} eliminado correctamente."}
+
+@router.get("/auth/check-token")
+def check_token(user: AdminUser = Depends(get_current_admin_user)):
+    return {"detail": "Token válido", "user": user.username}
