@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import Card from './Card.astro';
+import Card from './Card';
 import type { Exam } from '../types/exam';
 import { getExams } from '../services/examService';
 
@@ -43,7 +43,6 @@ export default function IndexPage() {
           <ul role="list" class="link-card-grid">
             {exams.map((exam) => (
               <Card
-                key={exam.id}
                 href={`/exam/${exam.id}`}
                 title={exam.name}
                 body="Comienza tu examen de oposición."

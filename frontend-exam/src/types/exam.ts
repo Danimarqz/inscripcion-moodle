@@ -1,8 +1,8 @@
 export type Exam = {
   id: number;
   name: string;
-  is_active: boolean;
-  show_response: boolean;
+  score?: number;
+  percentile?: number;
 }
 
 export type Question = {
@@ -45,6 +45,7 @@ export type QuestionEdit = {
 }
 
 export type ExamEdit = {
+  id?: number;
   name?: string;
   is_active?: boolean;
   show_response?: boolean;

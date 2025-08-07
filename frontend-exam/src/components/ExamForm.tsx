@@ -1,27 +1,51 @@
-import { useState } from 'preact/hooks';
+import { useState, useEffect } from 'preact/hooks';
 import type {
   ExamCreateWithQuestions,
   ExamEdit,
   QuestionCreate,
   QuestionEdit,
 } from '../types/exam';
-import { getAuthToken } from '../components/AdminDashboard'; // IMPORTA desde donde está definido
-import { createExam, editExam } from '../services/adminService';
+import { getAuthToken } from '../components/AdminDashboard';
+import { createExam, editExam, getExamById } from '../services/adminService';
 
 interface ExamFormProps {
-  examToEdit?: ExamEdit & { id: number };
-  onSuccess: (examId: number) => void;
+  examId?: number;
 }
 
-export default function ExamForm({ examToEdit, onSuccess }: ExamFormProps) {
-  const [name, setName] = useState(examToEdit?.name ?? '');
-  const [isActive, setIsActive] = useState(examToEdit?.is_active ?? false);
-  const [showResponse, setShowResponse] = useState(examToEdit?.show_response ?? false);
-  const [questions, setQuestions] = useState<(QuestionCreate | QuestionEdit)[]>(() =>
-    examToEdit?.questions.length ? examToEdit.questions : [{ text: '', correct_option: 'A' }]
-  );
+export default function ExamForm({ examId }: ExamFormProps) {
+  const [examToEdit, setExamToEdit] = useState<ExamEdit | null>(null);
+  const [name, setName] = useState('');
+  const [isActive, setIsActive] = useState(false);
+  const [showResponse, setShowResponse] = useState(false);
+  const [questions, setQuestions] = useState<(QuestionCreate | QuestionEdit)[]>([{ correct_option: 'A' }]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  
+  useEffect(() => {
+    const token = getAuthToken();
+    console.log(token)
+    if (!token) {
+        setError('No autorizado: token no disponible.');
+        return;
+    }
+    setAuthToken(token);
+    console.log(examId, token)
+    if (!examId || !token) return;
+    async function fetchExam() {
+      try {
+        const examData = await getExamById(examId as number, token as string);
+        setExamToEdit(examData);
+        setName(examData.name ? examData.name : 'Nombre temporal');
+        setIsActive(examData.is_active ? examData.is_active : false);
+        setShowResponse(examData.show_response ? examData.show_response : false);
+        setQuestions(examData.questions.length ? examData.questions : [{ correct_option: 'A' }]);
+      } catch {
+        setError('No se pudo cargar el examen para editar.');
+      }
+    }
+    fetchExam();
+  }, [examId]);
 
   function updateQuestion(index: number, field: keyof QuestionCreate | keyof QuestionEdit, value: string) {
     setQuestions((qs) => {
@@ -38,6 +62,7 @@ export default function ExamForm({ examToEdit, onSuccess }: ExamFormProps) {
   function removeQuestion(index: number) {
     setQuestions((qs) => qs.filter((_, i) => i !== index));
   }
+
   async function handleSubmit(e: Event) {
     e.preventDefault();
     setError(null);
@@ -55,12 +80,6 @@ export default function ExamForm({ examToEdit, onSuccess }: ExamFormProps) {
       return;
     }
 
-    const token = getAuthToken();
-    if (!token) {
-      setError('No autorizado: token no disponible.');
-      return;
-    }
-
     setLoading(true);
 
     try {
@@ -71,21 +90,24 @@ export default function ExamForm({ examToEdit, onSuccess }: ExamFormProps) {
         questions: questions.map((q) => ({
           id: 'id' in q ? q.id : undefined,
           correct_option: q.correct_option.toUpperCase(),
+          text: 'text' in q ? q.text : '', // Asegurar que text se pase también si es necesario
         })),
       };
-    let data;
-    if (examToEdit) {
-      data = await editExam(examToEdit.id, body, token);
-    } else {
-      data = await createExam(body as ExamCreateWithQuestions, token);
-    }
 
-    onSuccess(data.id);
-  } catch (err) {
-    setError((err as Error).message || 'Error desconocido');
-  } finally {
-    setLoading(false);
-  }
+      let data;
+      if (!authToken) return window.location.href = '/admin';
+      if (examToEdit && examId) {
+        data = await editExam(examId, body, authToken);
+      } else {
+        data = await createExam(body as ExamCreateWithQuestions, authToken);
+      }
+
+      window.location.href = '/admin';
+    } catch (err) {
+      setError((err as Error).message || 'Error desconocido');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -102,6 +124,7 @@ export default function ExamForm({ examToEdit, onSuccess }: ExamFormProps) {
           onInput={(e) => setName((e.target as HTMLInputElement).value)}
           required
           className="form-input"
+          disabled={loading}
         />
       </label>
 
@@ -111,6 +134,7 @@ export default function ExamForm({ examToEdit, onSuccess }: ExamFormProps) {
           checked={isActive}
           onChange={(e) => setIsActive(e.currentTarget.checked)}
           className="form-checkbox"
+          disabled={loading}
         />
         Activo
       </label>
@@ -121,11 +145,12 @@ export default function ExamForm({ examToEdit, onSuccess }: ExamFormProps) {
           checked={showResponse}
           onChange={(e) => setShowResponse(e.currentTarget.checked)}
           className="form-checkbox"
+          disabled={loading}
         />
         Mostrar respuestas
       </label>
 
-      <fieldset className="question-fieldset">
+      <fieldset className="question-fieldset" disabled={loading}>
         <legend>Preguntas</legend>
         {questions.map((q, i) => (
           <div key={i} className="question-block">
@@ -135,6 +160,7 @@ export default function ExamForm({ examToEdit, onSuccess }: ExamFormProps) {
                 value={q.correct_option.toUpperCase()}
                 onChange={(e) => updateQuestion(i, 'correct_option', e.currentTarget.value)}
                 className="form-select"
+                disabled={loading}
               >
                 <option value="A">A</option>
                 <option value="B">B</option>
@@ -145,7 +171,7 @@ export default function ExamForm({ examToEdit, onSuccess }: ExamFormProps) {
             <button
               type="button"
               onClick={() => removeQuestion(i)}
-              disabled={questions.length === 1}
+              disabled={questions.length === 1 || loading}
               className="delete-question-button"
               aria-label={`Eliminar pregunta ${i + 1}`}
             >
@@ -153,7 +179,7 @@ export default function ExamForm({ examToEdit, onSuccess }: ExamFormProps) {
             </button>
           </div>
         ))}
-        <button type="button" onClick={addQuestion} className="add-question-button">
+        <button type="button" onClick={addQuestion} className="add-question-button" disabled={loading}>
           Añadir pregunta
         </button>
       </fieldset>

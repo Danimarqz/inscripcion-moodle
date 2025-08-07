@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { getExams } from '../services/examService';
-import { deleteExam } from '../services/adminService';
+import { deleteExam, validateAdminToken } from '../services/adminService';
 import type { Exam } from '../types/exam';
 
 export function getAuthToken(): string | null {
@@ -23,29 +23,34 @@ export default function AdminDashboard() {
   }
   const authToken: string = rawToken;
 
-  useEffect(() => {
+useEffect(() => {
+  async function initialize() {
+    console.log(authToken)
     if (!authToken) {
       window.location.href = '/admin/login';
       return;
     }
 
-    async function fetchExams() {
-      try {
-        const data = await getExams();
-        setExams(data);
-      } catch (e: unknown) {
-        if (e instanceof Error) {
-          setError(e.message);
-        } else {
-          setError(String(e));
-        }
-      } finally {
-        setLoading(false);
-      }
+    const isValid = await validateAdminToken(authToken);
+    if (!isValid) {
+      removeAuthToken();
+      window.location.href = '/admin/login';
+      return;
     }
 
-    fetchExams();
-  }, []);
+    try {
+      const data = await getExams();
+      setExams(data);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  initialize();
+}, []);
+
 
   async function handleDelete(id: number) {
     if (!confirm('¿Seguro que quieres borrar?')) return;

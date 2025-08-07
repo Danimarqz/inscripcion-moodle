@@ -2,13 +2,9 @@
 import ExamForm from '../../../components/ExamForm.tsx';
 import Layout from '../../../layouts/Layout.astro';
 
-const { examToEdit } = Astro.props;
-
-function onSuccess(examId: number) {
-  window.location.href = `/admin`;
-}
+const { id } = Astro.props.params;
 ---
 
 <Layout title="Crear o editar examen">
-  <ExamForm client:load examToEdit={examToEdit} onSuccess={onSuccess} />
+  <ExamForm client:load examId={parseInt(id)}/>
 </Layout>

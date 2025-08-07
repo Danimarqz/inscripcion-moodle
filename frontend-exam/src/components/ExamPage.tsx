@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { Answer, Question, ExamSubmissionPayload } from '../types/exam';
+import { getQuestions, submitExam } from '../services/examService';
 
 interface ExamPageProps {
   examId: number;
@@ -14,10 +15,8 @@ export default function ExamPage({ examId, examName }: ExamPageProps) {
   useEffect(() => {
     async function fetchQuestions() {
       try {
-        const res = await fetch(`/api/exams/${examId}/questions`);
-        if (!res.ok) throw new Error('Error al cargar las preguntas.');
-        const data = await res.json() as { exam_name: string; questions: Question[] };
-        setQuestions(data.questions);
+        const data = await getQuestions(examId);
+        setQuestions(data);
       } catch (error) {
         setErrorMessage((error as Error).message);
       } finally {
@@ -70,16 +69,9 @@ export default function ExamPage({ examId, examName }: ExamPageProps) {
     };
 
     try {
-      const res = await fetch('/api/exams/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error('Error al entregar el examen.');
+      const result = await submitExam(payload);
 
-      const result = await res.json();
-
-      alert(`Examen entregado. ${result.message}. Tu puntuación es: ${result.score}. Percentil: ${result.percentile || 'N/A'}`);
+      alert(`Examen entregado. ${result.message}. Tu puntuación es: ${result.score || 'Procesando'}. Percentil: ${result.percentile || 'N/A'}`);
       window.location.href = '/';
     } catch (error) {
       setErrorMessage((error as Error).message);

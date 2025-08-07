@@ -73,3 +73,26 @@ export async function deleteExam(examId: number, token: string): Promise<void> {
     throw new Error(errorData.detail || 'Error deleting exam');
   }
 }
+export async function validateAdminToken(token: string): Promise<boolean> {
+  const response = await fetch(`${API_URL}/admin/check-token`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return response.ok;
+}
+
+export async function getExamById(examId: number, token: string): Promise<ExamEdit> {
+  const response = await fetch(`${API_URL}/admin/exams/${examId}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    }
+  });
+  if (!response.ok) {
+    throw new Error('Error fetching exams');
+  }
+  return await response.json();
+}
