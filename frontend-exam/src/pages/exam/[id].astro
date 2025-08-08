@@ -6,7 +6,7 @@ import { getExams } from '../../services/examService';
 
 export async function getStaticPaths() {
   const exams: Exam[] = await getExams();
-
+  console.log(exams)
   return exams.map((exam) => ({
     params: { id: exam.id.toString() },
     props: { examName: exam.name, showResponse: exam.show_response || false },

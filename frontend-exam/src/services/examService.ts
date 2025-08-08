@@ -42,7 +42,7 @@ export async function checkSubmission(payload: UserSubmissionCheck): Promise<Exa
     },
     body: JSON.stringify(payload),
   });
-
+  console.log(await response.json())
   if (!response.ok) {
     let errorMsg = 'Error al consultar resultados';
     try {

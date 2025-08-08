@@ -51,7 +51,9 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
     setScore(null);
     setPercentile(null);
 
-    if (!showResponse || !isValidEmail(email) || !isValidDni(dni)) return;
+    console.log('checkUserSubmission called', { showResponse, email, dni });
+
+    if (!isValidEmail(email) || !isValidDni(dni)) return;
 
     setCheckingResult(true);
     try {
@@ -116,12 +118,7 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
 
   if (loading) return <main>Cargando preguntas...</main>;
 
-  if (errorMessage)
-    return (
-      <main>
-        <p className="error-message">{errorMessage}</p>
-      </main>
-    );
+  
 
   if (questions.length === 0)
     return (
@@ -132,12 +129,12 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
 
   return (
     <main>
-      <a href="/" className="back-button">&larr; Volver a la selección de examen</a>
-      <h1>{examName}</h1>
+      <a href="/" className="inline-block mb-6 px-4 py-2 font-bold text-purple-300 border border-purple-300 rounded-md no-underline transition-colors duration-300 ease-in-out hover:bg-purple-300 hover:text-[#1a1c22]">&larr; Volver a la selección de examen</a>
+      <h1 className="text-5xl font-extrabold leading-tight text-center mb-12 text-purple-300 shadow-purple-500/50">{examName}</h1>
 
       <form id="exam-form" onSubmit={handleSubmit} noValidate>
-        <div className="form-group">
-          <label htmlFor="email">Email:</label>
+        <div className="mb-6">
+          <label htmlFor="email" className="block font-bold text-purple-500 mb-2">Email:</label>
           <input
             type="email"
             id="email"
@@ -146,11 +143,12 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
             value={email}
             onInput={e => setEmail((e.target as HTMLInputElement).value)}
             onBlur={checkUserSubmission}
+            className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
           />
         </div>
 
-        <div className="form-group">
-          <label htmlFor="dni">DNI:</label>
+        <div className="mb-6">
+          <label htmlFor="dni" className="block font-bold text-purple-500 mb-2">DNI:</label>
           <input
             type="text"
             id="dni"
@@ -161,45 +159,50 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
             value={dni}
             onInput={e => setDni((e.target as HTMLInputElement).value.toUpperCase())}
             onBlur={checkUserSubmission}
+            className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
           />
         </div>
 
         {questions.map((question, index) => (
-          <div className="question-block" key={question.id}>
-            <p className="question-text">Pregunta {index + 1}</p>
-            <ul className="options-list">
+          <div className="bg-[#2a2d33] p-6 mb-4 rounded-lg shadow-lg" key={question.id}>
+            <p className="font-bold text-lg mb-4">Pregunta {index + 1}</p>
+            <ul className="list-none p-0 m-0 flex flex-wrap gap-4">
               {options.map((optionChar) => (
-                <li key={optionChar}>
+                <li key={optionChar} className="mb-0">
                   <input
                     type="radio"
                     name={`question-${question.id}`}
                     value={optionChar}
                     id={`option-${question.id}-${optionChar}`}
                     required
+                    className="mr-2 transform scale-125"
                   />
-                  <label htmlFor={`option-${question.id}-${optionChar}`}>{optionChar}</label>
+                  <label htmlFor={`option-${question.id}-${optionChar}`} className="text-gray-300 text-lg cursor-pointer">{optionChar}</label>
                 </li>
               ))}
             </ul>
           </div>
         ))}
 
-        <button type="submit" className="submit-button">
+        <button type="submit" className="w-full py-3 text-lg font-bold mt-8 rounded-md bg-purple-600 hover:bg-purple-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed">
           Entregar Examen
         </button>
+        {errorMessage && (
+          <p className="text-center text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mt-6">{errorMessage}</p>
+        )}
       </form>
 
       {showResponse && (
-        <section className="results-section">
-          <h2>Resultados</h2>
+        <section className="mt-12">
+          <h2 className="text-3xl font-bold mb-6">Resultados</h2>
           {checkingResult && <p>Comprobando resultados...</p>}
           {!checkingResult && score !== null && percentile !== null && (
-            <p>
+            <p className="text-xl">
               Tu puntuación: <strong>{score}</strong> <br />
               Percentil: <strong>{percentile}</strong>
             </p>
           )}
-          {!checkingResult && resultError && <p className="error-message">{resultError}</p>}
+          {!checkingResult && resultError && <p className="text-center text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md">{resultError}</p>}
         </section>
       )}
     </main>

@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from db.models import Question, UserExamSubmission, UserAnswer
+from db.models import Exam, Question, UserExamSubmission, UserAnswer
 from models.exam import ExamSubmission
 from typing import List
 
@@ -16,7 +16,7 @@ def process_exam_submission(data: ExamSubmission, db: Session):
 
     questions = db.query(Question).filter(Question.exam_id == data.exam_id).all()
     questions_dict = {q.id: q for q in questions}
-
+    exam = db.query(Exam).filter(Exam.id == data.exam_id).first()
     correct_count = 0
     for ans in data.answers:
         question = questions_dict.get(ans.question_id)
@@ -51,5 +51,7 @@ def process_exam_submission(data: ExamSubmission, db: Session):
     percentile = calculate_percentile(score, all_scores)
     submission.percentile = percentile
     db.commit()
-
-    return {"score": score, "percentile": percentile, "message": "Examen enviado correctamente"}
+    if exam.show_response:
+        return {"score": score, "percentile": percentile, "message": "Examen enviado correctamente"}
+    else:
+        return {"message": "Examen enviado correctamente"}

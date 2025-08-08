@@ -1,10 +1,8 @@
 ---
 import ExamForm from '../../../components/ExamForm.tsx';
 import Layout from '../../../layouts/Layout.astro';
-
-const { id } = Astro.props.params;
 ---
 
 <Layout title="Crear o editar examen">
-  <ExamForm client:load examId={parseInt(id)}/>
+  <ExamForm client:load />
 </Layout>

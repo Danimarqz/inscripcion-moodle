@@ -75,35 +75,47 @@ useEffect(() => {
   if (loading) return <p>Cargando exámenes...</p>;
 
   return (
-    <div className="admin-dashboard">
-      <div className="logout-container">
-        <button className="submit-button logout-button" onClick={handleLogout}>
+    <div className="max-w-4xl mx-auto my-8 p-8 bg-[#1a1c22] rounded-lg shadow-2xl text-white">
+      <div className="text-center mt-8">
+        <button className="bg-gray-700 border-none py-2 px-5 rounded text-white cursor-pointer transition-colors duration-300 hover:bg-gray-800" onClick={handleLogout}>
           Cerrar Sesión
         </button>
       </div>
 
-      {error && <p className="error-message">Error: {error}</p>}
+      {error && <p className="text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md my-6">Error: {error}</p>}
 
-      <h2>Exámenes Disponibles</h2>
+      <h2 className="text-purple-300 border-b-2 border-purple-500 pb-2 mb-6">Exámenes Disponibles</h2>
 
-      <button
-        className="submit-button"
-        onClick={() => window.location.href = '/admin/exam/create'}
-      >
-        Crear Nuevo Examen
-      </button>
+      <div className="mb-6 text-right">
+        <button
+          className="py-2 px-5 rounded font-semibold cursor-pointer transition-all duration-300 no-underline inline-block border-none text-white bg-purple-600 hover:bg-purple-700 hover:shadow-lg hover:-translate-y-0.5"
+          onClick={() => window.location.href = '/admin/exam/create'}
+        >
+          Crear Nuevo Examen
+        </button>
+      </div>
 
       {exams.length === 0 ? (
         <p>No hay exámenes disponibles.</p>
       ) : (
-        <ul>
+        <ul className="list-none p-0 m-0">
           {exams.map((exam: Exam) => (
-            <li key={exam.id}>
-              {exam.name} (ID: {exam.id}){' '}
-              <button onClick={() => (window.location.href = `/admin/exam/${exam.id}/edit`)}>
-                Editar
-              </button>{' '}
-              <button onClick={() => handleDelete(exam.id)}>Borrar</button>
+            <li key={exam.id} className="bg-[#2a2d34] p-4 my-4 rounded flex justify-between items-center transition-colors duration-300 hover:bg-[#3a3d44]">
+              <span>{exam.name} (ID: {exam.id})</span>
+              <div>
+                <button
+                  className="py-2 px-5 rounded font-semibold cursor-pointer transition-all duration-300 no-underline inline-block border-none text-white bg-purple-600 hover:bg-purple-700 hover:shadow-lg hover:-translate-y-0.5"
+                  onClick={() => (window.location.href = `/admin/exam/${exam.id}/edit`)}
+                >
+                  Editar
+                </button>
+                <button
+                  className="py-2 px-5 rounded font-semibold cursor-pointer transition-all duration-300 no-underline inline-block border-none text-white bg-red-600 hover:bg-red-700 hover:shadow-lg hover:-translate-y-0.5 ml-4"
+                  onClick={() => handleDelete(exam.id)}
+                >
+                  Borrar
+                </button>
+              </div>
             </li>
           ))}
         </ul>

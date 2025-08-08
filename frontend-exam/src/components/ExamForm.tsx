@@ -111,55 +111,57 @@ export default function ExamForm({ examId }: ExamFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="exam-form">
-      <h2>{examToEdit ? 'Editar Examen' : 'Crear Examen'}</h2>
+    <form onSubmit={handleSubmit} className="max-w-3xl mx-auto text-white font-sans">
+      <h2 className="text-3xl font-bold text-center mb-8">{examToEdit ? 'Editar Examen' : 'Crear Examen'}</h2>
 
-      {error && <p className="error-message">{error}</p>}
+      {error && <p className="text-center text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mb-6">{error}</p>}
 
-      <label className="form-label">
-        Nombre del examen:
-        <input
-          type="text"
-          value={name}
-          onInput={(e) => setName((e.target as HTMLInputElement).value)}
-          required
-          className="form-input"
-          disabled={loading}
-        />
-      </label>
+      <div className="mb-6">
+        <label className="block font-bold text-purple-500 mb-2">
+          Nombre del examen:
+          <input
+            type="text"
+            value={name}
+            onInput={(e) => setName((e.target as HTMLInputElement).value)}
+            required
+            className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
+            disabled={loading}
+          />
+        </label>
+      </div>
 
-      <label className="form-checkbox-label">
+      <div className="mb-6 flex items-center">
         <input
           type="checkbox"
           checked={isActive}
           onChange={(e) => setIsActive(e.currentTarget.checked)}
-          className="form-checkbox"
+          className="mr-2"
           disabled={loading}
         />
-        Activo
-      </label>
+        <label className="font-bold text-purple-500">Activo</label>
+      </div>
 
-      <label className="form-checkbox-label">
+      <div className="mb-6 flex items-center">
         <input
           type="checkbox"
           checked={showResponse}
           onChange={(e) => setShowResponse(e.currentTarget.checked)}
-          className="form-checkbox"
+          className="mr-2"
           disabled={loading}
         />
-        Mostrar respuestas
-      </label>
+        <label className="font-bold text-purple-500">Mostrar respuestas</label>
+      </div>
 
-      <fieldset className="question-fieldset" disabled={loading}>
-        <legend>Preguntas</legend>
+      <fieldset className="border border-[#444] p-4 rounded-lg" disabled={loading}>
+        <legend className="font-bold text-xl mb-4">Preguntas</legend>
         {questions.map((q, i) => (
-          <div key={i} className="question-block">
-            <label className="form-label">
+          <div key={i} className="bg-[#2a2d33] p-6 mb-4 rounded-lg shadow-lg">
+            <label className="block font-bold text-purple-500 mb-2">
               Opción correcta:
               <select
                 value={q.correct_option.toUpperCase()}
                 onChange={(e) => updateQuestion(i, 'correct_option', e.currentTarget.value)}
-                className="form-select"
+                className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
                 disabled={loading}
               >
                 <option value="A">A</option>
@@ -172,19 +174,19 @@ export default function ExamForm({ examId }: ExamFormProps) {
               type="button"
               onClick={() => removeQuestion(i)}
               disabled={questions.length === 1 || loading}
-              className="delete-question-button"
+              className="mt-2 bg-red-600 text-white border-none rounded px-3 py-1 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               aria-label={`Eliminar pregunta ${i + 1}`}
             >
               Eliminar pregunta
             </button>
           </div>
         ))}
-        <button type="button" onClick={addQuestion} className="add-question-button" disabled={loading}>
+        <button type="button" onClick={addQuestion} className="bg-purple-600 text-white border-none rounded px-4 py-2 cursor-pointer mt-4" disabled={loading}>
           Añadir pregunta
         </button>
       </fieldset>
 
-      <button type="submit" disabled={loading} className="submit-button">
+      <button type="submit" disabled={loading} className="w-full py-3 text-lg font-bold mt-8 rounded-md bg-purple-600 hover:bg-purple-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed">
         {loading ? (examToEdit ? 'Guardando...' : 'Creando...') : (examToEdit ? 'Guardar cambios' : 'Crear examen')}
       </button>
     </form>
