@@ -1,95 +1,110 @@
-# Inscripción Moodle
+# Inscripción Moodle y Plataforma de Exámenes
 
-Este proyecto es una aplicación de inscripción online para OpositaTCAE, que permite a los usuarios rellenar un formulario, firmar digitalmente y recibir un PDF de confirmación por email. Además, crea el usuario en Moodle automáticamente.
+Este proyecto es una aplicación web completa que consta de dos partes principales: un formulario de inscripción online para OpositaTCAE y una plataforma de exámenes.
 
-## Estructura del proyecto
+## Características
+
+### Formulario de Inscripción (`frontend-inscripcion` y `backend`)
+
+*   **Formulario Completo:** Permite a los usuarios rellenar un formulario de inscripción con sus datos personales, académicos y de pago.
+*   **Firma Digital:** Incluye un campo para que los usuarios puedan firmar digitalmente el formulario.
+*   **Generación de PDF:** Una vez enviado el formulario, el backend genera un documento PDF con toda la información y la firma.
+*   **Confirmación por Email:** El usuario y el administrador reciben una copia del PDF de inscripción por correo electrónico.
+*   **Integración con Moodle:** Crea automáticamente una cuenta de usuario en Moodle con los datos del formulario.
+*   **Rate Limiting:** Limita el número de peticiones por IP para prevenir abusos.
+
+### Plataforma de Exámenes (`frontend-exam` y `backend`)
+
+*   **Gestión de Exámenes:** Un panel de administración permite crear, editar y eliminar exámenes con sus preguntas y respuestas correctas.
+*   **Realización de Exámenes:** Los usuarios pueden acceder a los exámenes activos, responder las preguntas y enviar sus respuestas.
+*   **Resultados y Percentiles:** Al finalizar un examen, el usuario recibe su puntuación y su percentil en comparación con otros usuarios que han realizado el mismo examen.
+*   **Autenticación de Administrador:** El panel de administración está protegido y requiere autenticación mediante JWT.
+
+## Estructura del Proyecto
 
 ```
 inscripcion-moodle/
 │
 ├── backend/
 │   ├── main.py              # API FastAPI principal
-│   ├── registerdata.py      # Modelo de datos del formulario
-│   ├── pdf_utils.py         # Generación de PDF
-│   ├── email_utils.py       # Envío de emails
-│   ├── moodle_api.py        # Alta de usuario en Moodle
-│   ├── rate_limiter.py      # Limitador de peticiones por IP
-│   ├── requirements.txt     # Dependencias Python
-│   └── assets/              # Recursos (fuentes, imágenes)
+│   ├── models/              # Modelos de datos Pydantic
+│   ├── db/                  # Configuración de la base de datos y modelos SQLAlchemy
+│   ├── routers/             # Rutas de la API (públicas, admin, inscripción)
+│   ├── services/            # Lógica de negocio (autenticación, emails, PDF, Moodle)
+│   ├── requirements.txt     # Dependencias de Python
+│   └── ...
 │
-├── frontend/
-│   ├── index.html           # Formulario web
-│   ├── main.js              # Lógica JS del formulario
-│   └── style.css            # Estilos personalizados
+├── frontend-exam/
+│   ├── src/
+│   │   ├── components/      # Componentes Preact para la interfaz de exámenes
+│   │   ├── pages/           # Páginas de la aplicación de exámenes (Astro)
+│   │   └── services/        # Servicios para conectar con el backend
+│   ├── package.json         # Dependencias de Node.js
+│   └── astro.config.mjs     # Configuración de Astro
 │
-├── .env                     # Variables de entorno (no subir a git)
+├── frontend-inscripcion/
+│   ├── index.html           # Formulario de inscripción
+│   ├── main.js              # Lógica del formulario (validación, firma, envío)
+│   └── style.css            # Estilos del formulario
+│
 ├── .gitignore
+├── LICENSE
 └── README.md
 ```
 
 ## Requisitos
 
-- Python 3.10+
-- Node.js (opcional, solo si usas herramientas de desarrollo frontend)
-- [pip](https://pip.pypa.io/en/stable/installation/)
-- [python-dotenv](https://pypi.org/project/python-dotenv/) (`pip install python-dotenv`)
+*   **Backend:**
+    *   Python 3.10+
+    *   Dependencias en `backend/requirements.txt`
+*   **Frontend (Exams):**
+    *   Node.js y npm (o un gestor de paquetes compatible)
+    *   Dependencias en `frontend-exam/package.json`
+*   **Base de Datos:**
+    *   Un servidor de base de datos compatible con SQLAlchemy (ej. MySQL, PostgreSQL).
 
 ## Instalación
 
-1. **Clona el repositorio:**
-   ```sh
-   git clone https://github.com/tuusuario/inscripcion-moodle.git
-   cd inscripcion-moodle
-   ```
+1.  **Clona el repositorio:**
+    ```sh
+    git clone https://github.com/tuusuario/inscripcion-moodle.git
+    cd inscripcion-moodle
+    ```
 
-2. **Instala las dependencias del backend:**
-   ```sh
-   cd backend
-   pip install -r requirements.txt
-   ```
+2.  **Configura el Backend:**
+    *   Navega a la carpeta `backend`: `cd backend`
+    *   Crea un entorno virtual: `python -m venv venv`
+    *   Activa el entorno virtual:
+        *   Windows: `venv\Scripts\activate`
+        *   macOS/Linux: `source venv/bin/activate`
+    *   Instala las dependencias: `pip install -r requirements.txt`
+    *   Crea un archivo `.env` en la raíz de la carpeta `backend` y configúralo con tus variables de entorno. Puedes usar `backend/.env.example` como plantilla.
 
-3. **Configura el archivo `.env` en la carpeta `backend/`:**
-   ```
-   SMTP_USER=tu_usuario
-   SMTP_PASS=tu_contraseña
-   SMTP_SERVER=smtp.tuservidor.com
-   SMTP_PORT=587
-   ADMIN_EMAIL=admin@tudominio.com
-   MOODLE_URL=https://tudominio.com/moodle
-   MOODLE_TOKEN=tu_token
-   ```
-
-4. **(Opcional) Instala dependencias frontend si usas herramientas adicionales.**
+3.  **Configura el Frontend de Exámenes:**
+    *   Navega a la carpeta `frontend-exam`: `cd ../frontend-exam`
+    *   Instala las dependencias: `npm install`
+    *   Crea un archivo `.env` en la raíz de la carpeta `frontend-exam` y define la variable `PUBLIC_API_URL` con la URL de tu backend (ej. `PUBLIC_API_URL=http://localhost:8000`).
 
 ## Ejecución
 
-### Backend (API)
+1.  **Backend:**
+    *   Desde la carpeta `backend`, con el entorno virtual activado, ejecuta:
+        ```sh
+        uvicorn main:app --reload
+        ```
+    *   La API estará disponible en `http://localhost:8000`.
 
-Desde la carpeta raíz del proyecto:
+2.  **Frontend de Exámenes:**
+    *   Desde la carpeta `frontend-exam`, ejecuta:
+        ```sh
+        npm run dev
+        ```
+    *   La aplicación de exámenes estará disponible en `http://localhost:4321`.
 
-```sh
-uvicorn backend.main:app --reload
-```
-
-- El backend estará disponible en [http://localhost:8000](http://localhost:8000)
-- Documentación interactiva en [http://localhost:8000/docs](http://localhost:8000/docs)
-
-### Frontend
-
-Puedes abrir `frontend/index.html` directamente en tu navegador para pruebas locales, o servirlo desde un servidor web (por ejemplo, Apache o Nginx).
-
-**Nota:** Si sirves el frontend desde un dominio diferente, asegúrate de configurar correctamente los orígenes permitidos (`allow_origins`) en `backend/main.py`.
-
-## Personalización
-
-- Modifica los campos del formulario en `frontend/index.html` y el modelo en `backend/registerdata.py` si necesitas más datos.
-- Cambia los textos y estilos en `frontend/style.css` y los emails en `backend/email_utils.py`.
-
-## Seguridad
-
-- **No subas tu archivo `.env` ni datos sensibles al repositorio.**
-- Configura correctamente CORS en producción para aceptar solo tu dominio.
+3.  **Frontend de Inscripción:**
+    *   Abre el archivo `frontend-inscripcion/index.html` directamente en tu navegador o sírvelo con un servidor web.
+    *   **Importante:** Para que el formulario de inscripción pueda comunicarse con el backend, necesitarás servirlo desde un dominio o configurar CORS adecuadamente en `backend/main.py` para permitir el origen desde el que se sirve el archivo.
 
 ## Licencia
 
-MIT
+Este proyecto está bajo la Licencia MIT. Consulta el archivo `LICENSE` para más detalles.
