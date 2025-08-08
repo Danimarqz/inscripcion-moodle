@@ -3,6 +3,14 @@ export type Exam = {
   name: string;
   score?: number;
   percentile?: number;
+  show_response?: boolean;
+}
+export type ExamOut = {
+  id: number;
+  name: string;
+  score?: number;
+  percentile?: number;
+  message?: string;
 }
 
 export type Question = {
@@ -50,4 +58,10 @@ export type ExamEdit = {
   is_active?: boolean;
   show_response?: boolean;
   questions: QuestionEdit[];
+}
+
+export type UserSubmissionCheck = {
+  email: string;
+  dni: string;
+  exam_id: number;
 }

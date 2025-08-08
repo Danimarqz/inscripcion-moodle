@@ -1,16 +1,25 @@
 import { useEffect, useState } from 'preact/hooks';
-import type { Answer, Question, ExamSubmissionPayload } from '../types/exam';
-import { getQuestions, submitExam } from '../services/examService';
+import type { Answer, Question, ExamSubmissionPayload, Exam } from '../types/exam';
+import { getQuestions, submitExam, checkSubmission } from '../services/examService';
 
 interface ExamPageProps {
   examId: number;
   examName: string;
+  showResponse: boolean;
 }
 
-export default function ExamPage({ examId, examName }: ExamPageProps) {
+export default function ExamPage({ examId, examName, showResponse }: ExamPageProps) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Estados para validación resultados
+  const [email, setEmail] = useState('');
+  const [dni, setDni] = useState('');
+  const [score, setScore] = useState<number | null>(null);
+  const [percentile, setPercentile] = useState<number | null>(null);
+  const [checkingResult, setCheckingResult] = useState(false);
+  const [resultError, setResultError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchQuestions() {
@@ -27,6 +36,35 @@ export default function ExamPage({ examId, examName }: ExamPageProps) {
     fetchQuestions();
   }, [examId]);
 
+  function isValidEmail(e: string) {
+    const emailRegex = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
+    return emailRegex.test(e);
+  }
+
+  function isValidDni(d: string) {
+    const dniRegex = /^[XYZ]?\d{7,8}[A-Z]$/i;
+    return dniRegex.test(d);
+  }
+
+  async function checkUserSubmission() {
+    setResultError(null);
+    setScore(null);
+    setPercentile(null);
+
+    if (!showResponse || !isValidEmail(email) || !isValidDni(dni)) return;
+
+    setCheckingResult(true);
+    try {
+      const data: Exam = await checkSubmission({ email, dni, exam_id: examId });
+      setScore(data.score || 0);
+      setPercentile(data.percentile || 0);
+    } catch (e) {
+      setResultError((e as Error).message);
+    } finally {
+      setCheckingResult(false);
+    }
+  }
+
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -34,23 +72,19 @@ export default function ExamPage({ examId, examName }: ExamPageProps) {
     const form = e.currentTarget as HTMLFormElement;
     const formData = new FormData(form);
 
-    const email = formData.get('email') as string;
+    const emailRaw = formData.get('email') as string;
     const dniRaw = formData.get('dni') as string;
-    const dni = dniRaw.toUpperCase();
+    const dniVal = dniRaw.toUpperCase();
 
-    // Validaciones
-    const emailRegex = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
-    if (!emailRegex.test(email)) {
+    if (!isValidEmail(emailRaw)) {
       setErrorMessage('Por favor, introduce un email válido.');
       return;
     }
-    const dniRegex = /^[XYZ]?\d{7,8}[A-Z]$/i;
-    if (!dniRegex.test(dni)) {
+    if (!isValidDni(dniVal)) {
       setErrorMessage('Por favor, introduce un DNI válido o NIE válido.');
       return;
     }
 
-    // Recoger respuestas
     const answers: Answer[] = [];
     for (const [key, value] of formData.entries()) {
       if (key.startsWith('question-')) {
@@ -62,8 +96,8 @@ export default function ExamPage({ examId, examName }: ExamPageProps) {
     }
 
     const payload: ExamSubmissionPayload = {
-      email,
-      dni,
+      email: emailRaw,
+      dni: dniVal,
       exam_id: examId,
       answers,
     };
@@ -100,12 +134,19 @@ export default function ExamPage({ examId, examName }: ExamPageProps) {
     <main>
       <a href="/" className="back-button">&larr; Volver a la selección de examen</a>
       <h1>{examName}</h1>
-      {errorMessage && <p className="error-message">{errorMessage}</p>}
 
       <form id="exam-form" onSubmit={handleSubmit} noValidate>
         <div className="form-group">
           <label htmlFor="email">Email:</label>
-          <input type="email" id="email" name="email" required />
+          <input
+            type="email"
+            id="email"
+            name="email"
+            required
+            value={email}
+            onInput={e => setEmail((e.target as HTMLInputElement).value)}
+            onBlur={checkUserSubmission}
+          />
         </div>
 
         <div className="form-group">
@@ -117,6 +158,9 @@ export default function ExamPage({ examId, examName }: ExamPageProps) {
             required
             pattern="^[XYZ]?\d{7,8}[A-Z]$"
             title="Introduce un DNI (8 números y 1 letra) o NIE (X, Y o Z seguido de 7 u 8 números y 1 letra) válido."
+            value={dni}
+            onInput={e => setDni((e.target as HTMLInputElement).value.toUpperCase())}
+            onBlur={checkUserSubmission}
           />
         </div>
 
@@ -144,6 +188,20 @@ export default function ExamPage({ examId, examName }: ExamPageProps) {
           Entregar Examen
         </button>
       </form>
+
+      {showResponse && (
+        <section className="results-section">
+          <h2>Resultados</h2>
+          {checkingResult && <p>Comprobando resultados...</p>}
+          {!checkingResult && score !== null && percentile !== null && (
+            <p>
+              Tu puntuación: <strong>{score}</strong> <br />
+              Percentil: <strong>{percentile}</strong>
+            </p>
+          )}
+          {!checkingResult && resultError && <p className="error-message">{resultError}</p>}
+        </section>
+      )}
     </main>
   );
 }

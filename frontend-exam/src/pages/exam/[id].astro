@@ -9,14 +9,14 @@ export async function getStaticPaths() {
 
   return exams.map((exam) => ({
     params: { id: exam.id.toString() },
-    props: { examName: exam.name },
+    props: { examName: exam.name, showResponse: exam.show_response || false },
   }));
 }
 
-const { examName } = Astro.props;
+const { examName, showResponse } = Astro.props;
 const examId = Number(Astro.params.id);
 ---
 
 <Layout title={examName}>
-  <ExamPage client:load examId={examId} examName={examName} />
+  <ExamPage client:load examId={examId} examName={examName} showResponse={showResponse} />
 </Layout>

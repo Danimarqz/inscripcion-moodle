@@ -17,6 +17,7 @@ class ExamOut(BaseModel):
     name: str
     score: Optional[float] = None
     percentile: Optional[float] = None
+    show_reponse: Optional[bool] = False
 
     class Config:
         from_attributes = True
