@@ -1,0 +1,24 @@
+services:
+  backend:
+    build: ./backend
+    container_name: backend-moodle
+    restart: always
+    environment:
+      - DATABASE_URL=mysql+pymysql://user:password@jolly_cray:3306/db_name
+    networks:
+      - nginx-proxy
+    ports:
+      - "8000:8000"
+
+  frontend-exam:
+    build: ./frontend-exam
+    container_name: frontend-exam-moodle
+    restart: always
+    networks:
+      - nginx-proxy
+    ports:
+      - "4321:4321"
+
+networks:
+  nginx-proxy:
+    external: true

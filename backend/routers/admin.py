@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from db.database import get_db
-from db.models import AdminUser, Exam, Question
+from db.models import AdminUser, Exam, Question, UserExamSubmission
 from models.exam import ExamCreateWithQuestions, ExamEdit
 from services.auth.auth_service import authenticate_admin, get_current_admin_user, get_password_hash, create_access_token
 from models.admin import AdminCreate, AdminLogin, TokenResponse
@@ -127,3 +127,11 @@ def get_exam_by_id(
 ):
     exam = db.query(Exam).filter(Exam.id == exam_id).first()
     return exam
+
+@router.get("/results")
+def get_user_results(
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(get_current_admin_user)
+):
+    results = db.query(UserExamSubmission).all()
+    return results

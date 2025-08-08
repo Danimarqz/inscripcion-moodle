@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from typing import List, Literal, Optional
+from datetime import datetime
 
 class AnswerSubmission(BaseModel):
     question_id: int
@@ -46,3 +47,24 @@ class ExamEdit(BaseModel):
     is_active: Optional[bool] = None
     show_response: Optional[bool] = None
     questions: List[QuestionEdit]
+
+class UserExamSubmission(BaseModel):
+    id: int
+    email: EmailStr
+    dni: str
+    exam_id: int
+    score: Optional[float] = None
+    percentile: Optional[float] = None
+    submitted_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class SubmissionCheckRequest(BaseModel):
+    dni: str
+    email: EmailStr
+    exam_id: int
+
+class SubmissionCheckResponse(BaseModel):
+    score: float
+    percentile: float
