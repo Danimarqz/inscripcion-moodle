@@ -90,7 +90,6 @@ export default function ExamForm({ examId }: ExamFormProps) {
         questions: questions.map((q) => ({
           id: 'id' in q ? q.id : undefined,
           correct_option: q.correct_option.toUpperCase(),
-          text: 'text' in q ? q.text : '', // Asegurar que text se pase también si es necesario
         })),
       };
 
@@ -102,7 +101,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
         data = await createExam(body as ExamCreateWithQuestions, authToken);
       }
 
-      window.location.href = '/admin';
+      window.location.href = '/admin/dashboard';
     } catch (err) {
       setError((err as Error).message || 'Error desconocido');
     } finally {

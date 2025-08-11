@@ -60,6 +60,7 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
       const data: Exam = await checkSubmission({ email, dni, exam_id: examId });
       setScore(data.score || 0);
       setPercentile(data.percentile || 0);
+      alert(`Ya has entregado el examen. Tu puntuación es: ${data.score || 'Procesando'}. Percentil: ${data.percentile || 'N/A'}`);
     } catch (e) {
       setResultError((e as Error).message);
     } finally {
