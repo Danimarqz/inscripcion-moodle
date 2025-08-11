@@ -4,9 +4,10 @@ services:
     container_name: backend-moodle
     restart: always
     environment:
-      - DATABASE_URL=mysql+pymysql://user:password@jolly_cray:3306/db_name
+      - DATABASE_URL=${DATABASE_URL}
     networks:
-      - nginx-proxy
+      - nginx_proxy
+      - opotest
     ports:
       - "8000:8000"
 
@@ -15,10 +16,12 @@ services:
     container_name: frontend-exam-moodle
     restart: always
     networks:
-      - nginx-proxy
+      - nginx_proxy
     ports:
       - "4321:4321"
 
 networks:
-  nginx-proxy:
+  nginx_proxy:
+    external: true
+  opotest:
     external: true
