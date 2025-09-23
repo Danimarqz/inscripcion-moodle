@@ -21,7 +21,7 @@ def submit_exam(request: Request, data: ExamSubmission, db: Session = Depends(ge
 
 @router.get("/exams", response_model=List[ExamOut])
 def get_exams(db: Session = Depends(get_db)):
-    exams = db.query(Exam).all()
+    exams = db.query(Exam).filter(Exam.is_active).all()
     return exams
 
 @router.get("/exams/{exam_id}/questions", response_model=List[QuestionStubOut])

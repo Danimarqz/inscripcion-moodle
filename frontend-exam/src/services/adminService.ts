@@ -28,6 +28,23 @@ export async function adminLogin(payload: AdminLoginPayload): Promise<TokenRespo
 
   return response.json();
 }
+
+export async function getAdminExams(token: string): Promise<Exam[]> {
+  const response = await fetch(`${API_URL}/admin/exams`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.detail || 'Error fetching exams');
+  }
+
+  return response.json();
+}
+
 export async function createExam(examData: ExamCreateWithQuestions, token: string): Promise<Exam> {
   console.log(JSON.stringify(examData, null, 2));
   const response = await fetch(`${API_URL}/admin/exams`, {

@@ -26,6 +26,8 @@ export type Answer = {
 export type ExamSubmissionPayload = {
   email: string;
   dni: string;
+  name: string;
+  surname: string;
   exam_id: number;
   answers: Answer[];
 }

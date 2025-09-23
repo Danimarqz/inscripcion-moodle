@@ -13,7 +13,8 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Estados para validación resultados
+  const [studentName, setStudentName] = useState('');
+  const [studentSurname, setStudentSurname] = useState('');
   const [email, setEmail] = useState('');
   const [dni, setDni] = useState('');
   const [score, setScore] = useState<number | null>(null);
@@ -51,8 +52,6 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
     setScore(null);
     setPercentile(null);
 
-    console.log('checkUserSubmission called', { showResponse, email, dni });
-
     if (!isValidEmail(email) || !isValidDni(dni)) return;
 
     setCheckingResult(true);
@@ -71,6 +70,18 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
     setErrorMessage(null);
+
+    const trimmedName = studentName.trim();
+    const trimmedSurname = studentSurname.trim();
+
+    if (!trimmedName) {
+      setErrorMessage('El nombre es obligatorio.');
+      return;
+    }
+    if (!trimmedSurname) {
+      setErrorMessage('Los apellidos son obligatorios.');
+      return;
+    }
 
     const form = e.currentTarget as HTMLFormElement;
     const formData = new FormData(form);
@@ -101,6 +112,8 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
     const payload: ExamSubmissionPayload = {
       email: emailRaw,
       dni: dniVal,
+      name: trimmedName,
+      surname: trimmedSurname,
       exam_id: examId,
       answers,
     };
@@ -119,8 +132,6 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
 
   if (loading) return <main>Cargando preguntas...</main>;
 
-  
-
   if (questions.length === 0)
     return (
       <main>
@@ -134,6 +145,32 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
       <h1 className="text-5xl font-extrabold leading-tight text-center mb-12 text-purple-300 shadow-purple-500/50">{examName}</h1>
 
       <form id="exam-form" onSubmit={handleSubmit} noValidate>
+        <div className="mb-6">
+          <label htmlFor="name" className="block font-bold text-purple-500 mb-2">Nombre:</label>
+          <input
+            type="text"
+            id="name"
+            name="name"
+            required
+            value={studentName}
+            onInput={e => setStudentName((e.target as HTMLInputElement).value)}
+            className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
+          />
+        </div>
+
+        <div className="mb-6">
+          <label htmlFor="surname" className="block font-bold text-purple-500 mb-2">Apellidos:</label>
+          <input
+            type="text"
+            id="surname"
+            name="surname"
+            required
+            value={studentSurname}
+            onInput={e => setStudentSurname((e.target as HTMLInputElement).value)}
+            className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
+          />
+        </div>
+
         <div className="mb-6">
           <label htmlFor="email" className="block font-bold text-purple-500 mb-2">Email:</label>
           <input

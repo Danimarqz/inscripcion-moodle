@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { getExams } from '../services/examService';
-import { deleteExam, validateAdminToken } from '../services/adminService';
+import { deleteExam, getAdminExams, validateAdminToken } from '../services/adminService';
 import type { Exam } from '../types/exam';
 
 export function getAuthToken(): string | null {
@@ -39,7 +38,7 @@ useEffect(() => {
     }
 
     try {
-      const data = await getExams();
+      const data = await getAdminExams(authToken);
       setExams(data);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
@@ -123,3 +122,4 @@ useEffect(() => {
     </div>
   );
 }
+
