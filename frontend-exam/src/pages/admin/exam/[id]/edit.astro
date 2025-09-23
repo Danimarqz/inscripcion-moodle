@@ -1,21 +1,11 @@
 ---
 import ExamForm from '../../../../components/ExamForm.tsx';
 import Layout from '../../../../layouts/Layout.astro';
-import { getExams } from '../../../../services/examService';
-import type { Exam } from '../../../../types/exam';
 
-export async function getStaticPaths() {
-  const exams: Exam[] = await getExams();
-
-  return exams.map((exam) => ({
-    params: { id: exam.id.toString() },
-    props: { examName: exam.name },
-  }));
-}
+export const prerender = false;
 
 const examId = Number(Astro.params.id);
 ---
-
 <Layout title="Crear o editar examen">
-  <ExamForm client:load examId={examId}/>
+  <ExamForm client:load examId={examId} />
 </Layout>
