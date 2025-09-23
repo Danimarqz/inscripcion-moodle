@@ -29,6 +29,8 @@ class UserExamSubmission(Base):
     id = Column(Integer, primary_key=True)
     email = Column(String(255), nullable=False)
     dni = Column(String(20), nullable=False)
+    name = Column(String(100), nullable=False)
+    surname = Column(String(255), nullable=False)
     exam_id = Column(Integer, ForeignKey('exam.id'), nullable=False)
     score = Column(Float, nullable=True)       # nº de aciertos o porcentaje
     percentile = Column(Float, nullable=True)  # percentil sobre otros usuarios

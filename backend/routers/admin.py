@@ -1,12 +1,18 @@
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from db.database import get_db
 from db.models import AdminUser, Exam, Question, UserExamSubmission
-from models.exam import ExamCreateWithQuestions, ExamEdit
+from models.exam import ExamCreateWithQuestions, ExamEdit, ExamOut
 from services.auth.auth_service import authenticate_admin, get_current_admin_user, get_password_hash, create_access_token
 from models.admin import AdminCreate, AdminLogin, TokenResponse
 
 router = APIRouter()
+
+@router.get("/exams", response_model=List[ExamOut])
+def get_exams(db: Session = Depends(get_db), admin: AdminUser = Depends(get_current_admin_user)):
+    exams = db.query(Exam).all()
+    return exams
 
 @router.post("/create-admin", status_code=201)
 def create_admin(data: AdminCreate, db: Session = Depends(get_db)):
