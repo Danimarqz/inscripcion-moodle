@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, Iterable
 
 from sqlalchemy.orm import Session
 
@@ -9,11 +9,43 @@ DNI_LETTERS = "TRWAGMYFPDXBNJZSQVHLCKE"
 VALID_OPTIONS = {"A", "B", "C", "D"}
 
 
-def calculate_percentile(user_score: float, all_scores: List[float]) -> float:
-    if not all_scores:
+def calculate_percentile(user_score: float, all_scores: Iterable[float | None]) -> float:
+    scores = [score for score in all_scores if score is not None]
+    if not scores:
         return 100.0
-    count_less = sum(1 for score in all_scores if score < user_score)
-    return round(100 * count_less / len(all_scores), 2)
+
+    count_less = sum(1 for score in scores if score < user_score)
+    count_equal = sum(1 for score in scores if score == user_score)
+    percentile = (count_less + count_equal) / len(scores) * 100
+    return round(percentile, 2)
+
+
+def recalculate_percentiles(exam_id: int, db: Session, *, commit: bool = True) -> None:
+    submissions = (
+        db.query(UserExamSubmission)
+        .filter(UserExamSubmission.exam_id == exam_id)
+        .all()
+    )
+    if not submissions:
+        return
+
+    scores = [submission.score for submission in submissions if submission.score is not None]
+
+    for submission in submissions:
+        if submission.score is None:
+            submission.percentile = 0.0
+            continue
+
+        if not scores:
+            submission.percentile = 100.0
+            continue
+
+        submission.percentile = calculate_percentile(submission.score, scores)
+
+    if commit:
+        db.commit()
+    else:
+        db.flush()
 
 
 def normalize_dni(value: str) -> str:
@@ -84,7 +116,7 @@ def process_exam_submission(data: ExamSubmission, db: Session):
         if answer_value == question.correct_option.upper():
             correct_count += 1
 
-    score = correct_count / len(questions) * 100
+    score = correct_count / len(questions) * 100 if questions else 0.0
 
     submission = UserExamSubmission(
         email=normalized_email,
@@ -96,8 +128,7 @@ def process_exam_submission(data: ExamSubmission, db: Session):
         percentile=0,
     )
     db.add(submission)
-    db.commit()
-    db.refresh(submission)
+    db.flush()
 
     for ans in data.answers:
         ua = UserAnswer(
@@ -106,13 +137,16 @@ def process_exam_submission(data: ExamSubmission, db: Session):
             answer=validate_answer_option(ans.answer),
         )
         db.add(ua)
-    db.commit()
+    db.flush()
 
-    all_scores = [s.score for s in db.query(UserExamSubmission).filter_by(exam_id=data.exam_id).all()]
-    percentile = calculate_percentile(score, all_scores)
-    submission.percentile = percentile
+    recalculate_percentiles(data.exam_id, db, commit=False)
     db.commit()
+    db.refresh(submission)
 
     if exam.show_response:
-        return {"score": score, "percentile": percentile, "message": "Examen enviado correctamente"}
+        return {
+            "score": submission.score,
+            "percentile": submission.percentile,
+            "message": "Examen enviado correctamente",
+        }
     return {"message": "Examen enviado correctamente"}

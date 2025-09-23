@@ -20,8 +20,8 @@ from services.auth.auth_service import (
     get_password_hash,
 )
 from services.exam.submit_exam import (
-    calculate_percentile,
     normalize_dni,
+    recalculate_percentiles,
     validate_answer_option,
     validate_dni_nie,
 )
@@ -256,10 +256,7 @@ def update_submission(
         submission.score = 0.0
 
     db.flush()
-    all_scores = [
-        s.score for s in db.query(UserExamSubmission).filter_by(exam_id=submission.exam_id).all()
-    ]
-    submission.percentile = calculate_percentile(submission.score or 0, all_scores)
+    recalculate_percentiles(submission.exam_id, db, commit=False)
 
     db.commit()
     db.refresh(submission)
@@ -279,6 +276,9 @@ def delete_submission(
     db.delete(submission)
     db.commit()
     return {"detail": "Intento eliminado correctamente."}
+
+
+
 
 
 

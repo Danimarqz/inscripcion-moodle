@@ -1,32 +1,45 @@
 import time
-from fastapi import Request, HTTPException, status
+import typing as t
 
-ip_request_times = {}
-RATE_LIMIT_SECONDS = 60
-CLEANUP_INTERVAL = 300  # Cada 5 minutos
-_last_cleanup = 0
+from fastapi import HTTPException, Request, status
 
-def check_rate_limit(request: Request):
+
+_RATE_LIMIT_SECONDS = 20  # tiempo mínimo entre envíos
+_CLEANUP_MAX_ENTRIES = 10_000  # límite de tamaño antes de compactar
+
+_ip_hits: dict[str, float] = {}
+_last_cleanup = 0.0
+
+
+def _compact(now: float) -> None:
+    """Elimina entradas expiradas cuando crece demasiado el diccionario."""
     global _last_cleanup
+
+    if len(_ip_hits) < _CLEANUP_MAX_ENTRIES:
+        return
+
+    expired = [ip for ip, ts in _ip_hits.items() if now - ts > _RATE_LIMIT_SECONDS]
+    for ip in expired:
+        _ip_hits.pop(ip, None)
+
+    _last_cleanup = now
+
+
+def check_rate_limit(request: Request) -> None:
+    """Permite una petición por IP cada _RATE_LIMIT_SECONDS segundos."""
+    global _last_cleanup
+
     now = time.time()
-    ip = request.client.host
+    ip = request.client.host if request.client else "unknown"
 
-    # Limpiar IPs que ya han caducado (cada X segundos)
-    if now - _last_cleanup > CLEANUP_INTERVAL:
-        expired = [
-            ip for ip, ts in ip_request_times.items()
-            if now - ts > RATE_LIMIT_SECONDS
-        ]
-        for ip_to_remove in expired:
-            del ip_request_times[ip_to_remove]
-        _last_cleanup = now
-
-    # Revisar si esa IP ha hecho petición reciente
-    last = ip_request_times.get(ip)
-    if last and now - last < RATE_LIMIT_SECONDS:
+    last = _ip_hits.get(ip)
+    if last is not None and now - last < _RATE_LIMIT_SECONDS:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Demasiadas solicitudes, inténtalo más tarde"
+            detail="Demasiadas solicitudes, inténtalo más tarde",
         )
 
-    ip_request_times[ip] = now
+    _ip_hits[ip] = now
+
+    if now - _last_cleanup > _RATE_LIMIT_SECONDS:
+        _compact(now)
