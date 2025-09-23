@@ -5,12 +5,12 @@ export default function Header() {
   const [authToken, setAuthToken] = useState<string | null>(null);
 
   useEffect(() => {
-    setAuthToken(getAuthToken());;
+    setAuthToken(getAuthToken());
   }, []);
 
 
   return (
-    <header className="bg-dark-200 sticky top-0 z-10 py-4 px-6 md:px-8 border-b border-dark-300 shadow-lg mb-12">
+    <header className="bg-[#1a1c22] sticky top-0 z-10 py-4 px-6 md:px-8 border-b border-dark-300 shadow-lg mb-12">
       <div className="max-w-6xl mx-auto flex justify-between items-center">
         <a href="/" className="text-white no-underline">
           <h1 className="text-3xl md:text-4xl font-bold m-0 bg-gradient-to-r from-accent via-accent-light to-white bg-clip-text text-transparent bg-[length:400%_400%] bg-right-bottom transition-all duration-1000 ease-in-out hover:bg-left-top">
@@ -32,3 +32,4 @@ export default function Header() {
     </header>
   );
 }
+

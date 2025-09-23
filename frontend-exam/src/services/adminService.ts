@@ -1,4 +1,10 @@
-import type { Exam, ExamCreateWithQuestions, ExamEdit } from '../types/exam';
+import type {
+  AdminSubmission,
+  Exam,
+  ExamCreateWithQuestions,
+  ExamEdit,
+  SubmissionUpdatePayload,
+} from '../types/exam';
 
 const API_URL = import.meta.env.PUBLIC_API_URL;
 
@@ -23,7 +29,7 @@ export async function adminLogin(payload: AdminLoginPayload): Promise<TokenRespo
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(errorData.detail || 'Error de autenticación');
+    throw new Error(errorData.detail || 'Error de autenticacion');
   }
 
   return response.json();
@@ -46,14 +52,13 @@ export async function getAdminExams(token: string): Promise<Exam[]> {
 }
 
 export async function createExam(examData: ExamCreateWithQuestions, token: string): Promise<Exam> {
-  console.log(JSON.stringify(examData, null, 2));
   const response = await fetch(`${API_URL}/admin/exams`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
     },
-    body: JSON.stringify(examData)
+    body: JSON.stringify(examData),
   });
   if (!response.ok) {
     const errorData = await response.json();
@@ -66,10 +71,10 @@ export async function editExam(examId: number, examData: ExamEdit, token: string
   const response = await fetch(`${API_URL}/admin/exams/${examId}/edit`, {
     method: 'PUT',
     headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
     },
-    body: JSON.stringify(examData)
+    body: JSON.stringify(examData),
   });
   if (!response.ok) {
     const errorData = await response.json();
@@ -82,14 +87,15 @@ export async function deleteExam(examId: number, token: string): Promise<void> {
   const response = await fetch(`${API_URL}/admin/exams/${examId}/delete`, {
     method: 'DELETE',
     headers: {
-      'Authorization': `Bearer ${token}`,
-    }
+      Authorization: `Bearer ${token}`,
+    },
   });
   if (!response.ok) {
     const errorData = await response.json();
     throw new Error(errorData.detail || 'Error deleting exam');
   }
 }
+
 export async function validateAdminToken(token: string): Promise<boolean> {
   const response = await fetch(`${API_URL}/admin/check-token`, {
     method: 'GET',
@@ -105,11 +111,63 @@ export async function getExamById(examId: number, token: string): Promise<ExamEd
   const response = await fetch(`${API_URL}/admin/exams/${examId}`, {
     method: 'GET',
     headers: {
-      'Authorization': `Bearer ${token}`,
-    }
+      Authorization: `Bearer ${token}`,
+    },
   });
   if (!response.ok) {
     throw new Error('Error fetching exams');
   }
   return await response.json();
+}
+
+export async function getExamSubmissions(examId: number, token: string): Promise<AdminSubmission[]> {
+  const response = await fetch(`${API_URL}/admin/results?exam_id=${examId}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.detail || 'Error fetching submissions');
+  }
+
+  return response.json();
+}
+
+export async function updateSubmissionAttempt(
+  submissionId: number,
+  payload: SubmissionUpdatePayload,
+  token: string,
+): Promise<AdminSubmission> {
+  const response = await fetch(`${API_URL}/admin/results/${submissionId}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.detail || 'Error updating submission');
+  }
+
+  return response.json();
+}
+
+export async function deleteSubmissionAttempt(submissionId: number, token: string): Promise<void> {
+  const response = await fetch(`${API_URL}/admin/results/${submissionId}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.detail || 'Error deleting submission');
+  }
 }

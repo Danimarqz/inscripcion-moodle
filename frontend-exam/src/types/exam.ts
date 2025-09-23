@@ -23,12 +23,39 @@ export type Answer = {
   answer: string;
 }
 
+export type SubmissionAnswer = {
+  id: number;
+  question_id: number;
+  answer: string;
+}
+
+export type AdminSubmission = {
+  id: number;
+  exam_id: number;
+  email: string;
+  dni: string;
+  name: string;
+  surname: string;
+  score?: number | null;
+  percentile?: number | null;
+  submitted_at: string;
+  answers: SubmissionAnswer[];
+}
+
 export type ExamSubmissionPayload = {
   email: string;
   dni: string;
   name: string;
   surname: string;
   exam_id: number;
+  answers: Answer[];
+}
+
+export type SubmissionUpdatePayload = {
+  email: string;
+  dni: string;
+  name: string;
+  surname: string;
   answers: Answer[];
 }
 

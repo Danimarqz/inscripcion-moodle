@@ -6,7 +6,7 @@ from db.database import get_db
 from db.models import Exam, UserExamSubmission
 from models.exam import ExamOut, ExamSubmission, QuestionStubOut, SubmissionCheckRequest, SubmissionCheckResponse
 from rate_limiter import check_rate_limit
-from services.exam.submit_exam import process_exam_submission
+from services.exam.submit_exam import normalize_dni, process_exam_submission
 
 router = APIRouter()
 
@@ -39,7 +39,7 @@ def check_submission(
 ):
     submission = (
         db.query(UserExamSubmission)
-        .filter_by(dni=data.dni, email=data.email, exam_id=data.exam_id)
+        .filter_by(dni=normalize_dni(data.dni), email=data.email.lower(), exam_id=data.exam_id)
         .first()
     )
     if not submission:

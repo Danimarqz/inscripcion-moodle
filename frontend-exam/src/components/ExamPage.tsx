@@ -1,11 +1,19 @@
 import { useEffect, useState } from 'preact/hooks';
-import type { Answer, Question, ExamSubmissionPayload, Exam } from '../types/exam';
+
+import type { Answer, Exam, ExamSubmissionPayload, Question } from '../types/exam';
 import { getQuestions, submitExam, checkSubmission } from '../services/examService';
+import { normalizeDni, validateDniNie } from '../utils/validation';
 
 interface ExamPageProps {
   examId: number;
   examName: string;
   showResponse: boolean;
+}
+
+const ANSWER_OPTIONS = ['A', 'B', 'C', 'D'];
+
+function isValidEmail(value: string) {
+  return /^[\w-.]+@([\w-]+\.)+[\w-]{2,}$/i.test(value.trim());
 }
 
 export default function ExamPage({ examId, examName, showResponse }: ExamPageProps) {
@@ -37,29 +45,23 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
     fetchQuestions();
   }, [examId]);
 
-  function isValidEmail(e: string) {
-    const emailRegex = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
-    return emailRegex.test(e);
-  }
-
-  function isValidDni(d: string) {
-    const dniRegex = /^[XYZ]?\d{7,8}[A-Z]$/i;
-    return dniRegex.test(d);
-  }
-
   async function checkUserSubmission() {
+    if (!showResponse) return;
     setResultError(null);
     setScore(null);
     setPercentile(null);
 
-    if (!isValidEmail(email) || !isValidDni(dni)) return;
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedDni = normalizeDni(dni);
+
+    if (!isValidEmail(normalizedEmail) || !validateDniNie(normalizedDni)) return;
 
     setCheckingResult(true);
     try {
-      const data: Exam = await checkSubmission({ email, dni, exam_id: examId });
-      setScore(data.score || 0);
-      setPercentile(data.percentile || 0);
-      alert(`Ya has entregado el examen. Tu puntuación es: ${data.score || 'Procesando'}. Percentil: ${data.percentile || 'N/A'}`);
+      const data: Exam = await checkSubmission({ email: normalizedEmail, dni: normalizedDni, exam_id: examId });
+      setScore(data.score ?? 0);
+      setPercentile(data.percentile ?? 0);
+      alert(`Ya has entregado el examen. Tu puntuacion es: ${data.score ?? 'Procesando'}. Percentil: ${data.percentile ?? 'N/A'}`);
     } catch (e) {
       setResultError((e as Error).message);
     } finally {
@@ -67,8 +69,8 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
     }
   }
 
-  const handleSubmit = async (e: Event) => {
-    e.preventDefault();
+  const handleSubmit = async (event: Event) => {
+    event.preventDefault();
     setErrorMessage(null);
 
     const trimmedName = studentName.trim();
@@ -83,35 +85,32 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
       return;
     }
 
-    const form = e.currentTarget as HTMLFormElement;
+    const form = event.currentTarget as HTMLFormElement;
     const formData = new FormData(form);
 
-    const emailRaw = formData.get('email') as string;
-    const dniRaw = formData.get('dni') as string;
-    const dniVal = dniRaw.toUpperCase();
+    const emailRaw = (formData.get('email') as string).trim().toLowerCase();
+    const dniRaw = normalizeDni(formData.get('dni') as string);
 
     if (!isValidEmail(emailRaw)) {
-      setErrorMessage('Por favor, introduce un email válido.');
+      setErrorMessage('Por favor, introduce un email valido.');
       return;
     }
-    if (!isValidDni(dniVal)) {
-      setErrorMessage('Por favor, introduce un DNI válido o NIE válido.');
+    if (!validateDniNie(dniRaw)) {
+      setErrorMessage('Por favor, introduce un DNI o NIE valido.');
       return;
     }
 
     const answers: Answer[] = [];
     for (const [key, value] of formData.entries()) {
-      if (key.startsWith('question-')) {
+      if (key.startsWith('question-') && typeof value === 'string') {
         const questionId = parseInt(key.split('-')[1], 10);
-        if (typeof value === 'string') {
-          answers.push({ question_id: questionId, answer: value });
-        }
+        answers.push({ question_id: questionId, answer: value });
       }
     }
 
     const payload: ExamSubmissionPayload = {
       email: emailRaw,
-      dni: dniVal,
+      dni: dniRaw,
       name: trimmedName,
       surname: trimmedSurname,
       exam_id: examId,
@@ -121,14 +120,12 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
     try {
       const result = await submitExam(payload);
 
-      alert(`Examen entregado. ${result.message}. Tu puntuación es: ${result.score || 'Procesando'}. Percentil: ${result.percentile || 'N/A'}`);
+      alert(`Examen entregado. ${result.message}. Tu puntuacion es: ${result.score ?? 'Procesando'}. Percentil: ${result.percentile ?? 'N/A'}`);
       window.location.href = '/';
     } catch (error) {
       setErrorMessage((error as Error).message);
     }
   };
-
-  const options = ['A', 'B', 'C', 'D'];
 
   if (loading) return <main>Cargando preguntas...</main>;
 
@@ -141,7 +138,12 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
 
   return (
     <main>
-      <a href="/" className="inline-block mb-6 px-4 py-2 font-bold text-purple-300 border border-purple-300 rounded-md no-underline transition-colors duration-300 ease-in-out hover:bg-purple-300 hover:text-[#1a1c22]">&larr; Volver a la selección de examen</a>
+      <a
+        href="/"
+        className="inline-block mb-6 px-4 py-2 font-bold text-purple-300 border border-purple-300 rounded-md no-underline transition-colors duration-300 ease-in-out hover:bg-purple-300 hover:text-[#1a1c22]"
+      >
+        &larr; Volver a la seleccion de examen
+      </a>
       <h1 className="text-5xl font-extrabold leading-tight text-center mb-12 text-purple-300 shadow-purple-500/50">{examName}</h1>
 
       <form id="exam-form" onSubmit={handleSubmit} noValidate>
@@ -153,7 +155,7 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
             name="name"
             required
             value={studentName}
-            onInput={e => setStudentName((e.target as HTMLInputElement).value)}
+            onInput={(event) => setStudentName((event.target as HTMLInputElement).value)}
             className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
           />
         </div>
@@ -166,7 +168,7 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
             name="surname"
             required
             value={studentSurname}
-            onInput={e => setStudentSurname((e.target as HTMLInputElement).value)}
+            onInput={(event) => setStudentSurname((event.target as HTMLInputElement).value)}
             className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
           />
         </div>
@@ -179,23 +181,21 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
             name="email"
             required
             value={email}
-            onInput={e => setEmail((e.target as HTMLInputElement).value)}
+            onInput={(event) => setEmail((event.target as HTMLInputElement).value)}
             onBlur={checkUserSubmission}
             className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
           />
         </div>
 
         <div className="mb-6">
-          <label htmlFor="dni" className="block font-bold text-purple-500 mb-2">DNI:</label>
+          <label htmlFor="dni" className="block font-bold text-purple-500 mb-2">DNI/NIE:</label>
           <input
             type="text"
             id="dni"
             name="dni"
             required
-            pattern="^[XYZ]?\d{7,8}[A-Z]$"
-            title="Introduce un DNI (8 números y 1 letra) o NIE (X, Y o Z seguido de 7 u 8 números y 1 letra) válido."
             value={dni}
-            onInput={e => setDni((e.target as HTMLInputElement).value.toUpperCase())}
+            onInput={(event) => setDni(normalizeDni((event.target as HTMLInputElement).value))}
             onBlur={checkUserSubmission}
             className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
           />
@@ -205,7 +205,7 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
           <div className="bg-[#2a2d33] p-6 mb-4 rounded-lg shadow-lg" key={question.id}>
             <p className="font-bold text-lg mb-4">Pregunta {index + 1}</p>
             <ul className="list-none p-0 m-0 flex flex-wrap gap-4">
-              {options.map((optionChar) => (
+              {ANSWER_OPTIONS.map((optionChar) => (
                 <li key={optionChar} className="mb-0">
                   <input
                     type="radio"
@@ -222,7 +222,10 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
           </div>
         ))}
 
-        <button type="submit" className="w-full py-3 text-lg font-bold mt-8 rounded-md bg-purple-600 hover:bg-purple-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed">
+        <button
+          type="submit"
+          className="w-full py-3 text-lg font-bold mt-8 rounded-md bg-purple-600 hover:bg-purple-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+        >
           Entregar Examen
         </button>
         {errorMessage && (
@@ -236,13 +239,16 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
           {checkingResult && <p>Comprobando resultados...</p>}
           {!checkingResult && score !== null && percentile !== null && (
             <p className="text-xl">
-              Tu puntuación: <strong>{score}</strong> <br />
+              Tu puntuacion: <strong>{score}</strong> <br />
               Percentil: <strong>{percentile}</strong>
             </p>
           )}
-          {!checkingResult && resultError && <p className="text-center text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md">{resultError}</p>}
+          {!checkingResult && resultError && (
+            <p className="text-center text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md">{resultError}</p>
+          )}
         </section>
       )}
     </main>
   );
 }
+
