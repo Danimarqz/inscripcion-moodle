@@ -1,16 +1,28 @@
+import os
+from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from sqlalchemy.orm import Session, joinedload
 
 from db.database import get_db
-from db.models import AdminUser, Exam, Question, UserAnswer, UserExamSubmission
+from db.models import (
+    AdminUser,
+    Exam,
+    ExamOfficialResult,
+    ExamUser,
+    Question,
+    UserAnswer,
+    UserExamSubmission,
+)
 from models.admin import AdminCreate, AdminLogin, TokenResponse
 from models.exam import (
     AdminSubmissionOut,
     AdminSubmissionUpdate,
     ExamCreateWithQuestions,
     ExamEdit,
+    ExamOfficialResultOut,
     ExamOut,
 )
 from services.auth.auth_service import (
@@ -24,6 +36,10 @@ from services.exam.submit_exam import (
     recalculate_percentiles,
     validate_answer_option,
     validate_dni_nie,
+)
+from services.exam.exam_results_importer import (
+    ExamResultImportError,
+    import_official_results_from_pdf,
 )
 
 router = APIRouter()
@@ -179,11 +195,87 @@ def get_user_results(
 
     results = (
         db.query(UserExamSubmission)
+        .options(
+            joinedload(UserExamSubmission.user),
+            joinedload(UserExamSubmission.answers),
+        )
         .filter(UserExamSubmission.exam_id == exam_id)
         .order_by(UserExamSubmission.submitted_at.desc())
         .all()
     )
     return results
+
+
+@router.get(
+    "/exams/{exam_id}/results/official",
+    response_model=List[ExamOfficialResultOut],
+)
+def list_official_results(
+    exam_id: int,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(get_current_admin_user),
+):
+    results = (
+        db.query(ExamOfficialResult)
+        .options(joinedload(ExamOfficialResult.user))
+        .filter(ExamOfficialResult.exam_id == exam_id)
+        .order_by(
+            ExamOfficialResult.apellido_1.asc(),
+            ExamOfficialResult.apellido_2.asc(),
+            ExamOfficialResult.nombre.asc(),
+        )
+        .all()
+    )
+    return results
+
+
+@router.post("/exams/{exam_id}/results/import")
+async def import_official_results(
+    exam_id: int,
+    file: UploadFile = File(...),
+    replace_existing: bool = Query(
+        True,
+        description="Eliminar resultados oficiales previos antes de importar",
+    ),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(get_current_admin_user),
+):
+    if file.content_type not in {"application/pdf", "application/octet-stream"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El archivo debe ser un PDF",
+        )
+
+    tmp_path = None
+    try:
+        with NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            content = await file.read()
+            tmp.write(content)
+            tmp_path = Path(tmp.name)
+
+        stats = import_official_results_from_pdf(
+            db=db,
+            exam_id=exam_id,
+            pdf_path=tmp_path,
+            replace_existing=replace_existing,
+        )
+    except ExamResultImportError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    finally:
+        if tmp_path and tmp_path.exists():
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+    return {
+        "exam_id": stats.exam_id,
+        "total_rows": stats.total_rows,
+        "imported_results": stats.imported_results,
+        "created_users": stats.created_users,
+        "updated_users": stats.updated_users,
+        "guess_used": stats.guess_used,
+    }
 
 
 @router.put("/results/{submission_id}", response_model=AdminSubmissionOut)
@@ -193,7 +285,12 @@ def update_submission(
     db: Session = Depends(get_db),
     admin: AdminUser = Depends(get_current_admin_user),
 ):
-    submission = db.query(UserExamSubmission).filter(UserExamSubmission.id == submission_id).first()
+    submission = (
+        db.query(UserExamSubmission)
+        .options(joinedload(UserExamSubmission.user))
+        .filter(UserExamSubmission.id == submission_id)
+        .first()
+    )
     if not submission:
         raise HTTPException(status_code=404, detail="Intento no encontrado")
 
@@ -201,10 +298,20 @@ def update_submission(
     if not validate_dni_nie(normalized_dni):
         raise HTTPException(status_code=400, detail="DNI o NIE invalido")
 
-    submission.dni = normalized_dni
-    submission.email = data.email.lower()
-    submission.name = data.name.strip()
-    submission.surname = data.surname.strip()
+    candidate = submission.user
+
+    duplicate_user = (
+        db.query(ExamUser)
+        .filter(ExamUser.dni == normalized_dni, ExamUser.id != candidate.id)
+        .first()
+    )
+    if duplicate_user:
+        raise HTTPException(status_code=400, detail="DNI duplicado para otro usuario")
+
+    candidate.dni = normalized_dni
+    candidate.email = data.email.lower()
+    candidate.name = data.name.strip()
+    candidate.surname = data.surname.strip()
 
     questions = db.query(Question).filter(Question.exam_id == submission.exam_id).all()
     if not questions:

@@ -2,7 +2,7 @@ from typing import Dict, Iterable
 
 from sqlalchemy.orm import Session
 
-from db.models import Exam, Question, UserAnswer, UserExamSubmission
+from db.models import Exam, ExamUser, Question, UserAnswer, UserExamSubmission
 from models.exam import ExamSubmission
 
 DNI_LETTERS = "TRWAGMYFPDXBNJZSQVHLCKE"
@@ -90,9 +90,34 @@ def process_exam_submission(data: ExamSubmission, db: Session):
     if not validate_dni_nie(normalized_dni):
         raise Exception("DNI o NIE invalido")
 
+    candidate = (
+        db.query(ExamUser)
+        .filter(ExamUser.dni == normalized_dni)
+        .one_or_none()
+    )
+
+    if candidate and candidate.email:
+        candidate.email = candidate.email.lower()
+
+    if candidate is None:
+        candidate = ExamUser(
+            name=data.name.strip(),
+            surname=data.surname.strip(),
+            email=normalized_email,
+            dni=normalized_dni,
+        )
+        db.add(candidate)
+        db.flush()
+    else:
+        # Update main fields to keep consolidated data
+        candidate.name = data.name.strip()
+        candidate.surname = data.surname.strip()
+        candidate.email = normalized_email
+        db.flush()
+
     existing = (
         db.query(UserExamSubmission)
-        .filter_by(email=normalized_email, exam_id=data.exam_id)
+        .filter_by(user_id=candidate.id, exam_id=data.exam_id)
         .first()
     )
     if existing:
@@ -119,10 +144,7 @@ def process_exam_submission(data: ExamSubmission, db: Session):
     score = correct_count / len(questions) * 100 if questions else 0.0
 
     submission = UserExamSubmission(
-        email=normalized_email,
-        dni=normalized_dni,
-        name=data.name.strip(),
-        surname=data.surname.strip(),
+        user_id=candidate.id,
         exam_id=data.exam_id,
         score=score,
         percentile=0,

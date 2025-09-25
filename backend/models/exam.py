@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, computed_field
 
 
 class AnswerSubmission(BaseModel):
@@ -16,6 +16,20 @@ class ExamSubmission(BaseModel):
     surname: str
     exam_id: int
     answers: List[AnswerSubmission]
+
+
+class ExamUserBase(BaseModel):
+    name: str
+    surname: str
+    email: EmailStr | None = None
+    dni: str
+
+
+class ExamUserOut(ExamUserBase):
+    id: int
+
+    class Config:
+        from_attributes = True
 
 
 class ExamOut(BaseModel):
@@ -70,9 +84,8 @@ class AnswerDetail(BaseModel):
 
 class UserExamSubmission(BaseModel):
     id: int
-    email: EmailStr
-    dni: str
     exam_id: int
+    user: ExamUserOut
     score: Optional[float] = None
     percentile: Optional[float] = None
     submitted_at: datetime
@@ -80,10 +93,24 @@ class UserExamSubmission(BaseModel):
     class Config:
         from_attributes = True
 
+    @computed_field
+    def email(self) -> EmailStr | None:
+        return self.user.email
+
+    @computed_field
+    def dni(self) -> str:
+        return self.user.dni
+
+    @computed_field
+    def name(self) -> str:
+        return self.user.name
+
+    @computed_field
+    def surname(self) -> str:
+        return self.user.surname
+
 
 class AdminSubmissionOut(UserExamSubmission):
-    name: str
-    surname: str
     answers: List[AnswerDetail]
 
 
@@ -104,3 +131,17 @@ class SubmissionCheckRequest(BaseModel):
 class SubmissionCheckResponse(BaseModel):
     score: float
     percentile: float
+
+
+class ExamOfficialResultOut(BaseModel):
+    id: int
+    exam_id: int
+    user: ExamUserOut
+    dni_masked: str
+    apellido_1: str
+    apellido_2: Optional[str]
+    nombre: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

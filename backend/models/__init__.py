@@ -5,6 +5,8 @@ from .exam import (
     AnswerSubmission,
     ExamCreateWithQuestions,
     ExamEdit,
+    ExamOfficialResultOut,
     ExamOut,
     ExamSubmission,
+    ExamUserOut,
 )
