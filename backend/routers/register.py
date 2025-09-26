@@ -4,6 +4,7 @@ from models.registerdata import RegisterData
 from services.register.pdf_utils import generate_pdf
 from services.register.email_utils import send_emails
 from services.register.moodle_api import create_moodle_user
+from services.register.gsheet_api import post_registration_to_gsheet
 from rate_limiter import check_rate_limit
 
 register_app = FastAPI()
@@ -36,5 +37,10 @@ async def register(request: Request, data: RegisterData):
         create_moodle_user(form_data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al crear usuario en Moodle: {str(e)}")
+
+    try:
+        post_registration_to_gsheet(form_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al registrar en Google Sheets: {str(e)}")
 
     return {"message": "Inscripción completada correctamente"}
