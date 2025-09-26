@@ -15,9 +15,10 @@ Este proyecto es una aplicación web completa que consta de dos partes principal
 
 ### Plataforma de Exámenes (`frontend-exam` y `backend`)
 
-*   **Gestión de Exámenes:** Un panel de administración permite crear, editar y eliminar exámenes con sus preguntas y respuestas correctas.
+*   **Gestión de Exámenes:** El panel de administración se divide en `/admin/exams`, `/admin/submissions` y `/admin/results` para crear/editar exámenes, revisar intentos y gestionar resultados oficiales importados.
+*   **Importación de resultados oficiales:** Desde `/admin/results` se puede subir un PDF (procesado con Tabula) y vincular automáticamente los registros con usuarios existentes.
 *   **Realización de Exámenes:** Los usuarios pueden acceder a los exámenes activos, responder las preguntas y enviar sus respuestas.
-*   **Resultados y Percentiles:** Al finalizar un examen, el usuario recibe su puntuación y su percentil en comparación con otros usuarios que han realizado el mismo examen.
+*   **Resultados y Percentiles:** Al finalizar un examen, el usuario recibe su puntuación y su percentil en comparación con otros usuarios. Cuando `show_response` está activo, la ficha del examen muestra el resumen del último envío sin usar ventanas emergentes.
 *   **Autenticación de Administrador:** El panel de administración está protegido y requiere autenticación mediante JWT.
 
 ## Estructura del Proyecto
@@ -59,9 +60,10 @@ inscripcion-moodle/
     *   Dependencias en `backend/requirements.txt`
 *   **Frontend (Exams):**
     *   Node.js y npm (o un gestor de paquetes compatible)
-    *   Dependencias en `frontend-exam/package.json`
+    *   Dependencias en `frontend-exam/package.json` (incluye `@astrojs/node` como adaptador de servidor)
 *   **Base de Datos:**
     *   Un servidor de base de datos compatible con SQLAlchemy (ej. MySQL, PostgreSQL).
+    *   Ejecuta las migraciones SQL en `backend/db/migrations/` (por ejemplo `20250926_exam_user_and_official_results.sql` y `20250927_exam_official_result_nullable_user.sql`) antes de iniciar el nuevo backend.
 
 ## Instalación
 
@@ -100,6 +102,7 @@ inscripcion-moodle/
         npm run dev
         ```
     *   La aplicación de exámenes estará disponible en `http://localhost:4321`.
+    *   Para entornos de producción ejecuta `npm run build`; Astro está configurado en modo `server` con el adaptador Node.
 
 3.  **Frontend de Inscripción:**
     *   Abre el archivo `frontend-inscripcion/index.html` directamente en tu navegador o sírvelo con un servidor web.
@@ -108,3 +111,9 @@ inscripcion-moodle/
 ## Licencia
 
 Este proyecto está bajo la Licencia MIT. Consulta el archivo `LICENSE` para más detalles.
+
+## Notas recientes
+
+*   La importación de resultados oficiales utiliza `tabula-py` con `guess=false`; los registros que no se puedan asociar a un candidato existente se guardan con `user_id` vacío.
+*   La página de examen (`/exam/[id]`) recupera la configuración del examen en cada petición para respetar cambios en `show_response` sin recompilar.
+*   Los mensajes de envío y de reintentos se muestran integrados en la interfaz en lugar de usar `alert()` del navegador.
