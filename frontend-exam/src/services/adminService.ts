@@ -3,6 +3,8 @@ import type {
   Exam,
   ExamCreateWithQuestions,
   ExamEdit,
+  ExamOfficialResult,
+  ImportOfficialResultsSummary,
   SubmissionUpdatePayload,
 } from '../types/exam';
 
@@ -131,6 +133,50 @@ export async function getExamSubmissions(examId: number, token: string): Promise
   if (!response.ok) {
     const errorData = await response.json();
     throw new Error(errorData.detail || 'Error fetching submissions');
+  }
+
+  return response.json();
+}
+
+export async function getOfficialResults(examId: number, token: string): Promise<ExamOfficialResult[]> {
+  const response = await fetch(`${API_URL}/admin/exams/${examId}/results/official`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.detail || 'Error fetching official results');
+  }
+
+  return response.json();
+}
+
+export async function importOfficialResults(
+  examId: number,
+  file: File,
+  token: string,
+  replaceExisting = true,
+): Promise<ImportOfficialResultsSummary> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(
+    `${API_URL}/admin/exams/${examId}/results/import?replace_existing=${replaceExisting}`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    },
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Error importing official results');
   }
 
   return response.json();

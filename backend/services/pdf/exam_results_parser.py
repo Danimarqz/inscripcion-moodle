@@ -1,19 +1,10 @@
 from __future__ import annotations
-
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Sequence
-
 import pandas as pd
-
-try:  # pragma: no cover - optional dependency handled at runtime
-    from tabula import read_pdf as tabula_read_pdf
-except ImportError as exc:  # pragma: no cover - fail fast when dependency missing
-    raise RuntimeError(
-        "tabula-py is required to parse exam result PDFs. Install it with"
-        " `pip install tabula-py pandas`."
-    ) from exc
+from tabula import read_pdf as tabula_read_pdf
 
 
 HEADER_KEYWORDS = ("DNI", "APELLIDO", "NOMBRE")
@@ -26,7 +17,6 @@ class ParseSummary:
     raw_tables: List[pd.DataFrame]
     useful_tables: List[pd.DataFrame]
     combined: pd.DataFrame
-    guess_used: bool
 
 
 def _clean_cell(value: object) -> str:
@@ -137,7 +127,6 @@ def _read_pdf_tables(
     *,
     pages: str = "all",
     lattice: bool = False,
-    guess: bool = False,
     encoding: str = DEFAULT_ENCODING,
 ) -> list[pd.DataFrame]:
     resolved = Path(pdf_path)
@@ -148,7 +137,7 @@ def _read_pdf_tables(
         str(resolved),
         pages=pages,
         lattice=lattice,
-        guess=guess,
+        guess=False,
         encoding=encoding,
         pandas_options={"dtype": str, "header": None},
     )
@@ -164,14 +153,12 @@ def parse_exam_results(
     *,
     pages: str = "all",
     lattice: bool = False,
-    guess: bool = False,
     encoding: str = DEFAULT_ENCODING,
 ) -> ParseSummary:
     raw_tables = _read_pdf_tables(
         pdf_path,
         pages=pages,
         lattice=lattice,
-        guess=guess,
         encoding=encoding,
     )
     useful_tables = _extract_useful_tables(raw_tables)
@@ -180,7 +167,6 @@ def parse_exam_results(
         raw_tables=raw_tables,
         useful_tables=useful_tables,
         combined=combined,
-        guess_used=guess,
     )
 
 
@@ -196,7 +182,6 @@ def smart_parse_exam_results(
         pdf_path,
         pages=pages,
         lattice=lattice,
-        guess=False,
         encoding=encoding,
     )
 
@@ -207,7 +192,6 @@ def smart_parse_exam_results(
         pdf_path,
         pages=pages,
         lattice=lattice,
-        guess=True,
         encoding=encoding,
     )
 
@@ -216,7 +200,6 @@ def smart_parse_exam_results(
             raw_tables=second_pass.raw_tables,
             useful_tables=second_pass.useful_tables,
             combined=second_pass.combined,
-            guess_used=True,
         )
 
     return first_pass

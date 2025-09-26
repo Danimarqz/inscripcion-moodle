@@ -111,7 +111,7 @@ class ExamOfficialResult(Base):
 
     id = Column(Integer, primary_key=True)
     exam_id = Column(Integer, ForeignKey("exam.id"), nullable=False)
-    user_id = Column(Integer, ForeignKey("exam_user.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("exam_user.id"), nullable=True)
     dni_masked = Column(String(20), nullable=False)
     apellido_1 = Column(String(255), nullable=False)
     apellido_2 = Column(String(255), nullable=True)

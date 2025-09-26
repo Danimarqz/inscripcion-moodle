@@ -4,14 +4,14 @@ export type Exam = {
   score?: number;
   percentile?: number;
   show_response?: boolean;
-}
+};
 export type ExamOut = {
   id: number;
   name: string;
   score?: number;
   percentile?: number;
   message?: string;
-}
+};
 
 export type Question = {
   id: number;
@@ -29,10 +29,19 @@ export type SubmissionAnswer = {
   answer: string;
 }
 
+export type ExamUser = {
+  id: number;
+  name: string;
+  surname: string;
+  email?: string | null;
+  dni: string;
+};
+
 export type AdminSubmission = {
   id: number;
   exam_id: number;
-  email: string;
+  user?: ExamUser | null;
+  email?: string | null;
   dni: string;
   name: string;
   surname: string;
@@ -40,7 +49,7 @@ export type AdminSubmission = {
   percentile?: number | null;
   submitted_at: string;
   answers: SubmissionAnswer[];
-}
+};
 
 export type ExamSubmissionPayload = {
   email: string;
@@ -57,12 +66,12 @@ export type SubmissionUpdatePayload = {
   name: string;
   surname: string;
   answers: Answer[];
-}
+};
 
 export type ExamQuestionsResponse = {
   exam_name: string;
   questions: Question[];
-}
+};
 
 export type QuestionCreate = {
   id?: number;
@@ -74,7 +83,7 @@ export type ExamCreateWithQuestions = {
   is_active?: boolean;
   show_response?: boolean;
   questions: QuestionCreate[];
-}
+};
 
 export type QuestionEdit = {
   id?: number;
@@ -87,10 +96,29 @@ export type ExamEdit = {
   is_active?: boolean;
   show_response?: boolean;
   questions: QuestionEdit[];
-}
+};
 
 export type UserSubmissionCheck = {
   email: string;
   dni: string;
   exam_id: number;
-}
+};
+
+export type ExamOfficialResult = {
+  id: number;
+  exam_id: number;
+  user?: ExamUser | null;
+  dni_masked: string;
+  apellido_1: string;
+  apellido_2?: string | null;
+  nombre: string;
+  created_at: string;
+};
+
+export type ImportOfficialResultsSummary = {
+  exam_id: number;
+  total_rows: number;
+  imported_results: number;
+  created_users: number;
+  updated_users: number;
+};

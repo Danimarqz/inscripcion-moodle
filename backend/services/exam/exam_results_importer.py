@@ -22,7 +22,6 @@ class ImportStats:
     imported_results: int
     created_users: int
     updated_users: int
-    guess_used: bool
 
 
 class ExamResultImportError(RuntimeError):
@@ -156,19 +155,7 @@ def import_official_results_from_pdf(
             surname_for_storage,
         )
 
-        normalized_dni = normalize_dni(dni_masked)
-
-        if candidate is None:
-            candidate = ExamUser(
-                dni=normalized_dni,
-                name=nombre,
-                surname=surname_for_storage,
-                email=None,
-            )
-            db.add(candidate)
-            db.flush()
-            created_users += 1
-        else:
+        if candidate is not None:
             updated_fields = False
             if nombre and _normalize_upper(candidate.name) != name_upper:
                 candidate.name = nombre
@@ -181,7 +168,7 @@ def import_official_results_from_pdf(
 
         result = ExamOfficialResult(
             exam_id=exam_id,
-            user_id=candidate.id,
+            user_id=candidate.id if candidate is not None else None,
             dni_masked=dni_masked,
             apellido_1=apellido_1,
             apellido_2=apellido_2_raw,
@@ -198,5 +185,4 @@ def import_official_results_from_pdf(
         imported_results=imported_results,
         created_users=created_users,
         updated_users=updated_users,
-        guess_used=summary.guess_used,
     )

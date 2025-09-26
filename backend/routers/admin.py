@@ -274,7 +274,6 @@ async def import_official_results(
         "imported_results": stats.imported_results,
         "created_users": stats.created_users,
         "updated_users": stats.updated_users,
-        "guess_used": stats.guess_used,
     }
 
 

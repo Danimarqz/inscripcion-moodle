@@ -3,6 +3,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { deleteExam, getAdminExams, validateAdminToken } from '../services/adminService';
 import type { Exam } from '../types/exam';
 import SubmissionsManager from './SubmissionsManager';
+import OfficialResultsManager from './OfficialResultsManager';
 
 export function getAuthToken(): string | null {
   return localStorage.getItem('admin_access_token');
@@ -123,6 +124,7 @@ export default function AdminDashboard() {
       )}
 
       <SubmissionsManager exams={exams} token={authToken} />
+      <OfficialResultsManager exams={exams} token={authToken} />
     </div>
   );
 }

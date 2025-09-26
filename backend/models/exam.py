@@ -136,7 +136,7 @@ class SubmissionCheckResponse(BaseModel):
 class ExamOfficialResultOut(BaseModel):
     id: int
     exam_id: int
-    user: ExamUserOut
+    user: ExamUserOut | None = None
     dni_masked: str
     apellido_1: str
     apellido_2: Optional[str]

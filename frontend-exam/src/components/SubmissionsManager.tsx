@@ -96,12 +96,13 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
       initialAnswers[answer.question_id] = answer.answer;
     });
 
+    const user = submission.user;
     setEditing({
       submissionId: submission.id,
-      name: submission.name,
-      surname: submission.surname,
-      email: submission.email,
-      dni: submission.dni,
+      name: submission.name || user?.name || '',
+      surname: submission.surname || user?.surname || '',
+      email: submission.email ?? user?.email ?? '',
+      dni: submission.dni || user?.dni || '',
       answers: initialAnswers,
     });
     setFeedback(null);
@@ -126,25 +127,26 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     value: EditingState[K],
   ) {
     if (!editing) return;
-    setEditing({
-      ...editing,
-      [field]: value,
-    });
+    setEditing({ ...editing, [field]: value });
   }
 
   function updateAnswer(questionId: number, value: string) {
     if (!editing) return;
+    const upper = value.toUpperCase();
+    if (!ANSWER_OPTIONS.includes(upper)) return;
+
     setEditing({
       ...editing,
       answers: {
         ...editing.answers,
-        [questionId]: value,
+        [questionId]: upper,
       },
     });
   }
 
   async function handleSave() {
-    if (!editing || !selectedExamId) return;
+    if (!editing) return;
+
     setError(null);
     setFeedback(null);
 
@@ -243,131 +245,139 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
 
       {selectedExamId && !loading && submissions.length > 0 && (
         <ul className="list-none p-0 space-y-6">
-          {submissions.map((submission) => (
-            <li key={submission.id} className="bg-[#2a2d33] p-6 rounded-lg shadow-lg">
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="font-semibold">{submission.name} {submission.surname}</p>
-                  <p className="text-sm text-gray-400">Email: {submission.email}</p>
-                  <p className="text-sm text-gray-400">DNI/NIE: {submission.dni}</p>
-                  <p className="text-sm text-gray-400">
-                    Puntuacion: {submission.score ?? 'N/A'} | Percentil: {submission.percentile ?? 'N/A'}
-                  </p>
-                  <p className="text-xs text-gray-500">Enviado el {new Date(submission.submitted_at).toLocaleString()}</p>
-                </div>
-                <div className="flex gap-3 mt-4 md:mt-0">
-                  <button
-                    className="py-2 px-4 rounded bg-purple-600 hover:bg-purple-700 transition-colors cursor-pointer"
-                    onClick={() => startEditing(submission)}
-                  >
-                    Editar
-                  </button>
-                  <button
-                    className="py-2 px-4 rounded bg-red-600 hover:bg-red-700 transition-colors cursor-pointer"
-                    onClick={() => handleDelete(submission.id)}
-                  >
-                    Borrar
-                  </button>
-                </div>
-              </div>
+          {submissions.map((submission) => {
+            const user = submission.user;
+            const displayName = `${user?.name ?? submission.name ?? ''} ${user?.surname ?? submission.surname ?? ''}`
+              .trim()
+              || 'Usuario sin nombre';
+            const displayEmail = submission.email ?? user?.email ?? 'Sin email registrado';
+            const displayDni = submission.dni || user?.dni || 'Sin DNI';
 
-              {editing && editing.submissionId === submission.id && (
-                <div className="mt-6 border-t border-[#444] pt-6">
-                  <h3 className="text-xl font-semibold mb-4">
-                    Editar intento ({selectedExamName})
-                  </h3>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <label className="flex flex-col gap-1">
-                      <span>Nombre</span>
-                      <input
-                        type="text"
-                        value={editing.name}
-                        onInput={(event) =>
-                          updateEditingField('name', (event.target as HTMLInputElement).value)
-                        }
-                        className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white"
-                      />
-                    </label>
-                    <label className="flex flex-col gap-1">
-                      <span>Apellidos</span>
-                      <input
-                        type="text"
-                        value={editing.surname}
-                        onInput={(event) =>
-                          updateEditingField('surname', (event.target as HTMLInputElement).value)
-                        }
-                        className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white"
-                      />
-                    </label>
-                    <label className="flex flex-col gap-1">
-                      <span>Email</span>
-                      <input
-                        type="email"
-                        value={editing.email}
-                        onInput={(event) =>
-                          updateEditingField('email', (event.target as HTMLInputElement).value)
-                        }
-                        className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white"
-                      />
-                    </label>
-                    <label className="flex flex-col gap-1">
-                      <span>DNI/NIE</span>
-                      <input
-                        type="text"
-                        value={editing.dni}
-                        onInput={(event) =>
-                          updateEditingField('dni', normalizeDni((event.target as HTMLInputElement).value))
-                        }
-                        className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white"
-                      />
-                    </label>
+            return (
+              <li key={submission.id} className="bg-[#2a2d33] p-6 rounded-lg shadow-lg">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="font-semibold">{displayName}</p>
+                    <p className="text-sm text-gray-400">Email: {displayEmail}</p>
+                    <p className="text-sm text-gray-400">DNI/NIE: {displayDni}</p>
+                    <p className="text-sm text-gray-400">
+                      Puntuacion: {submission.score ?? 'N/A'} | Percentil: {submission.percentile ?? 'N/A'}
+                    </p>
+                    <p className="text-xs text-gray-500">Enviado el {new Date(submission.submitted_at).toLocaleString()}</p>
                   </div>
+                  <div className="flex gap-3 mt-4 md:mt-0">
+                    <button
+                      className="py-2 px-4 rounded bg-purple-600 hover:bg-purple-700 transition-colors cursor-pointer"
+                      onClick={() => startEditing(submission)}
+                    >
+                      Editar
+                    </button>
+                    <button
+                      className="py-2 px-4 rounded bg-red-600 hover:bg-red-700 transition-colors cursor-pointer"
+                      onClick={() => handleDelete(submission.id)}
+                    >
+                      Borrar
+                    </button>
+                  </div>
+                </div>
 
-                  <div className="mt-6 space-y-4">
-                    {questions.map((question, index) => (
-                      <div key={question.id ?? index}>
-                        <span className="font-semibold">Pregunta {index + 1}</span>
-                        <select
-                          value={editing.answers[question.id ?? -1] || 'A'}
-                          onChange={(event) =>
-                            question.id !== undefined &&
-                            updateAnswer(question.id, (event.target as HTMLSelectElement).value)
+                {editing && editing.submissionId === submission.id && (
+                  <div className="mt-6 border-t border-[#444] pt-6">
+                    <h3 className="text-xl font-semibold mb-4">
+                      Editar intento ({selectedExamName})
+                    </h3>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <label className="flex flex-col gap-1">
+                        <span>Nombre</span>
+                        <input
+                          type="text"
+                          value={editing.name}
+                          onInput={(event) =>
+                            updateEditingField('name', (event.target as HTMLInputElement).value)
                           }
-                          className="ml-4 px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white"
-                        >
-                          {ANSWER_OPTIONS.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    ))}
-                  </div>
+                          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span>Apellidos</span>
+                        <input
+                          type="text"
+                          value={editing.surname}
+                          onInput={(event) =>
+                            updateEditingField('surname', (event.target as HTMLInputElement).value)
+                          }
+                          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span>Email</span>
+                        <input
+                          type="email"
+                          value={editing.email}
+                          onInput={(event) =>
+                            updateEditingField('email', (event.target as HTMLInputElement).value)
+                          }
+                          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span>DNI/NIE</span>
+                        <input
+                          type="text"
+                          value={editing.dni}
+                          onInput={(event) =>
+                            updateEditingField('dni', normalizeDni((event.target as HTMLInputElement).value))
+                          }
+                          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white"
+                        />
+                      </label>
+                    </div>
 
-                  <div className="flex gap-3 mt-6">
-                    <button
-                      className="py-2 px-4 rounded bg-green-600 hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-60"
-                      onClick={handleSave}
-                      disabled={saving}
-                    >
-                      {saving ? 'Guardando...' : 'Guardar cambios'}
-                    </button>
-                    <button
-                      className="py-2 px-4 rounded bg-gray-600 hover:bg-gray-700 transition-colors cursor-pointer"
-                      onClick={() => setEditing(null)}
-                    >
-                      Cancelar
-                    </button>
+                    <div className="mt-6 space-y-4">
+                      {questions.map((question, index) => (
+                        <div key={question.id ?? index}>
+                          <span className="font-semibold">Pregunta {index + 1}</span>
+                          <select
+                            value={editing.answers[question.id ?? -1] || 'A'}
+                            onChange={(event) =>
+                              question.id !== undefined &&
+                              updateAnswer(question.id, (event.target as HTMLSelectElement).value)
+                            }
+                            className="ml-4 px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white"
+                          >
+                            {ANSWER_OPTIONS.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex gap-3 mt-6">
+                      <button
+                        className="py-2 px-4 rounded bg-green-600 hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-60"
+                        onClick={handleSave}
+                        disabled={saving}
+                      >
+                        {saving ? 'Guardando...' : 'Guardar cambios'}
+                      </button>
+                      <button
+                        className="py-2 px-4 rounded bg-gray-600 hover:bg-gray-700 transition-colors cursor-pointer"
+                        onClick={() => setEditing(null)}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
-            </li>
-          ))}
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>
   );
 }
-
