@@ -14,7 +14,7 @@ export default function Header() {
       <div className="max-w-6xl mx-auto flex justify-between items-center">
         <a href="/" className="text-white no-underline">
           <h1 className="text-3xl md:text-4xl font-bold m-0 bg-gradient-to-r from-accent via-accent-light to-white bg-clip-text text-transparent bg-[length:400%_400%] bg-right-bottom transition-all duration-1000 ease-in-out hover:bg-left-top">
-            OpositaTest
+            Simulador
           </h1>
         </a>
         <div id="admin-button-container">
