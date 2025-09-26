@@ -1,81 +1,58 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useAdminAuth } from '../hooks/useAdminAuth';
+import { removeAuthToken, redirectToLogin } from '../utils/adminAuth';
 
-import { deleteExam, getAdminExams, validateAdminToken } from '../services/adminService';
-import type { Exam } from '../types/exam';
-import SubmissionsManager from './SubmissionsManager';
-import OfficialResultsManager from './OfficialResultsManager';
+type LinkItem = {
+  href: string;
+  title: string;
+  description: string;
+};
 
-export function getAuthToken(): string | null {
-  return localStorage.getItem('admin_access_token');
-}
-
-export function removeAuthToken() {
-  localStorage.removeItem('admin_access_token');
-}
+const ADMIN_LINKS: LinkItem[] = [
+  {
+    href: '/admin/exams',
+    title: 'Gestionar examenes',
+    description: 'Crear, editar o eliminar examenes disponibles.',
+  },
+  {
+    href: '/admin/submissions',
+    title: 'Gestionar intentos',
+    description: 'Revisar y actualizar intentos enviados por los usuarios.',
+  },
+  {
+    href: '/admin/results',
+    title: 'Resultados oficiales',
+    description: 'Importar PDFs oficiales y revisar su coincidencia con los usuarios.',
+  },
+];
 
 export default function AdminDashboard() {
-  const [exams, setExams] = useState<Exam[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const { token, loading, error } = useAdminAuth();
 
-  const rawToken = getAuthToken();
-  if (!rawToken) {
-    window.location.href = '/admin/login';
-    return null;
-  }
-  const authToken: string = rawToken;
-
-  useEffect(() => {
-    async function initialize() {
-      const isValid = await validateAdminToken(authToken);
-      if (!isValid) {
-        removeAuthToken();
-        window.location.href = '/admin/login';
-        return;
-      }
-
-      try {
-        const data = await getAdminExams(authToken);
-        setExams(data);
-      } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    initialize();
-  }, [authToken]);
-
-  async function handleDelete(id: number) {
-    if (!confirm('Seguro que quieres borrar este examen?')) return;
-    try {
-      await deleteExam(id, authToken);
-      setExams((current) => current.filter((exam) => exam.id !== id));
-      alert('Examen borrado');
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Error desconocido';
-      alert('Error borrando examen: ' + message);
-    }
-  }
+  void token;
 
   function handleLogout() {
     removeAuthToken();
-    window.location.href = '/admin/login';
+    redirectToLogin();
   }
 
-  if (loading) return <p>Cargando examenes...</p>;
+  if (loading) {
+    return <p>Cargando panel de administracion...</p>;
+  }
 
   return (
-    <div className="max-w-4xl mx-auto my-8 p-8 bg-[#1a1c22] rounded-lg shadow-2xl text-white">
-      <div className="text-center mt-8">
+    <div className="max-w-5xl mx-auto my-8 p-8 bg-[#1a1c22] rounded-lg shadow-2xl text-white">
+      <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-purple-300">Panel de administracion</h1>
+          <p className="text-sm text-gray-400">Selecciona una seccion para comenzar a trabajar.</p>
+        </div>
         <button
           className="bg-gray-700 border-none py-2 px-5 rounded text-white cursor-pointer transition-colors duration-300 hover:bg-gray-800"
           onClick={handleLogout}
         >
           Cerrar sesion
         </button>
-      </div>
+      </header>
 
       {error && (
         <p className="text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md my-6">
@@ -83,48 +60,18 @@ export default function AdminDashboard() {
         </p>
       )}
 
-      <h2 className="text-purple-300 border-b-2 border-purple-500 pb-2 mb-6">Examenes disponibles</h2>
-
-      <div className="mb-6 text-right">
-        <button
-          className="py-2 px-5 rounded font-semibold cursor-pointer transition-all duration-300 no-underline inline-block border-none text-white bg-purple-600 hover:bg-purple-700 hover:shadow-lg hover:-translate-y-0.5"
-          onClick={() => (window.location.href = '/admin/exam/create')}
-        >
-          Crear nuevo examen
-        </button>
+      <div className="grid gap-6 md:grid-cols-3">
+        {ADMIN_LINKS.map((item) => (
+          <a
+            key={item.href}
+            href={item.href}
+            className="block bg-[#2a2d34] p-6 rounded-lg shadow-lg border border-transparent transition-transform transition-colors duration-200 hover:-translate-y-1 hover:border-purple-500 hover:bg-[#32353f]"
+          >
+            <h2 className="text-xl font-semibold text-purple-200 mb-2">{item.title}</h2>
+            <p className="text-sm text-gray-300">{item.description}</p>
+          </a>
+        ))}
       </div>
-
-      {exams.length === 0 ? (
-        <p>No hay examenes disponibles.</p>
-      ) : (
-        <ul className="list-none p-0 m-0">
-          {exams.map((exam: Exam) => (
-            <li
-              key={exam.id}
-              className="bg-[#2a2d34] p-4 my-4 rounded flex justify-between items-center transition-colors duration-300 hover:bg-[#3a3d44]"
-            >
-              <span>{exam.name} (ID: {exam.id})</span>
-              <div className="flex gap-3">
-                <button
-                  className="py-2 px-5 rounded font-semibold cursor-pointer transition-all duration-300 no-underline inline-block border-none text-white bg-purple-600 hover:bg-purple-700 hover:shadow-lg hover:-translate-y-0.5"
-                  onClick={() => (window.location.href = `/admin/exam/${exam.id}/edit`)}
-                >
-                  Editar
-                </button>
-                <button
-                  className="py-2 px-5 rounded font-semibold cursor-pointer transition-all duration-300 no-underline inline-block border-none text-white bg-red-600 hover:bg-red-700 hover:shadow-lg hover:-translate-y-0.5"
-                  onClick={() => handleDelete(exam.id)}
-                >
-                  Borrar
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <SubmissionsManager exams={exams} token={authToken} />
-      <OfficialResultsManager exams={exams} token={authToken} />
     </div>
   );
 }

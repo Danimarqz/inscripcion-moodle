@@ -1,0 +1,8 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import AdminResultsPage from '../../components/AdminResultsPage.tsx';
+---
+
+<Layout title="Resultados oficiales">
+  <AdminResultsPage client:only="preact" />
+</Layout>

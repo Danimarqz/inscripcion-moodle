@@ -122,3 +122,11 @@ export type ImportOfficialResultsSummary = {
   created_users: number;
   updated_users: number;
 };
+
+export type SortableHeaderProps = {
+  label: string;
+  sortKey: 'dni' | 'nombre' | 'apellidos' | 'usuario' | 'creado';
+  activeKey: 'dni' | 'nombre' | 'apellidos' | 'usuario' | 'creado';
+  direction: 'asc' | 'desc';
+  onSort: (key: 'dni' | 'nombre' | 'apellidos' | 'usuario' | 'creado') => void;
+};

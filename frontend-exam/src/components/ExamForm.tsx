@@ -5,7 +5,7 @@ import type {
   QuestionCreate,
   QuestionEdit,
 } from '../types/exam';
-import { getAuthToken } from '../components/AdminDashboard';
+import { getAuthToken } from '../utils/adminAuth';
 import { createExam, editExam, getExamById } from '../services/adminService';
 
 interface ExamFormProps {

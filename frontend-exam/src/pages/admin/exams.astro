@@ -1,0 +1,8 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import AdminExamsManager from '../../components/AdminExamsManager.tsx';
+---
+
+<Layout title="Gestion de examenes">
+  <AdminExamsManager client:only="preact" />
+</Layout>

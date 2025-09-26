@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from db.models import Exam, ExamOfficialResult, ExamUser
 from services.exam.submit_exam import normalize_dni
-from services.pdf.exam_results_parser import DEFAULT_ENCODING, smart_parse_exam_results
+from services.pdf.exam_results_parser import DEFAULT_ENCODING, parse_exam_results
 
 logger = logging.getLogger(__name__)
 
@@ -115,10 +115,11 @@ def import_official_results_from_pdf(
     if not exam:
         raise ExamResultImportError(f"Examen con id {exam_id} no existe")
 
-    summary = smart_parse_exam_results(
+    summary = parse_exam_results(
         pdf_path,
         encoding=encoding,
         lattice=lattice,
+        guess=False,
     )
 
     if summary.combined.empty:

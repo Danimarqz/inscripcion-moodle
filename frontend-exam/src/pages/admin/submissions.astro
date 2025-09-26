@@ -1,0 +1,8 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import AdminSubmissionsPage from '../../components/AdminSubmissionsPage.tsx';
+---
+
+<Layout title="Gestion de intentos">
+  <AdminSubmissionsPage client:only="preact" />
+</Layout>

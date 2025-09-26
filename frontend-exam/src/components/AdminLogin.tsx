@@ -1,9 +1,6 @@
 import { useState } from 'preact/hooks';
 import { adminLogin } from '../services/adminService';
-
-export function saveAuthToken(token: string) {
-  localStorage.setItem('admin_access_token', token);
-}
+import { saveAuthToken } from '../utils/adminAuth';
 
 export default function AdminLogin() {
   const [username, setUsername] = useState('');
@@ -17,7 +14,7 @@ export default function AdminLogin() {
     try {
       const response = await adminLogin({ username, password });
       saveAuthToken(response.access_token);
-      window.location.href = '/admin/dashboard';
+      window.location.href = '/admin/exams';
     } catch (error: any) {
       setErrorMessage(error.message || 'Error desconocido al iniciar sesión.');
     }

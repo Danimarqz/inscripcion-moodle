@@ -29,6 +29,7 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
   const [percentile, setPercentile] = useState<number | null>(null);
   const [checkingResult, setCheckingResult] = useState(false);
   const [resultError, setResultError] = useState<string | null>(null);
+  const [submissionMessage, setSubmissionMessage] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchQuestions() {
@@ -50,18 +51,21 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
     setResultError(null);
     setScore(null);
     setPercentile(null);
+    setSubmissionMessage(null);
 
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedDni = normalizeDni(dni);
 
     if (!isValidEmail(normalizedEmail) || !validateDniNie(normalizedDni)) return;
-
     setCheckingResult(true);
     try {
       const data: Exam = await checkSubmission({ email: normalizedEmail, dni: normalizedDni, exam_id: examId });
       setScore(data.score ?? 0);
       setPercentile(data.percentile ?? 0);
-      alert(`Ya has entregado el examen. Tu puntuacion es: ${data.score ?? 'Procesando'}. Percentil: ${data.percentile ?? 'N/A'}`);
+      const message = `Ya has entregado el examen. Tu puntuacion es: ${data.score ?? 'Procesando'}. Percentil: ${
+        data.percentile ?? 'N/A'
+      }`;
+      setSubmissionMessage(message);
     } catch (e) {
       setResultError((e as Error).message);
     } finally {
@@ -120,7 +124,15 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
     try {
       const result = await submitExam(payload);
 
-      alert(`Examen entregado. ${result.message}. Tu puntuacion es: ${result.score ?? 'Procesando'}. Percentil: ${result.percentile ?? 'N/A'}`);
+      if (showResponse) {
+        setScore(result.score ?? null);
+        setPercentile(result.percentile ?? null);
+      }
+
+      const message = `Examen entregado. ${result.message}. Tu puntuacion es: ${
+        result.score ?? 'Procesando'
+      }. Percentil: ${result.percentile ?? 'N/A'}`;
+      setSubmissionMessage(message);
       window.location.href = '/';
     } catch (error) {
       setErrorMessage((error as Error).message);
@@ -200,9 +212,13 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
             className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
           />
         </div>
-
-        {questions.map((question, index) => (
-          <div className="bg-[#2a2d33] p-6 mb-4 rounded-lg shadow-lg" key={question.id}>
+        {submissionMessage && (
+          <p className="text-center text-green-400 bg-green-400/10 border border-green-500 p-4 rounded-md mt-6">
+            {submissionMessage}
+          </p>
+        )}
+        {!submissionMessage && questions.map((question, index) => (
+          <div className="bg-[#2a2d33] p-6 mb-4 mt-4 rounded-lg shadow-lg" key={question.id}>
             <p className="font-bold text-lg mb-4">Pregunta {index + 1}</p>
             <ul className="list-none p-0 m-0 flex flex-wrap gap-4">
               {ANSWER_OPTIONS.map((optionChar) => (
@@ -222,33 +238,16 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
           </div>
         ))}
 
-        <button
+        {!submissionMessage && (<button
           type="submit"
           className="w-full py-3 text-lg font-bold mt-8 rounded-md bg-purple-600 hover:bg-purple-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
         >
           Entregar Examen
-        </button>
+        </button>)}
         {errorMessage && (
           <p className="text-center text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mt-6">{errorMessage}</p>
         )}
       </form>
-
-      {showResponse && (
-        <section className="mt-12">
-          <h2 className="text-3xl font-bold mb-6">Resultados</h2>
-          {checkingResult && <p>Comprobando resultados...</p>}
-          {!checkingResult && score !== null && percentile !== null && (
-            <p className="text-xl">
-              Tu puntuacion: <strong>{score}</strong> <br />
-              Percentil: <strong>{percentile}</strong>
-            </p>
-          )}
-          {!checkingResult && resultError && (
-            <p className="text-center text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md">{resultError}</p>
-          )}
-        </section>
-      )}
     </main>
   );
 }
-
