@@ -4,8 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from db.models import Base
 from db.database import engine
-from routers import public, admin
-from routers.register import register_app
+from routers import public, admin, register
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -30,4 +29,4 @@ app.include_router(public.router)
 app.include_router(admin.router, prefix="/admin")
 
 # CORS Diferente
-app.mount("/register", register_app)
+app.mount("/register", register.register_app)

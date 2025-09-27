@@ -16,7 +16,7 @@ register_app.add_middleware(
     allow_headers=["*"],
 )
 
-@register_app.post("/register")
+@register_app.post("/")
 async def register(request: Request, data: RegisterData):
     check_rate_limit(request)
     if hasattr(data, "website") and data.website:
