@@ -1,4 +1,5 @@
 from typing import Dict, Iterable
+from math import isclose
 
 from sqlalchemy.orm import Session
 
@@ -14,8 +15,9 @@ def calculate_percentile(user_score: float, all_scores: Iterable[float | None]) 
     if not scores:
         return 100.0
 
-    count_less = sum(1 for score in scores if score < user_score)
-    count_equal = sum(1 for score in scores if score == user_score)
+    epsilon = 1e-6
+    count_less = sum(1 for score in scores if score < user_score - epsilon)
+    count_equal = sum(1 for score in scores if isclose(score, user_score, rel_tol=1e-9, abs_tol=epsilon))
     percentile = (count_less + count_equal) / len(scores) * 100
     return round(percentile, 2)
 

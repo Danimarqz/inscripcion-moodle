@@ -199,6 +199,13 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
       );
 
       setSubmissions((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+
+      const examNumericId = Number(selectedExamId);
+      if (selectedExamId && !Number.isNaN(examNumericId)) {
+        const refreshedSubmissions = await getExamSubmissions(examNumericId, token);
+        setSubmissions(refreshedSubmissions);
+      }
+
       setEditing(null);
       setFeedback('Intento actualizado correctamente.');
     } catch (err) {
