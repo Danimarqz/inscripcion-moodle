@@ -14,7 +14,7 @@ export default function AdminLogin() {
     try {
       const response = await adminLogin({ username, password });
       saveAuthToken(response.access_token);
-      window.location.href = '/admin/exams';
+      window.location.href = '/admin/dashboard';
     } catch (error: any) {
       setErrorMessage(error.message || 'Error desconocido al iniciar sesión.');
     }
@@ -46,7 +46,7 @@ export default function AdminLogin() {
             className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
           />
         </div>
-        <button type="submit" className="w-full py-3 text-lg font-bold mt-4 rounded-md bg-purple-600 hover:bg-purple-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed">
+        <button type="submit" className="w-full py-3 cursor-pointer text-lg font-bold mt-4 rounded-md bg-purple-600 hover:bg-purple-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed">
           Login
         </button>
         {errorMessage && (
