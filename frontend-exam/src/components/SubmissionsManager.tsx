@@ -209,8 +209,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   }
 
   return (
-    <section className="mt-12">
-      <h2 className="text-2xl font-bold text-purple-300 mb-4">Gestion de intentos</h2>
+    <section className="mt-8">
 
       <label className="block mb-4">
         <span className="block font-semibold mb-2">Selecciona un examen</span>
