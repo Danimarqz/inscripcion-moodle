@@ -33,7 +33,7 @@ export default function IndexPage() {
   return (
     <>
       <h1 class="text-5xl font-extrabold leading-tight text-center mb-12 text-purple-300 shadow-purple-500/50">
-        Bienvenid@ a <span class="text-gradient">Simulador</span>
+        Bienvenid@ a <span class="text-gradient">Simulador de examen de <a href="https://opositatcae.es">OpositaTCAE</a></span>
       </h1>
       <p class="text-center text-xl mb-8">Elige tu examen:</p>
       {error && <p class="text-center text-lg mt-8 p-4 rounded-lg border border-red-500 text-red-500 bg-red-500/10">{error}</p>}

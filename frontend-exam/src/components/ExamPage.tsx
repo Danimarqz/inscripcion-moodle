@@ -60,8 +60,8 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
     setCheckingResult(true);
     try {
       const data: Exam = await checkSubmission({ email: normalizedEmail, dni: normalizedDni, exam_id: examId });
-      setScore(data.score ?? 0);
-      setPercentile(data.percentile ?? 0);
+      setScore(Math.round(((data.score ?? 0) + Number.EPSILON) * 100) / 100);
+      setPercentile(Math.round(((data.percentile ?? 0) + Number.EPSILON) * 100) / 100);
       const message = `Ya has entregado el examen. Tu puntuacion es: ${data.score ?? 'Procesando'}. Percentil: ${
         data.percentile ?? 'N/A'
       }`;
@@ -239,7 +239,7 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
 
         {!submissionMessage && (<button
           type="submit"
-          className="w-full py-3 text-lg font-bold mt-8 rounded-md bg-purple-600 hover:bg-purple-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+          className="w-full py-3 text-lg cursor-pointer font-bold mt-8 rounded-md bg-purple-600 hover:bg-purple-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
         >
           Entregar Examen
         </button>)}
