@@ -9,19 +9,23 @@ const { title } = Astro.props;
 ---
 
 <!doctype html>
-<html lang="en" class="dark-theme">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="description" content="Astro description" />
-		<meta name="viewport" content="width=device-width" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="generator" content={Astro.generator} />
-		<title>{title}</title>
-	</head>
-	<body class="text-white font-sans">
-		<Header client:only="preact" />
-		<main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-			<slot />
-		</main>
-	</body>
+<html lang="es" class="dark-theme">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="description" content="Simulador de exámenes de oposición de OpositaTCAE" />
+        <meta name="viewport" content="width=device-width" />
+        <link rel="icon" href="/favicon.ico" />
+        <meta name="generator" content={Astro.generator} />
+        <title>{title}</title>
+    </head>
+    <body class="text-white font-sans">
+        <Header client:only="preact" />
+        <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <slot />
+        </main>
+        <footer class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-gray-400">
+            &copy; 2025 made by danimarqz -
+            <a href="https://danimarqz.dev" class="underline hover:text-white" target="_blank" rel="noopener noreferrer">danimarqz.dev</a>
+        </footer>
+    </body>
 </html>

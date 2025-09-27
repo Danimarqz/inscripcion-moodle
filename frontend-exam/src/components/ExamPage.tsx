@@ -62,8 +62,8 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
       const data: Exam = await checkSubmission({ email: normalizedEmail, dni: normalizedDni, exam_id: examId });
       setScore(Math.round(((data.score ?? 0) + Number.EPSILON) * 100) / 100);
       setPercentile(Math.round(((data.percentile ?? 0) + Number.EPSILON) * 100) / 100);
-      const message = `Ya has entregado el examen. Tu puntuacion es: ${data.score ?? 'Procesando'}. Percentil: ${
-        data.percentile ?? 'N/A'
+      const message = `Ya has entregado el examen. Tu puntuacion es: ${score ?? 'Procesando'}. Percentil: ${
+        percentile ?? 'N/A'
       }`;
       setSubmissionMessage(message);
     } catch (e) {
@@ -125,13 +125,13 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
       const result = await submitExam(payload);
 
       if (showResponse) {
-        setScore(result.score ?? null);
-        setPercentile(result.percentile ?? null);
+        setScore(Math.round(((result.score ?? 0) + Number.EPSILON) * 100) / 100);
+        setPercentile(Math.round(((result.percentile ?? 0) + Number.EPSILON) * 100) / 100);
       }
 
       const message = `Examen entregado. ${result.message}. Tu puntuacion es: ${
-        result.score ?? 'Procesando'
-      }. Percentil: ${result.percentile ?? 'N/A'}`;
+        score ?? 'Procesando'
+      }. Percentil: ${percentile ?? 'N/A'}`;
       setSubmissionMessage(message);
     } catch (error) {
       setErrorMessage((error as Error).message);
@@ -211,12 +211,12 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
             className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
           />
         </div>
-        {submissionMessage && (
+        {checkingResult && (
           <p className="text-center text-green-400 bg-green-400/10 border border-green-500 p-4 rounded-md mt-6">
             {submissionMessage}
           </p>
         )}
-        {!submissionMessage && questions.map((question, index) => (
+        {!checkingResult && questions.map((question, index) => (
           <div className="bg-[#2a2d33] p-6 mb-4 mt-4 rounded-lg shadow-lg" key={question.id}>
             <p className="font-bold text-lg mb-4">Pregunta {index + 1}</p>
             <ul className="list-none p-0 m-0 flex flex-wrap gap-4">
@@ -237,7 +237,7 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
           </div>
         ))}
 
-        {!submissionMessage && (<button
+        {!checkingResult && (<button
           type="submit"
           className="w-full py-3 text-lg cursor-pointer font-bold mt-8 rounded-md bg-purple-600 hover:bg-purple-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
         >

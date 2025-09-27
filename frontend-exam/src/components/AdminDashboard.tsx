@@ -65,7 +65,7 @@ export default function AdminDashboard() {
           <a
             key={item.href}
             href={item.href}
-            className="block bg-[#2a2d34] p-6 rounded-lg shadow-lg border border-transparent transition-transform transition-colors duration-200 hover:-translate-y-1 hover:border-purple-500 hover:bg-[#32353f]"
+            className="block bg-[#2a2d34] p-6 rounded-lg shadow-lg border border-transparent transition-colors duration-200 hover:-translate-y-1 hover:border-purple-500 hover:bg-[#32353f]"
           >
             <h2 className="text-xl font-semibold text-purple-200 mb-2">{item.title}</h2>
             <p className="text-sm text-gray-300">{item.description}</p>
