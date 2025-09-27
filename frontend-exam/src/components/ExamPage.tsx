@@ -133,7 +133,6 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
         result.score ?? 'Procesando'
       }. Percentil: ${result.percentile ?? 'N/A'}`;
       setSubmissionMessage(message);
-      window.location.href = '/';
     } catch (error) {
       setErrorMessage((error as Error).message);
     }
