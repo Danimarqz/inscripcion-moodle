@@ -48,6 +48,8 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
 
   async function checkUserSubmission() {
     if (!showResponse) return;
+    if (checkingResult) return; // Prevent multiple simultaneous checks
+    if (resultError) return; // Don't check again if there was an error
     setResultError(null);
     setScore(null);
     setPercentile(null);

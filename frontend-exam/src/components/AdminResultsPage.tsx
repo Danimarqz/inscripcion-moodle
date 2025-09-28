@@ -51,14 +51,7 @@ export default function AdminResultsPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto my-8 p-8 bg-[#1a1c22] rounded-lg shadow-2xl text-white">
-      <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-purple-300">Resultados oficiales</h1>
-          <p className="text-sm text-gray-400">Importa el PDF oficial y revisa la coincidencia con usuarios registrados.</p>
-        </div>
-      </header>
-
+    <>
       {authError && (
         <p className="text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md my-6">
           Error de autenticacion: {authError}
@@ -69,7 +62,9 @@ export default function AdminResultsPage() {
         <p className="text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md my-6">Error: {error}</p>
       )}
 
-      {loading ? <p>Cargando examenes...</p> : <OfficialResultsManager exams={exams} token={token} />}
-    </div>
+      {loading ? <p>Cargando examenes...</p>
+        :  !error ? <OfficialResultsManager exams={exams} token={token} />
+        : <p>No hay exámenes disponibles</p>}
+    </>
   );
 }

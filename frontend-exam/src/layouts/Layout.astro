@@ -19,13 +19,33 @@ const { title } = Astro.props;
         <title>{title}</title>
     </head>
     <body class="text-white font-sans">
-        <Header client:only="preact" />
+        <header class="bg-[#1a1c22] sticky top-0 z-10 py-4 px-6 md:px-8 border-b border-dark-300 shadow-lg mb-12">
+            <div class="max-w-6xl mx-auto flex justify-between items-center">
+                <a href="/" class="text-white no-underline">
+                    <div class="flex items-center">
+                        <img src="/favicon.ico" alt="OpositaTCAE Logo" class="h-10 md:h-12 mr-4" />
+                        <h1 class="text-3xl md:text-4xl font-bold m-0 bg-gradient-to-r from-accent via-accent-light to-white bg-clip-text text-transparent bg-[length:400%_400%] bg-right-bottom transition-all duration-1000 ease-in-out hover:bg-left-top">
+                            Simulador
+                        </h1>
+                    </div>
+                </a>
+                <Header client:only="preact" />
+            </div>
+        </header>
         <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <slot />
         </main>
-        <footer class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-gray-400">
-            &copy; 2025 made by 
-            <a href="https://danimarqz.dev" class="underline hover:text-white" target="_blank" rel="noopener noreferrer">danimarqz.dev</a>
+               <footer class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center md:text-left text-sm text-gray-400">
+            <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <span>
+                    &copy; 2025 made by
+                    <a href="https://danimarqz.dev" class="underline hover:text-white" target="_blank" rel="noopener noreferrer">danimarqz.dev</a>
+                </span>
+                <nav class="flex flex-wrap items-center justify-center md:justify-end gap-x-6 gap-y-2">
+                    <a href="/politica-de-privacidad" class="hover:text-white">Política de privacidad</a>
+                    <a href="https://opositatcae.es/terminos-y-condiciones/" class="hover:text-white" target="_blank" rel="noopener noreferrer">Términos y condiciones</a>
+                </nav>
+            </div>
         </footer>
     </body>
 </html>

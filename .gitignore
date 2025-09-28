@@ -72,3 +72,5 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+politica-de-privacidad.astro

@@ -1,8 +1,19 @@
 ---
-import Layout from '../../layouts/Layout.astro';
-import AdminLogin from '../../components/AdminLogin.tsx';
+import Layout from "../../layouts/Layout.astro";
+import AdminLogin from "../../components/AdminLogin.tsx";
 ---
 
-<Layout title="Admin Login">
-  <AdminLogin client:only="preact" />
+<Layout title="Acceso a administración">
+  <section class="max-w-lg mx-auto my-12 p-8 bg-[#1a1c22] rounded-lg shadow-2xl text-white">
+    <header class="mb-8 text-center space-y-3">
+      <h1 class="text-4xl font-bold text-purple-300">Acceso al panel</h1>
+      <p class="text-gray-300 text-base">
+        Inicia sesión con tus credenciales de administrador para gestionar exámenes, resultados y envíos.
+      </p>
+    </header>
+    <AdminLogin client:only="preact" className="space-y-6" />
+    <p class="mt-8 text-center text-sm text-gray-400">
+      ¿Problemas para acceder? Contacta con el administrador.
+    </p>
+  </section>
 </Layout>
