@@ -63,7 +63,7 @@ def create_moodle_user(data: dict):
 
     user_id = result[0]["id"]
 
-    for course_id in resolve_courses_to_enrol(raw_selected_course, course_key):
+    for course_id in resolve_courses_to_enrol(course_key):
         enrol_user_in_course(user_id, course_id)
 
     return user_id
