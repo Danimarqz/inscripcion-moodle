@@ -201,7 +201,7 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
         </label>
         <button
           type="submit"
-          className="py-2 px-4 rounded mt-1.5 ml-4 bg-blue-600 hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+          className="py-2 px-4 rounded mt-5 ml-5 bg-blue-600 hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           disabled={!selectedExamId || importing}
         >
           {importing ? 'Importando...' : 'Importar PDF'}

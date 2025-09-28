@@ -272,12 +272,21 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
                     <p className="text-xs text-gray-500">Enviado el {new Date(submission.submitted_at).toLocaleString()}</p>
                   </div>
                   <div className="flex gap-3 mt-4 md:mt-0">
+                    {!editing ? 
                     <button
                       className="py-2 px-4 rounded bg-purple-600 hover:bg-purple-700 transition-colors cursor-pointer"
                       onClick={() => startEditing(submission)}
                     >
                       Editar
                     </button>
+                    : 
+                    <button
+                      className="py-2 px-4 rounded bg-gray-600 hover:bg-gray-700 transition-colors cursor-pointer"
+                      onClick={() => setEditing(null)}
+                    >
+                      Cancelar
+                    </button>
+                    }
                     <button
                       className="py-2 px-4 rounded bg-red-600 hover:bg-red-700 transition-colors cursor-pointer"
                       onClick={() => handleDelete(submission.id)}
@@ -369,12 +378,6 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
                         disabled={saving}
                       >
                         {saving ? 'Guardando...' : 'Guardar cambios'}
-                      </button>
-                      <button
-                        className="py-2 px-4 rounded bg-gray-600 hover:bg-gray-700 transition-colors cursor-pointer"
-                        onClick={() => setEditing(null)}
-                      >
-                        Cancelar
                       </button>
                     </div>
                   </div>
