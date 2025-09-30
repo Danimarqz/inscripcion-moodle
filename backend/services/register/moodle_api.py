@@ -31,7 +31,7 @@ TECNICA_TEST = 11
 
 
 def create_moodle_user(data: dict):
-    username = data["email"]
+    username = data["email"].lower().strip()
     raw_selected_course = data.get("course", "").strip()
     course_key = raw_selected_course.lower() if raw_selected_course else ""
 
