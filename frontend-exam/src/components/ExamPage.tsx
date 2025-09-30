@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'preact/hooks';
 
-import type { Answer, Exam, ExamSubmissionPayload, Question } from '../types/exam';
-import { getQuestions, submitExam, checkSubmission } from '../services/examService';
-import { normalizeDni, validateDniNie } from '../utils/validation';
+import type { Answer, Exam, ExamSubmissionPayload } from '../types/exam';
+import { checkSubmission, submitExam } from '../services/examService';
+import { useExamQuestions } from '../hooks/useExamQuestions';
+import { useExamUi } from '../hooks/useExamUi';
+import { isValidEmail, normalizeDni, roundToTwoDecimals, validateDniNie } from '../utils/validation';
 
 interface ExamPageProps {
   examId: number;
@@ -12,82 +14,67 @@ interface ExamPageProps {
 
 const ANSWER_OPTIONS = ['A', 'B', 'C', 'D'];
 
-function isValidEmail(value: string) {
-  return /^[\w-.]+@([\w-]+\.)+[\w-]{2,}$/i.test(value.trim());
-}
-
 export default function ExamPage({ examId, examName, showResponse }: ExamPageProps) {
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
   const [studentName, setStudentName] = useState('');
   const [studentSurname, setStudentSurname] = useState('');
   const [email, setEmail] = useState('');
   const [dni, setDni] = useState('');
-  const [score, setScore] = useState<number | null>(null);
-  const [percentile, setPercentile] = useState<number | null>(null);
-  const [checkingResult, setCheckingResult] = useState(false);
-  const [resultError, setResultError] = useState<string | null>(null);
-  const [submissionMessage, setSubmissionMessage] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const [examUiState, dispatchExamUi] = useExamUi();
+  const { checking, hasPreviousSubmission, submissionMessage, resultError } = examUiState;
+
+  const { questions, loading, error: questionsError } = useExamQuestions(examId);
 
   useEffect(() => {
-    async function fetchQuestions() {
-      try {
-        const data = await getQuestions(examId);
-        setQuestions(data);
-      } catch (error) {
-        setErrorMessage((error as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchQuestions();
+    dispatchExamUi({ type: 'RESET' });
   }, [examId]);
 
   async function checkUserSubmission() {
     if (!showResponse) return;
-    if (checkingResult) return; // Prevent multiple simultaneous checks
-    if (resultError) return; // Don't check again if there was an error
-    setResultError(null);
-    setScore(null);
-    setPercentile(null);
-    setSubmissionMessage(null);
+    if (checking) return;
 
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedDni = normalizeDni(dni);
 
     if (!isValidEmail(normalizedEmail) || !validateDniNie(normalizedDni)) return;
-    setCheckingResult(true);
+
+    dispatchExamUi({ type: 'CHECK_START' });
+
     try {
       const data: Exam = await checkSubmission({ email: normalizedEmail, dni: normalizedDni, exam_id: examId });
-      setScore(Math.round(((data.score ?? 0) + Number.EPSILON) * 100) / 100);
-      setPercentile(Math.round(((data.percentile ?? 0) + Number.EPSILON) * 100) / 100);
-      const message = `Ya has entregado el examen. Tu puntuacion es: ${score ?? 'Procesando'}. Percentil: ${
-        percentile ?? 'N/A'
+      const nextScore = roundToTwoDecimals(data.score);
+      const nextPercentile = roundToTwoDecimals(data.percentile);
+      const message = `Ya has entregado el examen. Tu puntuacion es: ${nextScore ?? 'N/A'}. Percentil: ${
+        nextPercentile ?? 'N/A'
       }`;
-      setSubmissionMessage(message);
-    } catch (e) {
-      setResultError((e as Error).message);
-    } finally {
-      setCheckingResult(false);
+      dispatchExamUi({
+        type: 'CHECK_SUCCESS',
+        payload: { score: nextScore, percentile: nextPercentile, message },
+      });
+    } catch (error) {
+      const message = (error as Error).message;
+      if (message && message !== 'Submission not found') {
+        dispatchExamUi({ type: 'CHECK_ERROR', payload: message });
+      } else {
+        dispatchExamUi({ type: 'CHECK_ERROR' });
+      }
     }
   }
 
   const handleSubmit = async (event: Event) => {
     event.preventDefault();
-    setErrorMessage(null);
+    setFormError(null);
 
     const trimmedName = studentName.trim();
     const trimmedSurname = studentSurname.trim();
 
     if (!trimmedName) {
-      setErrorMessage('El nombre es obligatorio.');
+      setFormError('El nombre es obligatorio.');
       return;
     }
     if (!trimmedSurname) {
-      setErrorMessage('Los apellidos son obligatorios.');
+      setFormError('Los apellidos son obligatorios.');
       return;
     }
 
@@ -98,11 +85,11 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
     const dniRaw = normalizeDni(formData.get('dni') as string);
 
     if (!isValidEmail(emailRaw)) {
-      setErrorMessage('Por favor, introduce un email valido.');
+      setFormError('Por favor, introduce un email valido.');
       return;
     }
     if (!validateDniNie(dniRaw)) {
-      setErrorMessage('Por favor, introduce un DNI o NIE valido.');
+      setFormError('Por favor, introduce un DNI o NIE valido.');
       return;
     }
 
@@ -126,21 +113,37 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
     try {
       const result = await submitExam(payload);
 
+      let nextScore: number | null = null;
+      let nextPercentile: number | null = null;
+
       if (showResponse) {
-        setScore(Math.round(((result.score ?? 0) + Number.EPSILON) * 100) / 100);
-        setPercentile(Math.round(((result.percentile ?? 0) + Number.EPSILON) * 100) / 100);
+        nextScore = roundToTwoDecimals(result.score);
+        nextPercentile = roundToTwoDecimals(result.percentile);
       }
 
-      const message = `Examen entregado. ${result.message}. Tu puntuacion es: ${
-        score ?? 'Procesando'
-      }. Percentil: ${percentile ?? 'N/A'}`;
-      setSubmissionMessage(message);
+      const baseMessage = result.message ?? 'Tu entrega ha sido registrada correctamente';
+      const message = `Examen entregado. ${baseMessage}. Tu puntuacion es: ${
+        nextScore ?? 'N/A'
+      }. Percentil: ${nextPercentile ?? 'N/A'}`;
+
+      dispatchExamUi({
+        type: 'SUBMIT_SUCCESS',
+        payload: { score: nextScore, percentile: nextPercentile, message },
+      });
     } catch (error) {
-      setErrorMessage((error as Error).message);
+      setFormError((error as Error).message);
+      dispatchExamUi({ type: 'SUBMIT_ERROR' });
     }
   };
 
   if (loading) return <main>Cargando preguntas...</main>;
+
+  if (questionsError)
+    return (
+      <main>
+        <p className="text-center text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mt-6">{questionsError}</p>
+      </main>
+    );
 
   if (questions.length === 0)
     return (
@@ -213,40 +216,53 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
             className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
           />
         </div>
-        {checkingResult && (
+        {checking && (
+          <p className="text-center text-purple-300 bg-purple-300/10 border border-purple-400 p-4 rounded-md mt-6">
+            Comprobando si ya has entregado el examen...
+          </p>
+        )}
+        {submissionMessage && (
           <p className="text-center text-green-400 bg-green-400/10 border border-green-500 p-4 rounded-md mt-6">
             {submissionMessage}
           </p>
         )}
-        {!checkingResult && questions.map((question, index) => (
-          <div className="bg-[#2a2d33] p-6 mb-4 mt-4 rounded-lg shadow-lg" key={question.id}>
-            <p className="font-bold text-lg mb-4">Pregunta {index + 1}</p>
-            <ul className="list-none p-0 m-0 flex flex-wrap gap-4">
-              {ANSWER_OPTIONS.map((optionChar) => (
-                <li key={optionChar} className="mb-0">
-                  <input
-                    type="radio"
-                    name={`question-${question.id}`}
-                    value={optionChar}
-                    id={`option-${question.id}-${optionChar}`}
-                    required
-                    className="mr-2 transform scale-125"
-                  />
-                  <label htmlFor={`option-${question.id}-${optionChar}`} className="text-gray-300 text-lg cursor-pointer">{optionChar}</label>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+        {resultError && (
+          <p className="text-center text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mt-6">
+            {resultError}
+          </p>
+        )}
+        {!hasPreviousSubmission &&
+          questions.map((question, index) => (
+            <div className="bg-[#2a2d33] p-6 mb-4 mt-4 rounded-lg shadow-lg" key={question.id}>
+              <p className="font-bold text-lg mb-4">Pregunta {index + 1}</p>
+              <ul className="list-none p-0 m-0 flex flex-wrap gap-4">
+                {ANSWER_OPTIONS.map((optionChar) => (
+                  <li key={optionChar} className="mb-0">
+                    <input
+                      type="radio"
+                      name={`question-${question.id}`}
+                      value={optionChar}
+                      id={`option-${question.id}-${optionChar}`}
+                      required
+                      className="mr-2 transform scale-125"
+                    />
+                    <label htmlFor={`option-${question.id}-${optionChar}`} className="text-gray-300 text-lg cursor-pointer">{optionChar}</label>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
 
-        {!checkingResult && (<button
-          type="submit"
-          className="w-full py-3 text-lg cursor-pointer font-bold mt-8 rounded-md bg-purple-600 hover:bg-purple-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
-        >
-          Entregar Examen
-        </button>)}
-        {errorMessage && (
-          <p className="text-center text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mt-6">{errorMessage}</p>
+        {!hasPreviousSubmission && (
+          <button
+            type="submit"
+            className="w-full py-3 text-lg cursor-pointer font-bold mt-8 rounded-md bg-purple-600 hover:bg-purple-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            Entregar Examen
+          </button>
+        )}
+        {formError && (
+          <p className="text-center text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mt-6">{formError}</p>
         )}
       </form>
     </main>

@@ -130,3 +130,22 @@ export type SortableHeaderProps = {
   direction: 'asc' | 'desc';
   onSort: (key: 'dni' | 'nombre' | 'apellidos' | 'usuario' | 'creado') => void;
 };
+
+export type ExamUiState = {
+  checking: boolean;
+  hasPreviousSubmission: boolean;
+  score: number | null;
+  percentile: number | null;
+  submissionMessage: string | null;
+  resultError: string | null;
+};
+
+export type ExamUiAction =
+  | { type: 'RESET' }
+  | { type: 'CHECK_START' }
+  | { type: 'CHECK_SUCCESS'; payload: { score: number | null; percentile: number | null; message: string } }
+  | { type: 'CHECK_ERROR'; payload?: string | null }
+  | { type: 'SUBMIT_SUCCESS'; payload: { score: number | null; percentile: number | null; message: string } }
+  | { type: 'SUBMIT_ERROR'; payload?: string | null };
+
+

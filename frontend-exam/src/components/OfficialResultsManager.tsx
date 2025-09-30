@@ -10,6 +10,7 @@ import {
   getOfficialResults,
   importOfficialResults,
 } from '../services/adminService';
+import { useAsyncTask } from '../hooks/useAsyncTask';
 
 interface OfficialResultsManagerProps {
   exams: Exam[];
@@ -19,8 +20,7 @@ interface OfficialResultsManagerProps {
 export default function OfficialResultsManager({ exams, token }: OfficialResultsManagerProps) {
   const [selectedExamId, setSelectedExamId] = useState<string>('');
   const [results, setResults] = useState<ExamOfficialResult[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const { loading: resultsLoading, error: resultsError, run, setError: setResultsError } = useAsyncTask();
   const [feedback, setFeedback] = useState<string | null>(null);
   const [importing, setImporting] = useState<boolean>(false);
   const [summary, setSummary] = useState<ImportOfficialResultsSummary | null>(null);
@@ -42,38 +42,33 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
 
   useEffect(() => {
     async function load(examNumericId: number) {
-      setLoading(true);
-      setError(null);
-      setFeedback(null);
-      try {
+      await run(async () => {
+        setFeedback(null);
         const data = await getOfficialResults(examNumericId, token);
         setResults(data);
         setCurrentPage(1);
-      } catch (err) {
-        setResults([]);
-        setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setLoading(false);
-      }
+      });
     }
 
     if (!selectedExamId) {
       setResults([]);
       setSummary(null);
       setFeedback(null);
-      setError(null);
+      setResultsError(null);
       return;
     }
 
     const examNumericId = Number(selectedExamId);
     if (Number.isNaN(examNumericId)) {
-      setError('Identificador de examen invalido.');
       setResults([]);
+      setResultsError('Identificador de examen invalido.');
       return;
     }
 
-    load(examNumericId);
-  }, [selectedExamId, token]);
+    void load(examNumericId).catch(() => {
+      setResults([]);
+    });
+  }, [run, selectedExamId, token]);
 
   function handleSelectExam(event: Event) {
     const value = (event.target as HTMLSelectElement).value;
@@ -83,24 +78,24 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
   async function handleImport(event: Event) {
     event.preventDefault();
     if (!selectedExamId) {
-      setError('Selecciona un examen antes de importar.');
+      setResultsError('Selecciona un examen antes de importar.');
       return;
     }
 
     const examNumericId = Number(selectedExamId);
     if (Number.isNaN(examNumericId)) {
-      setError('Identificador de examen invalido.');
+      setResultsError('Identificador de examen invalido.');
       return;
     }
 
     const file = fileInputRef.current?.files?.[0];
     if (!file) {
-      setError('Selecciona un archivo PDF para importar.');
+      setResultsError('Selecciona un archivo PDF para importar.');
       return;
     }
 
     setImporting(true);
-    setError(null);
+    setResultsError(null);
 
     try {
       const importSummary = await importOfficialResults(examNumericId, file, token);
@@ -108,13 +103,16 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
       setFeedback(
         `Importacion completada: ${importSummary.imported_results}/${importSummary.total_rows} filas registradas.`,
       );
-      const refreshed = await getOfficialResults(examNumericId, token);
+      const refreshed = await run(
+        () => getOfficialResults(examNumericId, token),
+        { suppressLoading: true },
+      );
       setResults(refreshed);
       setCurrentPage(1);
     } catch (err) {
       setSummary(null);
       setFeedback(null);
-      setError(err instanceof Error ? err.message : String(err));
+      setResultsError(err instanceof Error ? err.message : String(err));
     } finally {
       setImporting(false);
       if (fileInputRef.current) {
@@ -175,8 +173,8 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
         </select>
       </label>
 
-      {error && (
-        <p className="text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mb-4">{error}</p>
+      {resultsError && (
+        <p className="text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mb-4">{resultsError}</p>
       )}
       {feedback && (
         <p className="text-green-400 bg-green-400/10 border border-green-500 p-4 rounded-md mb-4">{feedback}</p>
@@ -210,13 +208,13 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
 
       {!selectedExamId && <p>Selecciona un examen para ver los resultados oficiales.</p>}
 
-      {selectedExamId && loading && <p>Cargando resultados oficiales...</p>}
+      {selectedExamId && resultsLoading && <p>Cargando resultados oficiales...</p>}
 
-      {selectedExamId && !loading && results.length === 0 && !error && (
+      {selectedExamId && !resultsLoading && results.length === 0 && !resultsError && (
         <p>No hay resultados oficiales importados para este examen.</p>
       )}
 
-      {selectedExamId && !loading && results.length > 0 && (
+      {selectedExamId && !resultsLoading && results.length > 0 && (
         <div className="bg-[#20232a] border border-[#333] rounded-lg p-4">
           <h3 className="text-lg font-semibold text-purple-200 mb-3">
             Listado oficial ({selectedExamName})

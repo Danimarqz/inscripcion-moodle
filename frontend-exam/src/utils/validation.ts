@@ -24,3 +24,11 @@ export function validateDniNie(value: string): boolean {
   return expectedLetter === letter;
 }
 
+export function isValidEmail(value: string) {
+  return /^[\w-.]+@([\w-]+\.)+[\w-]{2,}$/i.test(value.trim());
+}
+
+export function roundToTwoDecimals(value?: number | null) {
+  if (typeof value !== 'number') return null;
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
