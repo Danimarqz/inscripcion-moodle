@@ -33,7 +33,7 @@ from services.auth.auth_service import (
 )
 from services.exam.submit_exam import (
     normalize_dni,
-    recalculate_percentiles,
+    recalculate_scores,
     validate_answer_option,
     validate_dni_nie,
 )
@@ -93,14 +93,37 @@ def create_exam_with_answers(
     if existing:
         raise HTTPException(status_code=400, detail="Ya existe un examen con ese nombre")
 
+    if not exam_data.questions:
+        raise HTTPException(status_code=400, detail="El examen debe tener al menos una pregunta")
+
+    question_models = []
+    active_questions = 0
+    for q in exam_data.questions:
+        try:
+            normalized_option = validate_answer_option(q.correct_option)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        is_active = bool(getattr(q, "is_active", True))
+        if is_active:
+            active_questions += 1
+        question_models.append(
+            Question(
+                correct_option=normalized_option,
+                is_active=is_active,
+            )
+        )
+
+    if active_questions == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="El examen debe tener al menos una pregunta activa",
+        )
+
     new_exam = Exam(
         name=exam_data.name,
         is_active=getattr(exam_data, "is_active", False),
         show_response=getattr(exam_data, "show_response", False),
-        questions=[
-            Question(correct_option=q.correct_option.upper())
-            for q in exam_data.questions
-        ],
+        questions=question_models,
     )
 
     db.add(new_exam)
@@ -132,17 +155,50 @@ def edit_exam_with_answers(
     if exam_data.show_response is not None:
         existing_exam.show_response = exam_data.show_response
 
-    updated_questions = []
+    if not exam_data.questions:
+        raise HTTPException(status_code=400, detail="El examen debe tener al menos una pregunta")
+
+    payload_ids = {q.id for q in exam_data.questions if q.id is not None}
+    existing_map = {question.id: question for question in existing_exam.questions}
+
+    for question in list(existing_exam.questions):
+        if question.id not in payload_ids:
+            db.delete(question)
+
     for q_data in exam_data.questions:
-        q = Question(
-            id=q_data.id,
-            correct_option=q_data.correct_option.upper(),
-            exam=existing_exam,
+        try:
+            normalized_option = validate_answer_option(q_data.correct_option)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        is_active = bool(getattr(q_data, "is_active", True))
+
+        if q_data.id is not None:
+            question = existing_map.get(q_data.id)
+            if not question:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"La pregunta {q_data.id} no pertenece al examen",
+                )
+            question.correct_option = normalized_option
+            question.is_active = is_active
+        else:
+            db.add(
+                Question(
+                    exam=existing_exam,
+                    correct_option=normalized_option,
+                    is_active=is_active,
+                )
+            )
+
+    db.flush()
+    active_total = sum(1 for question in existing_exam.questions if question.is_active)
+    if active_total == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="El examen debe tener al menos una pregunta activa",
         )
-        updated_questions.append(q)
 
-    existing_exam.questions = updated_questions
-
+    recalculate_scores(existing_exam.id, db, commit=False)
     db.commit()
     db.refresh(existing_exam)
 
@@ -349,20 +405,7 @@ def update_submission(
             db.delete(answer_obj)
 
     db.flush()
-    answer_map = {answer.question_id: answer.answer.upper() for answer in submission.answers}
-    total_questions = len(question_map)
-    if total_questions:
-        correct_count = sum(
-            1
-            for question in question_map.values()
-            if answer_map.get(question.id) == question.correct_option.upper()
-        )
-        submission.score = correct_count / total_questions * 100
-    else:
-        submission.score = 0.0
-
-    db.flush()
-    recalculate_percentiles(submission.exam_id, db, commit=False)
+    recalculate_scores(submission.exam_id, db, commit=False)
 
     db.commit()
     db.refresh(submission)

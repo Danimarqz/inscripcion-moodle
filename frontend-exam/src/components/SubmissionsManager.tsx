@@ -351,15 +351,22 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
 
                     <div className="mt-6 space-y-4">
                       {questions.map((question, index) => (
-                        <div key={question.id ?? index}>
-                          <span className="font-semibold">Pregunta {index + 1}</span>
+                        <div key={question.id ?? index} className="flex flex-wrap items-center gap-3">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold">Pregunta {index + 1}</span>
+                            {question.is_active === false && (
+                              <span className="text-xs font-semibold px-2 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/50">
+                                Reserva
+                              </span>
+                            )}
+                          </div>
                           <select
                             value={editing.answers[question.id ?? -1] || 'A'}
                             onChange={(event) =>
                               question.id !== undefined &&
                               updateAnswer(question.id, (event.target as HTMLSelectElement).value)
                             }
-                            className="ml-4 px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white"
+                            className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white"
                           >
                             {ANSWER_OPTIONS.map((option) => (
                               <option key={option} value={option}>

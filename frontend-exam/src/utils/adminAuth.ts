@@ -1,15 +1,35 @@
+const STORAGE_KEY = 'admin_access_token';
+const LOGIN_ROUTE = '/admin/login';
+
+function getStorage(): Storage | null {
+  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+    return null;
+  }
+
+  try {
+    return window.localStorage;
+  } catch (error) {
+    return null;
+  }
+}
+
 export function getAuthToken(): string | null {
-  return localStorage.getItem('admin_access_token');
+  const storage = getStorage();
+  return storage ? storage.getItem(STORAGE_KEY) : null;
 }
 
 export function saveAuthToken(token: string): void {
-  localStorage.setItem('admin_access_token', token);
+  const storage = getStorage();
+  storage?.setItem(STORAGE_KEY, token);
 }
 
 export function removeAuthToken(): void {
-  localStorage.removeItem('admin_access_token');
+  const storage = getStorage();
+  storage?.removeItem(STORAGE_KEY);
 }
 
 export function redirectToLogin(): void {
-  window.location.href = '/admin/login';
+  if (typeof window !== 'undefined') {
+    window.location.href = LOGIN_ROUTE;
+  }
 }

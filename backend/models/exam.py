@@ -45,6 +45,7 @@ class ExamOut(BaseModel):
 
 class QuestionStubOut(BaseModel):
     id: int
+    is_active: bool
 
     class Config:
         from_attributes = True
@@ -52,6 +53,7 @@ class QuestionStubOut(BaseModel):
 
 class QuestionCreate(BaseModel):
     correct_option: str  # 'A', 'B', 'C' o 'D'
+    is_active: bool = True
 
 
 class ExamCreateWithQuestions(BaseModel):
@@ -64,6 +66,7 @@ class ExamCreateWithQuestions(BaseModel):
 class QuestionEdit(BaseModel):
     id: Optional[int] = None
     correct_option: str
+    is_active: bool = True
 
 
 class ExamEdit(BaseModel):

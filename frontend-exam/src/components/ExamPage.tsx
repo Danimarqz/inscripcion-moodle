@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 
-import type { Answer, Exam, ExamSubmissionPayload } from '../types/exam';
+import type { Answer, Exam, ExamSubmissionPayload, Question } from '../types/exam';
 import { checkSubmission, submitExam } from '../services/examService';
 import { useExamQuestions } from '../hooks/useExamQuestions';
 import { useExamUi } from '../hooks/useExamUi';
@@ -29,6 +29,13 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
   useEffect(() => {
     dispatchExamUi({ type: 'RESET' });
   }, [examId]);
+
+  const questionEntries = useMemo(
+    () => questions.map((question, index) => ({ index, question })),
+    [questions],
+  );
+  const activeEntries = questionEntries.filter(({ question }) => question.is_active !== false);
+  const reserveEntries = questionEntries.filter(({ question }) => question.is_active === false);
 
   async function checkUserSubmission() {
     if (!showResponse) return;
@@ -130,13 +137,71 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
         type: 'SUBMIT_SUCCESS',
         payload: { score: nextScore, percentile: nextPercentile, message },
       });
+      setStudentName('');
+      setStudentSurname('');
+      setEmail('');
+      setDni('');
     } catch (error) {
-      setFormError((error as Error).message);
-      dispatchExamUi({ type: 'SUBMIT_ERROR' });
+      const message = (error as Error).message || 'Error al enviar el examen';
+      dispatchExamUi({ type: 'SUBMIT_ERROR', payload: message });
+      setFormError(message);
     }
   };
 
-  if (loading) return <main>Cargando preguntas...</main>;
+  function renderQuestionCard(
+    entry: { index: number; question: Question },
+    position: number,
+    isReserve: boolean,
+  ) {
+    const { question, index: originalIndex } = entry;
+    const label = `Pregunta ${position}`;
+    const badgeClass = isReserve
+      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
+      : 'bg-green-500/20 text-green-300 border border-green-500/50';
+    const key = question.id ?? `${isReserve ? 'reserve' : 'active'}-${position}-${originalIndex}`;
+
+    return (
+      <div
+        className="bg-[#2a2d33] p-6 mb-4 mt-4 rounded-lg shadow-lg border border-transparent hover:border-purple-500/40 transition-colors"
+        key={key}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <p className="font-bold text-lg text-purple-200">{label}</p>
+          {isReserve && <span className={`text-xs font-semibold px-2 py-1 rounded ${badgeClass}`}>{
+            isReserve ? 'Reserva' : 'Activa'
+          }</span>}
+        </div>
+        <ul className="list-none p-0 m-0 flex flex-wrap gap-4">
+          {ANSWER_OPTIONS.map((optionChar) => (
+            <li key={optionChar} className="mb-0">
+              <input
+                type="radio"
+                name={`question-${question.id}`}
+                value={optionChar}
+                id={`option-${question.id}-${optionChar}`}
+                required
+                className="mr-1 transform scale-125 cursor-pointer"
+              />
+              <label
+                htmlFor={`option-${question.id}-${optionChar}`}
+                className="text-gray-300 text-lg cursor-pointer"
+              >
+                {optionChar}
+              </label>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <main>
+        <p className="info-message">Cargando preguntas...</p>
+      </main>
+    );
+  }
 
   if (questionsError)
     return (
@@ -145,10 +210,10 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
       </main>
     );
 
-  if (questions.length === 0)
+  if (questions.length === 0 || activeEntries.length === 0)
     return (
       <main>
-        <p className="info-message">No hay preguntas disponibles para este examen.</p>
+        <p className="info-message">No hay preguntas activas disponibles para este examen.</p>
       </main>
     );
 
@@ -216,6 +281,7 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
             className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
           />
         </div>
+
         {checking && (
           <p className="text-center text-purple-300 bg-purple-300/10 border border-purple-400 p-4 rounded-md mt-6">
             Comprobando si ya has entregado el examen...
@@ -231,27 +297,23 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
             {resultError}
           </p>
         )}
-        {!hasPreviousSubmission &&
-          questions.map((question, index) => (
-            <div className="bg-[#2a2d33] p-6 mb-4 mt-4 rounded-lg shadow-lg" key={question.id}>
-              <p className="font-bold text-lg mb-4">Pregunta {index + 1}</p>
-              <ul className="list-none p-0 m-0 flex flex-wrap gap-4">
-                {ANSWER_OPTIONS.map((optionChar) => (
-                  <li key={optionChar} className="mb-0">
-                    <input
-                      type="radio"
-                      name={`question-${question.id}`}
-                      value={optionChar}
-                      id={`option-${question.id}-${optionChar}`}
-                      required
-                      className="mr-2 transform scale-125"
-                    />
-                    <label htmlFor={`option-${question.id}-${optionChar}`} className="text-gray-300 text-lg cursor-pointer">{optionChar}</label>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+
+        {!hasPreviousSubmission && (
+          <>
+            <section>
+              <h2 className="text-2xl font-semibold text-purple-300 mt-8">Preguntas activas</h2>
+              <p className="text-sm text-gray-400 mt-1">Responde todas las preguntas activas; puntuan en la nota final.</p>
+              {activeEntries.map((entry, index) => renderQuestionCard(entry, index + 1, false))}
+            </section>
+
+            {reserveEntries.length > 0 && (
+              <section className="mt-8">
+                <h2 className="text-2xl font-semibold text-purple-300">Preguntas de reserva</h2>
+                {reserveEntries.map((entry, index) => renderQuestionCard(entry, activeEntries.length + index + 1, true))}
+              </section>
+            )}
+          </>
+        )}
 
         {!hasPreviousSubmission && (
           <button

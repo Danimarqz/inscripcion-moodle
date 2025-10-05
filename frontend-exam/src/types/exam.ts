@@ -16,6 +16,7 @@ export type ExamOut = {
 export type Question = {
   id: number;
   correct_option?: string;
+  is_active: boolean;
 }
 
 export type Answer = {
@@ -76,6 +77,7 @@ export type ExamQuestionsResponse = {
 export type QuestionCreate = {
   id?: number;
   correct_option: string;
+  is_active?: boolean;
 }
 
 export type ExamCreateWithQuestions = {
@@ -88,6 +90,7 @@ export type ExamCreateWithQuestions = {
 export type QuestionEdit = {
   id?: number;
   correct_option: string;
+  is_active?: boolean;
 }
 
 export type ExamEdit = {

@@ -67,6 +67,7 @@ class Question(Base):
     id = Column(Integer, primary_key=True)
     exam_id = Column(Integer, ForeignKey("exam.id"), nullable=False)
     correct_option = Column(String(1), nullable=False)  # 'A', 'B', 'C', 'D'
+    is_active = Column(Boolean, nullable=False, default=True)
 
     exam = relationship("Exam", back_populates="questions")
 

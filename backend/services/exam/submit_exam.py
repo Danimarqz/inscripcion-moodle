@@ -1,7 +1,7 @@
-from typing import Dict, Iterable
 from math import isclose
+from typing import Dict, Iterable, List
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from db.models import Exam, ExamUser, Question, UserAnswer, UserExamSubmission
 from models.exam import ExamSubmission
@@ -17,7 +17,11 @@ def calculate_percentile(user_score: float, all_scores: Iterable[float | None]) 
 
     epsilon = 1e-6
     count_less = sum(1 for score in scores if score < user_score - epsilon)
-    count_equal = sum(1 for score in scores if isclose(score, user_score, rel_tol=1e-9, abs_tol=epsilon))
+    count_equal = sum(
+        1
+        for score in scores
+        if isclose(score, user_score, rel_tol=1e-9, abs_tol=epsilon)
+    )
     percentile = (count_less + count_equal) / len(scores) * 100
     return round(percentile, 2)
 
@@ -85,6 +89,24 @@ def validate_answer_option(option: str) -> str:
     return upper
 
 
+def calculate_submission_score(
+    active_questions: Iterable[Question],
+    answers_by_question: Dict[int, str],
+) -> float:
+    active_list: List[Question] = [question for question in active_questions if question.is_active]
+    total_active = len(active_list)
+    if total_active == 0:
+        raise ValueError("El examen no tiene preguntas activas configuradas")
+
+    correct_count = sum(
+        1
+        for question in active_list
+        if answers_by_question.get(question.id, "").upper()
+        == question.correct_option.upper()
+    )
+    return correct_count / total_active * 100
+
+
 def process_exam_submission(data: ExamSubmission, db: Session):
     normalized_email = data.email.lower()
     normalized_dni = normalize_dni(data.dni)
@@ -125,25 +147,32 @@ def process_exam_submission(data: ExamSubmission, db: Session):
     if existing:
         raise Exception("Ya has enviado este examen")
 
-    questions = db.query(Question).filter(Question.exam_id == data.exam_id).all()
+    exam = (
+        db.query(Exam)
+        .options(joinedload(Exam.questions))
+        .filter(Exam.id == data.exam_id)
+        .first()
+    )
+    if not exam:
+        raise Exception("Examen no encontrado")
+
+    questions = exam.questions
     if not questions:
         raise Exception("El examen no tiene preguntas configuradas")
 
     questions_dict: Dict[int, Question] = {q.id: q for q in questions}
-    exam = db.query(Exam).filter(Exam.id == data.exam_id).first()
-    if not exam:
-        raise Exception("Examen no encontrado")
+    answers_by_question: Dict[int, str] = {}
 
-    correct_count = 0
     for ans in data.answers:
         question = questions_dict.get(ans.question_id)
         if not question:
             raise Exception(f"Pregunta {ans.question_id} no encontrada")
-        answer_value = validate_answer_option(ans.answer)
-        if answer_value == question.correct_option.upper():
-            correct_count += 1
+        answers_by_question[ans.question_id] = validate_answer_option(ans.answer)
 
-    score = correct_count / len(questions) * 100 if questions else 0.0
+    try:
+        score = calculate_submission_score(questions, answers_by_question)
+    except ValueError as exc:
+        raise Exception(str(exc))
 
     submission = UserExamSubmission(
         user_id=candidate.id,
@@ -163,7 +192,7 @@ def process_exam_submission(data: ExamSubmission, db: Session):
         db.add(ua)
     db.flush()
 
-    recalculate_percentiles(data.exam_id, db, commit=False)
+    recalculate_scores(data.exam_id, db, commit=False)
     db.commit()
     db.refresh(submission)
 
@@ -174,3 +203,34 @@ def process_exam_submission(data: ExamSubmission, db: Session):
             "message": "Examen enviado correctamente",
         }
     return {"message": "Examen enviado correctamente"}
+
+
+def recalculate_scores(exam_id: int, db: Session, *, commit: bool = True) -> None:
+    exam = (
+        db.query(Exam)
+        .options(
+            joinedload(Exam.questions),
+            joinedload(Exam.submissions).joinedload(UserExamSubmission.answers),
+        )
+        .filter(Exam.id == exam_id)
+        .first()
+    )
+    if not exam:
+        return
+
+    answers_by_submission: Dict[int, Dict[int, str]] = {}
+    for submission in exam.submissions:
+        answers_by_submission[submission.id] = {
+            answer.question_id: answer.answer.upper()
+            for answer in submission.answers
+        }
+
+    for submission in exam.submissions:
+        answer_map = answers_by_submission.get(submission.id, {})
+        try:
+            submission.score = calculate_submission_score(exam.questions, answer_map)
+        except ValueError:
+            submission.score = 0.0
+
+    db.flush()
+    recalculate_percentiles(exam_id, db, commit=commit)
