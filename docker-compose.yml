@@ -1,27 +1,87 @@
 services:
-  backend:
-    build: ./backend
-    container_name: backend-moodle
-    restart: always
+  db:
+    image: mysql:8.0
+    container_name: mysql-moodle
+    restart: unless-stopped
     environment:
-      - DATABASE_URL=${DATABASE_URL}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-changeme}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-examen_app}
+      MYSQL_USER: ${MYSQL_USER:-app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-appsecret}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD} || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     networks:
-      - nginx_proxy
-      - opotest
+      - internal
+
+  backend:
+    build:
+      context: ./backend
+    container_name: backend-moodle
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - backend/.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-mysql+pymysql://root:${MYSQL_ROOT_PASSWORD:-changeme}@db:3306/${MYSQL_DATABASE:-examen_app}}
+    volumes:
+      - backend_pdfs:/app/generated_pdfs
     ports:
       - "8000:8000"
+    networks:
+      - internal
+      - nginx_proxy
+      - opotest
 
   frontend-exam:
-    build: ./frontend-exam
+    build:
+      context: ./frontend-exam
+      args:
+        PUBLIC_API_URL: ${PUBLIC_API_URL:-http://backend:8000}
     container_name: frontend-exam-moodle
-    restart: always
-    networks:
-      - nginx_proxy
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-http://backend:8000}
     ports:
       - "4321:4321"
+    networks:
+      - internal
+      - nginx_proxy
+
+  frontend-inscripcion:
+    build:
+      context: ./frontend-inscripcion
+    container_name: frontend-inscripcion
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+    networks:
+      - internal
+      - nginx_proxy
 
 networks:
+  internal:
+    driver: bridge
   nginx_proxy:
     external: true
   opotest:
     external: true
+
+volumes:
+  mysql_data:
+  backend_pdfs:
