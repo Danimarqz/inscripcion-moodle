@@ -21,19 +21,20 @@ VALID_COURSES = {
     "imserso": 18,
     "ses": 12,
     "era": 14,
-    "ib-salut": 83,
+    "baleares": 83,
     "xunta": 89,
     "sas": 19,
     "sermas": 20,
 }
+
 EXAMENES_OFICIALES_AL = 16
 TECNICA_TEST = 11
-
 
 def create_moodle_user(data: dict):
     username = data["email"].lower().strip()
     raw_selected_course = data.get("course", "").strip()
     course_key = raw_selected_course.lower() if raw_selected_course else ""
+    existing_user_enrolled = False
 
     customfields = [
         {"type": "dni", "value": data["dni"]},
@@ -56,17 +57,28 @@ def create_moodle_user(data: dict):
         payload[f"users[0][customfields][{i}][type]"] = field["type"]
         payload[f"users[0][customfields][{i}][value]"] = field["value"]
 
-    result = call_moodle("core_user_create_users", payload, log_response=True)
+    try:
+        result = call_moodle("core_user_create_users", payload, log_response=True)
+    except ValueError as err:
+        # Usuario ya existe
+        if str(err) == "existing_user":
+            payload = {"field": "username", "values[0]": username}
+            result = call_moodle("core_user_get_users_by_field", payload, log_response=True)
+            existing_user_enrolled = True
+        else:
+            raise
+    except Exception:
+        raise
 
     if not isinstance(result, list) or not result or "id" not in result[0]:
-        raise Exception("Respuesta inesperada al crear el usuario en Moodle.")
+        raise Exception("Respuesta inesperada al crear o recuperar usuario en Moodle.")
 
     user_id = result[0]["id"]
 
     for course_id in resolve_courses_to_enrol(course_key):
         enrol_user_in_course(user_id, course_id)
 
-    return user_id
+    return existing_user_enrolled
 
 def call_moodle(function: str, payload: dict, *, log_response: bool = False):
     request_payload = {
@@ -77,7 +89,6 @@ def call_moodle(function: str, payload: dict, *, log_response: bool = False):
     request_payload.update(payload)
 
     response = requests.post(MOODLE_ENDPOINT, data=request_payload)
-
     if log_response:
         print(response.text)
 
@@ -87,10 +98,13 @@ def call_moodle(function: str, payload: dict, *, log_response: bool = False):
     try:
         result = response.json()
     except ValueError as exc:
-        raise Exception(f"Respuesta no valida desde Moodle: {response.text}") from exc
+        raise Exception(f"Respuesta no válida desde Moodle: {response.text}") from exc
 
     if isinstance(result, dict) and result.get("exception"):
-        raise Exception(f"Error de Moodle: {result['message']}")
+        msg = result.get("message", "").lower()
+        if "username already exists" in msg or "email address already exists" in msg:
+            raise ValueError("existing_user")
+        raise Exception(f"Error de Moodle: {result['message']} {result.get('debuginfo', '')}")
 
     return result
 
@@ -102,18 +116,17 @@ def resolve_courses_to_enrol(course_key: str):
 
     course_ids.extend([EXAMENES_OFICIALES_AL, TECNICA_TEST])
 
-    # Utiliza dict para mantener el orden y eliminar duplicados.
+    # Elimina duplicados manteniendo orden
     return list(dict.fromkeys(course_ids))
 
 def normalize_course_id(course_id):
     try:
         return int(course_id)
     except (TypeError, ValueError) as exc:
-        raise Exception(f"ID de curso invalido configurado: {course_id}") from exc
+        raise Exception(f"ID de curso inválido configurado: {course_id}") from exc
 
 def enrol_user_in_course(user_id: int, course_id: int, role_id: int = STUDENT_ROLE_ID) -> None:
     resolved_course_id = normalize_course_id(course_id)
-
     call_moodle(
         "enrol_manual_enrol_users",
         {
