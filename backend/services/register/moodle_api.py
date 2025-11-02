@@ -59,16 +59,18 @@ def create_moodle_user(data: dict):
 
     try:
         result = call_moodle("core_user_create_users", payload, log_response=True)
-    except ValueError as err:
-        # Usuario ya existe
-        if str(err) == "existing_user":
-            payload = {"field": "username", "values[0]": username}
-            result = call_moodle("core_user_get_users_by_field", payload, log_response=True)
+    except Exception:
+        existing_user = []
+        try:
+            existing_user = find_existing_user(data.get("email", ""), log_response=True)
+        except Exception:
+            existing_user = []
+
+        if existing_user:
             existing_user_enrolled = True
+            result = existing_user
         else:
             raise
-    except Exception:
-        raise
 
     if not isinstance(result, list) or not result or "id" not in result[0]:
         raise Exception("Respuesta inesperada al crear o recuperar usuario en Moodle.")
@@ -107,6 +109,17 @@ def call_moodle(function: str, payload: dict, *, log_response: bool = False):
         raise Exception(f"Error de Moodle: {result['message']} {result.get('debuginfo', '')}")
 
     return result
+
+
+def find_existing_user(email: str = "", *, log_response: bool = False):
+    normalized_email = (email or "").strip()
+
+    payload = {"field": "email", "values[0]": normalized_email}
+    result = call_moodle("core_user_get_users_by_field", payload, log_response=log_response)
+    if isinstance(result, list) and result:
+        return result
+    else:
+        raise Exception("Usuario no encontrado")
 
 def resolve_courses_to_enrol(course_key: str):
     course_ids = []
