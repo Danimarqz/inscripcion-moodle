@@ -9,9 +9,11 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from db.models import Exam, ExamOfficialResult, ExamUser
+from logging_config import configure_logging
 from services.exam.submit_exam import normalize_dni
 from services.pdf.exam_results_parser import DEFAULT_ENCODING, parse_exam_results
 
+configure_logging()
 logger = logging.getLogger(__name__)
 
 

@@ -1,17 +1,23 @@
+import logging
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from db.models import Base
 from db.database import engine
-from routers import public, admin, register
+from logging_config import configure_logging
+from routers import admin, public, register
+
+configure_logging()
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("Iniciando app...")
+    logger.info("Iniciando app...")
     Base.metadata.create_all(bind=engine)
     yield
-    print("Apagando app...")
+    logger.info("Apagando app...")
 
 app = FastAPI(lifespan=lifespan)
 

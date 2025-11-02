@@ -1,5 +1,11 @@
+import logging
+
 import requests
 from config import MOODLE_URL, MOODLE_TOKEN
+from logging_config import configure_logging
+
+configure_logging()
+logger = logging.getLogger(__name__)
 
 MOODLE_ENDPOINT = f"{MOODLE_URL}/webservice/rest/server.php"
 STUDENT_ROLE_ID = 5
@@ -36,6 +42,8 @@ def create_moodle_user(data: dict):
     course_key = raw_selected_course.lower() if raw_selected_course else ""
     existing_user_enrolled = False
 
+    logger.info("Creating or updating Moodle user for email '%s'", username)
+
     customfields = [
         {"type": "dni", "value": data["dni"]},
         {"type": "conocer", "value": data["discover"]},
@@ -59,10 +67,13 @@ def create_moodle_user(data: dict):
 
     try:
         result = call_moodle("core_user_create_users", payload, log_response=True)
+        logger.info("Moodle user created for '%s'", username)
     except Exception:
+        logger.warning("Failed to create Moodle user '%s', checking for existing user", username)
         existing_user = []
         try:
             existing_user = find_existing_user(data.get("email", ""), log_response=True)
+            logger.info("Existing Moodle user found for '%s'", username)
         except Exception:
             existing_user = []
 
@@ -70,6 +81,7 @@ def create_moodle_user(data: dict):
             existing_user_enrolled = True
             result = existing_user
         else:
+            logger.error("Failed to recover Moodle user '%s'", username, exc_info=True)
             raise
 
     if not isinstance(result, list) or not result or "id" not in result[0]:
@@ -90,9 +102,10 @@ def call_moodle(function: str, payload: dict, *, log_response: bool = False):
     }
     request_payload.update(payload)
 
+    logger.debug("Calling Moodle function '%s'", function)
     response = requests.post(MOODLE_ENDPOINT, data=request_payload)
     if log_response:
-        print(response.text)
+        logger.debug("Moodle response for '%s': %s", function, response.text)
 
     if response.status_code != 200:
         raise Exception(f"Error al conectar con Moodle: {response.text}")
@@ -100,7 +113,7 @@ def call_moodle(function: str, payload: dict, *, log_response: bool = False):
     try:
         result = response.json()
     except ValueError as exc:
-        raise Exception(f"Respuesta no válida desde Moodle: {response.text}") from exc
+        raise Exception(f"Respuesta no valida desde Moodle: {response.text}") from exc
 
     if isinstance(result, dict) and result.get("exception"):
         msg = result.get("message", "").lower()
@@ -125,6 +138,7 @@ def resolve_courses_to_enrol(course_key: str):
     course_ids = []
 
     if course_key in VALID_COURSES:
+        logger.info("Enrolling user in selected course '%s'", course_key)
         course_ids.append(normalize_course_id(VALID_COURSES[course_key]))
 
     course_ids.extend([EXAMENES_OFICIALES_AL, TECNICA_TEST])
@@ -136,10 +150,11 @@ def normalize_course_id(course_id):
     try:
         return int(course_id)
     except (TypeError, ValueError) as exc:
-        raise Exception(f"ID de curso inválido configurado: {course_id}") from exc
+        raise Exception(f"ID de curso invalido configurado: {course_id}") from exc
 
 def enrol_user_in_course(user_id: int, course_id: int, role_id: int = STUDENT_ROLE_ID) -> None:
     resolved_course_id = normalize_course_id(course_id)
+    logger.info("Enrolling user id '%s' into course id '%s' with role id '%s'", user_id, resolved_course_id, role_id)
     call_moodle(
         "enrol_manual_enrol_users",
         {
