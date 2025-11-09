@@ -36,6 +36,21 @@ jobs:
           remote_user: ${{ secrets.SSH_USER }}
           remote_key: ${{ secrets.SSH_KEY }}
 
+      - name: Ensure backend .env exists on server
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd ~/htdocs/backend
+            if [ ! -f .env ]; then
+              printf '%s' "${{ secrets.BACKEND_ENV }}" > .env
+              echo "Created backend .env"
+            else
+              echo ".env already present; leaving untouched"
+            fi
+
       - name: Install on server, run migrations and restart service
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -48,20 +63,3 @@ jobs:
             pip install -r requirements.txt
             alembic upgrade head
             sudo systemctl restart ${{ secrets.BACKEND_SERVICE }}
-
-      - name: Ensure backend .env exists on server
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            cd ~/htdocs/backend
-            if [ ! -f .env ]; then
-              cat <<'EOF' > .env
-              ${{ secrets.BACKEND_ENV }}
-              EOF
-              echo "Created backend .env"
-            else
-              echo ".env already present; leaving untouched"
-            fi
