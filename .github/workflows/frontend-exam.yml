@@ -68,5 +68,5 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             cd ~/htdocs/simulador
-            npm install --production
+            npm ci --omit=dev
             sudo systemctl restart frontend-exam
