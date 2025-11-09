@@ -1,6 +1,6 @@
 services:
   backend:
-    image: ghcr.io/Danimarqz/backend-moodle:latest
+    image: ghcr.io/danimarqz/backend-moodle:latest
     pull_policy: always
     container_name: backend-moodle
     restart: unless-stopped
@@ -15,7 +15,7 @@ services:
       - nginx_proxy
 
   frontend-exam:
-    image: ghcr.io/Danimarqz/frontend-exam:latest
+    image: ghcr.io/danimarqz/frontend-exam:latest
     pull_policy: always
     container_name: frontend-exam-moodle
     restart: unless-stopped
