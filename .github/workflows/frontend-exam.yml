@@ -37,6 +37,9 @@ jobs:
         working-directory: frontend-exam
         run: npm run build
 
+      - name: Listar dist generado
+        run: ls -R frontend-exam/dist/
+
       - name: Deploy dist to server
         uses: burnett01/rsync-deployments@7.1.0
         with:
