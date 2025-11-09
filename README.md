@@ -85,7 +85,6 @@ inscripcion-moodle/
 3.  **Configura el Frontend de Exámenes:**
     *   Navega a la carpeta `frontend-exam`: `cd ../frontend-exam`
     *   Instala las dependencias: `npm install`
-    *   Crea un archivo `.env` en la raíz de la carpeta `frontend-exam` y define la variable `PUBLIC_API_URL` con la URL de tu backend (ej. `PUBLIC_API_URL=http://localhost:8000`).
 
 ## Ejecución
 

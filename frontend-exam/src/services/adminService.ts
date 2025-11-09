@@ -8,7 +8,7 @@ import type {
   SubmissionUpdatePayload,
 } from '../types/exam';
 
-const API_URL = import.meta.env.PUBLIC_API_URL;
+const API_URL = "https://simulador.opositatcae.es/api";
 
 interface AdminLoginPayload {
   username: string;

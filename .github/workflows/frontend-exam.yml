@@ -40,5 +40,4 @@ jobs:
             -t ${IMAGE}:latest \
             -t ${IMAGE}:${{ github.sha }} \
             frontend-exam \
-            --build-arg PUBLIC_API_URL=${{ secrets.PUBLIC_API_URL }} \
             --push
