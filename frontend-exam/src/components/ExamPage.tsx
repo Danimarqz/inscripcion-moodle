@@ -325,12 +325,6 @@ export default function ExamPage({
             {badgeConfig.text}
           </span>
         </div>
-        {isCancelled && (
-          <p className="text-sm text-red-300 mb-3">
-            Esta pregunta se ha anulado. No es necesario responderla y no contará para tu nota, pero puedes marcar una
-            opción si lo deseas.
-          </p>
-        )}
         <ul className="list-none p-0 m-0 flex flex-wrap gap-4">
           {ANSWER_OPTIONS.map((optionChar) => (
             <li key={optionChar} className="mb-0">
