@@ -8,65 +8,34 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  docker-image:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: frontend-exam/package-lock.json
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Crear .env frontend
-        working-directory: frontend-exam
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push frontend exam image
         run: |
-          cat <<'EOF' > .env
-          ${{ secrets.FRONTEND_ENV }}
-          EOF
-
-      - name: Install dependencies
-        working-directory: frontend-exam
-        run: npm ci
-
-      - name: Build Astro app
-        working-directory: frontend-exam
-        run: npm run build
-
-      - name: Listar dist generado
-        run: ls -R frontend-exam/dist/
-
-      - name: Deploy dist to server
-        uses: burnett01/rsync-deployments@7.1.0
-        with:
-          switches: -az --delete
-          path: frontend-exam/dist/
-          remote_path: htdocs/simulador/dist/
-          remote_host: ${{ secrets.SSH_HOST }}
-          remote_user: ${{ secrets.SSH_USER }}
-          remote_key: ${{ secrets.SSH_KEY }}
-
-      - name: Sync package metadata (optional)
-        uses: burnett01/rsync-deployments@7.1.0
-        with:
-          switches: -az
-          path: frontend-exam/package*.json
-          remote_path: htdocs/simulador/
-          remote_host: ${{ secrets.SSH_HOST }}
-          remote_user: ${{ secrets.SSH_USER }}
-          remote_key: ${{ secrets.SSH_KEY }}
-
-      - name: Install production dependencies on server
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            cd ~/htdocs/simulador
-            npm ci --omit=dev
-            sudo systemctl restart frontend-exam
+          IMAGE=ghcr.io/${{ github.repository_owner }}/frontend-exam
+          docker buildx build \
+            --platform linux/amd64 \
+            -f frontend-exam/Dockerfile \
+            -t ${IMAGE}:latest \
+            -t ${IMAGE}:${{ github.sha }} \
+            frontend-exam \
+            --build-arg PUBLIC_API_URL=${{ secrets.PUBLIC_API_URL }} \
+            --push

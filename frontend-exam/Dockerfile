@@ -14,9 +14,8 @@ COPY --from=deps /app/node_modules ./node_modules
 
 COPY . .
 
-ARG PUBLIC_API_URL=http://backend:8000
+ARG PUBLIC_API_URL=https://simulador.opositatcae.es/api
 ENV PUBLIC_API_URL=${PUBLIC_API_URL}
-
 RUN npm run build
 
 FROM node:20-bookworm-slim AS runner
@@ -28,7 +27,7 @@ ENV NODE_ENV=production \
 WORKDIR /app
 
 COPY --from=builder /app/dist ./dist
-
+COPY --from=builder /app/node_modules ./node_modules
 USER node
 
 EXPOSE 4321

@@ -8,58 +8,33 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  docker-image:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Install backend dependencies
-        working-directory: backend
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Sync backend to server
-        uses: burnett01/rsync-deployments@7.1.0
-        with:
-          switches: -az --delete --exclude "venv" --exclude "__pycache__"
-          path: backend/
-          remote_path: htdocs/backend/
-          remote_host: ${{ secrets.SSH_HOST }}
-          remote_user: ${{ secrets.SSH_USER }}
-          remote_key: ${{ secrets.SSH_KEY }}
-
-      - name: Ensure backend .env exists on server
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            cd ~/htdocs/backend
-            if [ ! -f .env ]; then
-              printf '%s' "${{ secrets.BACKEND_ENV }}" > .env
-              echo "Created backend .env"
-            else
-              echo ".env already present; leaving untouched"
-            fi
-
-      - name: Install on server, run migrations and restart service
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            cd ~/htdocs/backend
-            source ${{ secrets.BACKEND_VENV }}/bin/activate
-            pip install -r requirements.txt
-            alembic upgrade head
-            sudo systemctl restart ${{ secrets.BACKEND_SERVICE }}
+          IMAGE=ghcr.io/${{ github.repository_owner }}/backend-moodle
+          docker buildx build \
+            --platform linux/amd64 \
+            -f backend/Dockerfile \
+            -t ${IMAGE}:latest \
+            -t ${IMAGE}:${{ github.sha }} \
+            backend \
+            --push
