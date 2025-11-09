@@ -106,10 +106,14 @@ def calculate_score_breakdown(
     active_questions: Iterable[Question],
     answers_by_question: Dict[int, str],
 ) -> ScoreBreakdown:
-    active_list: List[Question] = [question for question in active_questions if question.is_active]
+    active_list: List[Question] = [
+        question
+        for question in active_questions
+        if question.is_active and not getattr(question, "is_cancelled", False)
+    ]
     total_active = len(active_list)
     if total_active == 0:
-        raise ValueError("El examen no tiene preguntas activas configuradas")
+        raise ValueError("El examen no tiene preguntas activas no anuladas configuradas")
 
     correct_count = sum(
         1

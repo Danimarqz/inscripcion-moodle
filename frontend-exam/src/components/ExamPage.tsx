@@ -298,11 +298,21 @@ export default function ExamPage({
     isReserve: boolean,
   ) {
     const { question, index: originalIndex } = entry;
-    const label = `Pregunta ${position}`;
-    const badgeClass = isReserve
-      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
-      : 'bg-green-500/20 text-green-300 border border-green-500/50';
+    const isCancelled = question.is_cancelled === true;
+    const displayName = question.name ?? position;
+    const label = `${isReserve ? 'Reserva' : 'Pregunta'} ${displayName}`;
     const key = question.id ?? `${isReserve ? 'reserve' : 'active'}-${position}-${originalIndex}`;
+    const badgeConfig = isCancelled
+      ? {
+          text: 'Anulada',
+          className: 'bg-red-500/20 text-red-300 border border-red-500/50',
+        }
+      : {
+          text: isReserve ? 'Reserva' : 'Activa',
+          className: isReserve
+            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
+            : 'bg-green-500/20 text-green-300 border border-green-500/50',
+        };
 
     return (
       <div
@@ -311,10 +321,16 @@ export default function ExamPage({
       >
         <div className="flex items-center justify-between mb-4">
           <p className="font-bold text-lg text-purple-200">{label}</p>
-          {isReserve && <span className={`text-xs font-semibold px-2 py-1 rounded ${badgeClass}`}>{
-            isReserve ? 'Reserva' : 'Activa'
-          }</span>}
+          <span className={`text-xs font-semibold px-2 py-1 rounded ${badgeConfig.className}`}>
+            {badgeConfig.text}
+          </span>
         </div>
+        {isCancelled && (
+          <p className="text-sm text-red-300 mb-3">
+            Esta pregunta se ha anulado. No es necesario responderla y no contará para tu nota, pero puedes marcar una
+            opción si lo deseas.
+          </p>
+        )}
         <ul className="list-none p-0 m-0 flex flex-wrap gap-4">
           {ANSWER_OPTIONS.map((optionChar) => (
             <li key={optionChar} className="mb-0">
@@ -323,7 +339,7 @@ export default function ExamPage({
                 name={`question-${question.id}`}
                 value={optionChar}
                 id={`option-${question.id}-${optionChar}`}
-                required
+                required={!isCancelled}
                 className="mr-1 transform scale-125 cursor-pointer"
               />
               <label

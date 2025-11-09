@@ -50,6 +50,7 @@ class Exam(Base):
         "Question",
         back_populates="exam",
         cascade="all, delete-orphan",
+        order_by="Question.id",
     )
     submissions = relationship(
         "UserExamSubmission",
@@ -68,8 +69,10 @@ class Question(Base):
 
     id = Column(Integer, primary_key=True)
     exam_id = Column(Integer, ForeignKey("exam.id"), nullable=False)
+    name = Column(Integer, nullable=False)
     correct_option = Column(String(1), nullable=False)  # 'A', 'B', 'C', 'D'
     is_active = Column(Boolean, nullable=False, default=True)
+    is_cancelled = Column(Boolean, nullable=False, default=False)
 
     exam = relationship("Exam", back_populates="questions")
 

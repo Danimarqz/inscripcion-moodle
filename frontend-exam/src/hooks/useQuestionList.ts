@@ -1,16 +1,29 @@
 import { useCallback, useState } from 'preact/hooks';
 
-type QuestionShape = { correct_option: string; text?: string; id?: number; is_active?: boolean };
+type QuestionShape = {
+  correct_option: string;
+  text?: string;
+  id?: number;
+  is_active?: boolean;
+  is_cancelled?: boolean;
+  name?: number;
+};
 
 type UpdateField = keyof QuestionShape;
 
+const DEFAULT_QUESTION_STATE = { correct_option: 'A', is_active: true, is_cancelled: false };
+
 export function useQuestionList<T extends QuestionShape>(
-  initial: T[] = [{ correct_option: 'A', is_active: true } as T],
+  initial: T[] = [{ ...DEFAULT_QUESTION_STATE } as T],
 ) {
   const [questions, setQuestions] = useState<T[]>(initial);
 
   const setAll = useCallback((next: T[]) => {
-    setQuestions(next.length ? next : ([{ correct_option: 'A', is_active: true } as T]));
+    setQuestions(
+      next.length
+        ? next
+        : ([{ ...DEFAULT_QUESTION_STATE } as T]),
+    );
   }, []);
 
   const updateQuestion = useCallback(
@@ -25,7 +38,7 @@ export function useQuestionList<T extends QuestionShape>(
   );
 
   const addQuestion = useCallback(() => {
-    setQuestions((prev) => [...prev, { correct_option: 'A', is_active: true } as T]);
+    setQuestions((prev) => [...prev, { ...DEFAULT_QUESTION_STATE } as T]);
   }, []);
 
   const removeQuestion = useCallback((index: number) => {

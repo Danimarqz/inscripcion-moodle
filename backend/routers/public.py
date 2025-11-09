@@ -34,7 +34,10 @@ def get_question_stubs(exam_id: int, db: Session = Depends(get_db)):
     if not exam:
         raise HTTPException(status_code=404, detail="Examen no encontrado")
 
-    return exam.questions
+    return sorted(
+        exam.questions,
+        key=lambda question: (question.name if isinstance(question.name, int) else float("inf"), question.id),
+    )
 
 @router.post("/check_submission", response_model=SubmissionCheckResponse)
 def check_submission(

@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import List, Optional
+from typing import Callable, Iterable, List, Optional, Union
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session, joinedload
@@ -43,6 +43,42 @@ from services.exam.exam_results_importer import (
 )
 
 router = APIRouter()
+
+
+def _normalize_question_name(value: Optional[Union[int, str]]) -> Optional[int]:
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return value if value > 0 else None
+    text_value = str(value).strip()
+    if not text_value:
+        return None
+    try:
+        parsed = int(text_value)
+    except ValueError:
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _build_question_name_generator(existing_names: Iterable[int]) -> Callable[[Optional[Union[int, str]]], int]:
+    used_names = {name for name in existing_names if isinstance(name, int) and name > 0}
+    next_counter = max(used_names) + 1 if used_names else 1
+
+    def _reserve(preferred: Optional[Union[int, str]]) -> int:
+        nonlocal next_counter
+        candidate = _normalize_question_name(preferred)
+        if candidate and candidate not in used_names:
+            used_names.add(candidate)
+            return candidate
+
+        while True:
+            candidate = next_counter
+            next_counter += 1
+            if candidate not in used_names:
+                used_names.add(candidate)
+                return candidate
+
+    return _reserve
 
 
 @router.get("/exams", response_model=List[ExamOut])
@@ -97,6 +133,7 @@ def create_exam_with_answers(
         raise HTTPException(status_code=400, detail="El examen debe tener al menos una pregunta")
 
     question_models = []
+    name_reserver = _build_question_name_generator([])
     active_questions = 0
     for q in exam_data.questions:
         try:
@@ -104,19 +141,22 @@ def create_exam_with_answers(
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         is_active = bool(getattr(q, "is_active", True))
-        if is_active:
+        is_cancelled = bool(getattr(q, "is_cancelled", False))
+        if is_active and not is_cancelled:
             active_questions += 1
         question_models.append(
             Question(
+                name=name_reserver(getattr(q, "name", None)),
                 correct_option=normalized_option,
                 is_active=is_active,
+                is_cancelled=is_cancelled,
             )
         )
 
     if active_questions == 0:
         raise HTTPException(
             status_code=400,
-            detail="El examen debe tener al menos una pregunta activa",
+            detail="El examen debe tener al menos una pregunta activa no anulada",
         )
 
     new_exam = Exam(
@@ -171,12 +211,15 @@ def edit_exam_with_answers(
         if question.id not in payload_ids:
             db.delete(question)
 
+    name_reserver = _build_question_name_generator([question.name for question in existing_exam.questions])
+
     for q_data in exam_data.questions:
         try:
             normalized_option = validate_answer_option(q_data.correct_option)
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         is_active = bool(getattr(q_data, "is_active", True))
+        is_cancelled = bool(getattr(q_data, "is_cancelled", False))
 
         if q_data.id is not None:
             question = existing_map.get(q_data.id)
@@ -187,21 +230,26 @@ def edit_exam_with_answers(
                 )
             question.correct_option = normalized_option
             question.is_active = is_active
+            question.is_cancelled = is_cancelled
         else:
             db.add(
                 Question(
                     exam=existing_exam,
+                    name=name_reserver(getattr(q_data, "name", None)),
                     correct_option=normalized_option,
                     is_active=is_active,
+                    is_cancelled=is_cancelled,
                 )
             )
 
     db.flush()
-    active_total = sum(1 for question in existing_exam.questions if question.is_active)
+    active_total = sum(
+        1 for question in existing_exam.questions if question.is_active and not question.is_cancelled
+    )
     if active_total == 0:
         raise HTTPException(
             status_code=400,
-            detail="El examen debe tener al menos una pregunta activa",
+            detail="El examen debe tener al menos una pregunta activa no anulada",
         )
 
     recalculate_scores(existing_exam.id, db, commit=False)

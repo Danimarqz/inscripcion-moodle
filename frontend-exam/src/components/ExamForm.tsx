@@ -14,7 +14,7 @@ interface ExamFormProps {
   examId?: number;
 }
 
-const DEFAULT_QUESTION: QuestionCreate = { correct_option: 'A', is_active: true };
+const DEFAULT_QUESTION: QuestionCreate = { correct_option: 'A', is_active: true, is_cancelled: false };
 const VALID_OPTIONS = ['A', 'B', 'C', 'D'];
 
 export default function ExamForm({ examId }: ExamFormProps) {
@@ -62,7 +62,11 @@ export default function ExamForm({ examId }: ExamFormProps) {
       const normalizedQuestions = (examData.questions.length
         ? examData.questions
         : [{ ...DEFAULT_QUESTION } as QuestionEdit]
-      ).map((question) => ({ ...question, is_active: question.is_active ?? true }));
+      ).map((question) => ({
+        ...question,
+        is_active: question.is_active ?? true,
+        is_cancelled: question.is_cancelled ?? false,
+      }));
 
       setAll(normalizedQuestions as (QuestionCreate | QuestionEdit)[]);
     }).catch(() => undefined);
@@ -82,9 +86,11 @@ export default function ExamForm({ examId }: ExamFormProps) {
       return;
     }
 
-    const activeCount = questions.filter((q) => q.is_active !== false).length;
+    const activeCount = questions.filter(
+      (q) => q.is_active !== false && q.is_cancelled !== true,
+    ).length;
     if (activeCount === 0) {
-      setError('Debe haber al menos una pregunta activa.');
+      setError('Debe haber al menos una pregunta activa no anulada.');
       return;
     }
 
@@ -108,6 +114,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
         id: 'id' in q ? q.id : undefined,
         correct_option: q.correct_option.toUpperCase(),
         is_active: q.is_active !== false,
+        is_cancelled: q.is_cancelled === true,
+        name: typeof q.name === 'number' ? q.name : undefined,
       })),
     };
 
@@ -147,10 +155,20 @@ export default function ExamForm({ examId }: ExamFormProps) {
   ) {
     const { index, question } = entry;
     const key = question.id ?? `${isReserve ? 'reserve' : 'active'}-${index}`;
-    const badgeClass = isReserve
-      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
-      : 'bg-green-500/20 text-green-300 border border-green-500/50';
-    const label = isReserve ? `Reserva ${position}` : `Pregunta ${position}`;
+    const isCancelled = question.is_cancelled === true;
+    const displayName = question.name ?? position;
+    const label = `${isReserve ? 'Reserva' : 'Pregunta'} ${displayName}`;
+    const badgeConfig = isCancelled
+      ? {
+          text: 'Anulada',
+          className: 'bg-red-500/20 text-red-300 border border-red-500/50',
+        }
+      : {
+          text: isReserve ? 'Reserva' : 'Activa',
+          className: isReserve
+            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
+            : 'bg-green-500/20 text-green-300 border border-green-500/50',
+        };
 
     return (
       <div
@@ -159,13 +177,18 @@ export default function ExamForm({ examId }: ExamFormProps) {
       >
         <div className="flex items-center justify-between mb-3">
           <span className="font-bold text-lg text-purple-200">{label}</span>
-          <span className={`text-xs font-semibold px-2 py-1 rounded ${badgeClass}`}>
-            {isReserve ? 'Reserva' : 'Activa'}
+          <span className={`text-xs font-semibold px-2 py-1 rounded ${badgeConfig.className}`}>
+            {badgeConfig.text}
           </span>
         </div>
         {'id' in question && question.id ? (
           <p className="text-xs text-gray-400 mb-2">ID interno: {question.id}</p>
         ) : null}
+        {isCancelled && (
+          <p className="text-sm text-red-300 mb-4">
+            Esta pregunta se ha marcado como anulada y no contará para la nota.
+          </p>
+        )}
         <label className="block font-bold text-purple-500 mb-2">
           Opcion correcta:
           <select
@@ -198,6 +221,14 @@ export default function ExamForm({ examId }: ExamFormProps) {
             disabled={isBusy}
           >
             {isReserve ? 'Activar' : 'Mover a reserva'}
+          </button>
+          <button
+            type="button"
+            onClick={() => updateQuestion(index, 'is_cancelled', !isCancelled)}
+            className="bg-yellow-500 text-[#1a1c22] border-none rounded px-3 py-1 cursor-pointer font-semibold hover:bg-yellow-400 disabled:opacity-60 disabled:cursor-not-allowed"
+            disabled={isBusy}
+          >
+            {isCancelled ? 'Quitar anulación' : 'Marcar como anulada'}
           </button>
         </div>
       </div>

@@ -19,9 +19,11 @@ export type ExamOut = {
 
 export type Question = {
   id: number;
+  name: number;
   correct_option?: string;
   is_active: boolean;
-}
+  is_cancelled?: boolean;
+};
 
 export type Answer = {
   question_id: number;
@@ -80,9 +82,11 @@ export type ExamQuestionsResponse = {
 
 export type QuestionCreate = {
   id?: number;
+  name?: number;
   correct_option: string;
   is_active?: boolean;
-}
+  is_cancelled?: boolean;
+};
 
 export type ExamCreateWithQuestions = {
   name: string;
@@ -95,9 +99,11 @@ export type ExamCreateWithQuestions = {
 
 export type QuestionEdit = {
   id?: number;
+  name?: number;
   correct_option: string;
   is_active?: boolean;
-}
+  is_cancelled?: boolean;
+};
 
 export type ExamEdit = {
   id?: number;
