@@ -44,6 +44,24 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     return exams.find((exam) => exam.id === numericId)?.name ?? '';
   }, [exams, selectedExamId]);
 
+  const { totalAttempts, scoredAttempts, averageScore } = useMemo(() => {
+    const total = submissions.length;
+    if (total === 0) {
+      return { totalAttempts: 0, scoredAttempts: 0, averageScore: null };
+    }
+
+    const scores = submissions
+      .map((submission) => submission.score)
+      .filter((score): score is number => typeof score === 'number' && Number.isFinite(score));
+
+    if (scores.length === 0) {
+      return { totalAttempts: total, scoredAttempts: 0, averageScore: null };
+    }
+
+    const average = scores.reduce((sum, value) => sum + value, 0) / scores.length;
+    return { totalAttempts: total, scoredAttempts: scores.length, averageScore: average };
+  }, [submissions]);
+
   useEffect(() => {
     async function loadData(examNumericId: number) {
       setLoading(true);
@@ -239,6 +257,35 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
       )}
       {feedback && (
         <p className="text-green-400 bg-green-400/10 border border-green-500 p-4 rounded-md mb-4">{feedback}</p>
+      )}
+
+      {selectedExamId && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mb-6">
+          <div className="rounded-lg border border-[#3a3f49] bg-[#1f2229] p-4">
+            <p className="text-sm text-gray-400">Total de intentos</p>
+            <p className="text-2xl font-bold text-white">
+              {loading ? 'Actualizando...' : totalAttempts}
+            </p>
+            {selectedExamName && (
+              <p className="text-xs text-gray-500 mt-1">Examen: {selectedExamName}</p>
+            )}
+          </div>
+          <div className="rounded-lg border border-[#3a3f49] bg-[#1f2229] p-4">
+            <p className="text-sm text-gray-400">Nota media</p>
+            <p className="text-2xl font-bold text-white">
+              {loading ? 'Actualizando...' : averageScore !== null ? averageScore.toFixed(2) : 'Sin datos'}
+            </p>
+            {!loading && scoredAttempts > 0 && (
+              <p className="text-xs text-gray-500 mt-1">
+                Calculada sobre {scoredAttempts}{' '}
+                {scoredAttempts === 1 ? 'intento con nota' : 'intentos con nota'}
+              </p>
+            )}
+            {!loading && scoredAttempts === 0 && (
+              <p className="text-xs text-gray-500 mt-1">Aún no hay notas registradas.</p>
+            )}
+          </div>
+        </div>
       )}
 
       {!selectedExamId && <p>Selecciona un examen para ver los intentos disponibles.</p>}
