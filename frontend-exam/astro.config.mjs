@@ -14,7 +14,7 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
     server: {
-      allowedHosts: ['opotest.danimarqz.dev']
+      allowedHosts: ['opotest.danimarqz.dev', 'simulador.opositatcae.es']
     }
   },
 });
