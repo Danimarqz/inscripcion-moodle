@@ -90,9 +90,16 @@ inscripcion-moodle/
 ## Ejecución
 
 1.  **Backend:**
-    *   Desde la carpeta `backend`, con el entorno virtual activado, ejecuta:
+    *   Desde la carpeta `backend`, con el entorno virtual activado, ejecuta en desarrollo:
         ```sh
         uvicorn main:app --reload
+        ```
+    *   En servidores con pocos recursos define las variables y flags recomendados antes de exponer el servicio:
+        ```sh
+        PYTHONMALLOC=malloc UVICORN_WORKERS=1 uvicorn main:app \
+          --host 0.0.0.0 --port 8000 \
+          --limit-concurrency 20 \
+          --timeout-keep-alive 5
         ```
     *   La API estará disponible en `http://localhost:8000`.
 

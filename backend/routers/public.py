@@ -1,11 +1,18 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from db.database import get_db
 from db.models import Exam, ExamUser, UserExamSubmission
 from models.exam import ExamOut, ExamSubmission, QuestionStubOut, SubmissionCheckRequest, SubmissionCheckResponse
 from rate_limiter import check_rate_limit
+from services.cache import (
+    EXAMS_CACHE_KEY,
+    public_cache,
+    questions_cache_key,
+    submission_check_cache_key,
+)
 from services.exam.submit_exam import (
     build_submission_payload,
     normalize_dni,
@@ -25,25 +32,44 @@ def submit_exam(request: Request, data: ExamSubmission, db: Session = Depends(ge
 
 @router.get("/exams", response_model=List[ExamOut])
 def get_exams(db: Session = Depends(get_db)):
+    cached = public_cache.get(EXAMS_CACHE_KEY)
+    if cached is not None:
+        return cached
+
     exams = db.query(Exam).filter(Exam.is_active).all()
-    return exams
+    payload = jsonable_encoder(exams)
+    public_cache.set(EXAMS_CACHE_KEY, payload)
+    return payload
 
 @router.get("/exams/{exam_id}/questions", response_model=List[QuestionStubOut])
 def get_question_stubs(exam_id: int, db: Session = Depends(get_db)):
+    cache_key = questions_cache_key(exam_id)
+    cached = public_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     exam = db.query(Exam).filter(Exam.id == exam_id).first()
     if not exam:
         raise HTTPException(status_code=404, detail="Examen no encontrado")
 
-    return sorted(
+    sorted_questions = sorted(
         exam.questions,
         key=lambda question: (question.name if isinstance(question.name, int) else float("inf"), question.id),
     )
+    payload = jsonable_encoder(sorted_questions)
+    public_cache.set(cache_key, payload)
+    return payload
 
 @router.post("/check_submission", response_model=SubmissionCheckResponse)
 def check_submission(
     data: SubmissionCheckRequest,
     db: Session = Depends(get_db),
 ):
+    cache_key = submission_check_cache_key(data.exam_id, data.email, data.dni)
+    cached = public_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     submission = (
         db.query(UserExamSubmission)
         .join(ExamUser)
@@ -73,4 +99,6 @@ def check_submission(
         db=db,
         message="Ya has enviado este examen anteriormente",
     )
-    return SubmissionCheckResponse(**payload)
+    response = SubmissionCheckResponse(**payload)
+    public_cache.set(cache_key, response.model_dump())
+    return response

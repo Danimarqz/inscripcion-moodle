@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from db.models import Exam, ExamUser, Question, UserAnswer, UserExamSubmission
 from models.exam import ExamSubmission
+from services.cache import invalidate_check_cache_for_exam
 
 DNI_LETTERS = "TRWAGMYFPDXBNJZSQVHLCKE"
 VALID_OPTIONS = {"A", "B", "C", "D"}
@@ -154,6 +155,7 @@ def process_exam_submission(data: ExamSubmission, db: Session):
             surname=data.surname.strip(),
             email=normalized_email,
             dni=normalized_dni,
+            accepts_marketing=data.accepts_marketing,
         )
         db.add(candidate)
         db.flush()
@@ -162,6 +164,7 @@ def process_exam_submission(data: ExamSubmission, db: Session):
         candidate.name = data.name.strip()
         candidate.surname = data.surname.strip()
         candidate.email = normalized_email
+        candidate.accepts_marketing = data.accepts_marketing
         db.flush()
 
     existing = (
@@ -220,6 +223,7 @@ def process_exam_submission(data: ExamSubmission, db: Session):
     recalculate_scores(data.exam_id, db, commit=False)
     db.commit()
     db.refresh(submission)
+    invalidate_check_cache_for_exam(exam.id)
 
     return build_submission_payload(
         exam=exam,

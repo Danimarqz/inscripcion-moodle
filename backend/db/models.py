@@ -23,6 +23,7 @@ class ExamUser(Base):
     surname = Column(String(255), nullable=False)
     email = Column(String(255), nullable=True)
     dni = Column(String(20), nullable=False, unique=True)
+    accepts_marketing = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=datetime.now(timezone.utc))
 
     submissions = relationship(

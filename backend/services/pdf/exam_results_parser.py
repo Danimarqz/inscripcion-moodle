@@ -2,9 +2,14 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Sequence
-import pandas as pd
-from tabula import read_pdf as tabula_read_pdf
+from functools import lru_cache
+from typing import TYPE_CHECKING, Any, Iterable, List, Sequence
+
+if TYPE_CHECKING:
+    import pandas as pd
+    from pandas import DataFrame
+else:
+    DataFrame = Any
 
 
 HEADER_KEYWORDS = ("DNI", "APELLIDO", "NOMBRE")
@@ -12,11 +17,24 @@ FIRST_COLUMN_VALID_PATTERN = re.compile(r"[0-9#]")
 DEFAULT_ENCODING = "latin-1"
 
 
+def _get_pandas():
+    import pandas as pd  # type: ignore[import-not-found]
+
+    return pd
+
+
+@lru_cache
+def _get_tabula_reader():
+    from tabula import read_pdf as tabula_read_pdf  # type: ignore[import-not-found]
+
+    return tabula_read_pdf
+
+
 @dataclass(slots=True)
 class ParseSummary:
-    raw_tables: List[pd.DataFrame]
-    useful_tables: List[pd.DataFrame]
-    combined: pd.DataFrame
+    raw_tables: List["DataFrame"]
+    useful_tables: List["DataFrame"]
+    combined: "DataFrame"
 
 
 def _clean_cell(value: object) -> str:
@@ -35,7 +53,8 @@ def _row_is_header_like(values: Sequence[str]) -> bool:
     return any(keyword in joined for keyword in HEADER_KEYWORDS)
 
 
-def _normalize_table(df: pd.DataFrame) -> pd.DataFrame:
+def _normalize_table(df: "DataFrame") -> "DataFrame":
+    pd = _get_pandas()
     if df is None or df.empty:
         return pd.DataFrame()
 
@@ -106,8 +125,8 @@ def _normalize_table(df: pd.DataFrame) -> pd.DataFrame:
     return normalized[["dni", "apellido_1", "apellido_2", "nombre"]]
 
 
-def _extract_useful_tables(tables: Iterable[pd.DataFrame]) -> List[pd.DataFrame]:
-    useful: list[pd.DataFrame] = []
+def _extract_useful_tables(tables: Iterable["DataFrame"]) -> List["DataFrame"]:
+    useful: List["DataFrame"] = []
     for raw_df in tables:
         normalized = _normalize_table(raw_df)
         if not normalized.empty:
@@ -115,7 +134,8 @@ def _extract_useful_tables(tables: Iterable[pd.DataFrame]) -> List[pd.DataFrame]
     return useful
 
 
-def _combine_tables(tables: Iterable[pd.DataFrame]) -> pd.DataFrame:
+def _combine_tables(tables: Iterable["DataFrame"]) -> "DataFrame":
+    pd = _get_pandas()
     tables_list = list(tables)
     if not tables_list:
         return pd.DataFrame(columns=["dni", "apellido_1", "apellido_2", "nombre"])
@@ -128,11 +148,13 @@ def _read_pdf_tables(
     pages: str = "all",
     lattice: bool = False,
     encoding: str = DEFAULT_ENCODING,
-) -> list[pd.DataFrame]:
+) -> list["DataFrame"]:
+    pd = _get_pandas()
     resolved = Path(pdf_path)
     if not resolved.exists():
         raise FileNotFoundError(f"Cannot find PDF at {resolved}")
 
+    tabula_read_pdf = _get_tabula_reader()
     dataframes = tabula_read_pdf(
         str(resolved),
         pages=pages,

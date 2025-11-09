@@ -74,6 +74,7 @@ export default function ExamPage({
   const [studentSurname, setStudentSurname] = useState('');
   const [email, setEmail] = useState('');
   const [dni, setDni] = useState('');
+  const [acceptsMarketing, setAcceptsMarketing] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [autoCheckDisabled, setAutoCheckDisabled] = useState(false);
 
@@ -97,6 +98,7 @@ export default function ExamPage({
   useEffect(() => {
     dispatchExamUi({ type: 'RESET' });
     setAutoCheckDisabled(false);
+    setAcceptsMarketing(false);
   }, [examId, dispatchExamUi]);
 
   const questionEntries = useMemo(
@@ -212,6 +214,10 @@ export default function ExamPage({
       setFormError('Por favor, introduce un DNI o NIE valido.');
       return;
     }
+    if (!acceptsMarketing) {
+      setFormError('Debes aceptar el uso de tus datos para comunicaciones necesarias.');
+      return;
+    }
 
     const answers: Answer[] = [];
     for (const [key, value] of formData.entries()) {
@@ -228,6 +234,7 @@ export default function ExamPage({
       surname: trimmedSurname,
       exam_id: examId,
       answers,
+      accepts_marketing: acceptsMarketing,
     };
 
     try {
@@ -243,6 +250,7 @@ export default function ExamPage({
       setStudentSurname('');
       setEmail('');
       setDni('');
+      setAcceptsMarketing(false);
     } catch (error) {
       const message = (error as Error).message || 'Error al enviar el examen';
       dispatchExamUi({ type: 'SUBMIT_ERROR', payload: message });
@@ -462,13 +470,43 @@ export default function ExamPage({
                 {reserveEntries.map((entry, index) => renderQuestionCard(entry, activeEntries.length + index + 1, true))}
               </section>
             )}
+
+            <div className="mt-8 space-top-3 text-sm">
+              <label htmlFor="accepts_marketing" className="flex items-start gap-3 text-gray-200">
+                <input
+                  type="checkbox"
+                  id="accepts_marketing"
+                  name="accepts_marketing"
+                  required
+                  checked={acceptsMarketing}
+                  onChange={(event) => setAcceptsMarketing(event.currentTarget.checked)}
+                  className="mt-1 h-4 w-4 rounded border border-[#555] bg-[#2a2d33] text-purple-500 focus:ring-2 focus:ring-purple-400/60"
+                />
+                <span className="text-gray-300">
+                  Acepto recibir por email recordatorios y novedades sobre nuevas oposiciones.
+                </span>
+              </label>
+              <p className="text-xs leading-relaxed text-gray-400">
+                Al entregar confirmas que utilizaremos tus datos solo para corregir tu simulacro y gestionar el servicio;
+                no usamos cookies de seguimiento. Consulta la{' '}
+                <a
+                  href="/politica-de-privacidad"
+                  className="text-purple-300 underline decoration-dotted hover:text-purple-200"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Política de privacidad
+                </a>
+                .
+              </p>
+            </div>
           </>
         )}
 
         {!hasPreviousSubmission && (
           <button
             type="submit"
-            className="w-full py-3 text-lg cursor-pointer font-bold mt-8 rounded-md bg-purple-600 hover:bg-purple-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full py-3 text-lg cursor-pointer font-bold mt-4 rounded-md bg-purple-600 hover:bg-purple-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
           >
             Entregar Examen
           </button>

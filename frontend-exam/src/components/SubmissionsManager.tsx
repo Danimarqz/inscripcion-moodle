@@ -258,6 +258,13 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
               || 'Usuario sin nombre';
             const displayEmail = submission.email ?? user?.email ?? 'Sin email registrado';
             const displayDni = submission.dni || user?.dni || 'Sin DNI';
+            const marketingAllowed =
+              user?.accepts_marketing ??
+              submission.accepts_marketing ??
+              false;
+            const marketingBadgeClass = marketingAllowed
+              ? 'bg-green-500/15 text-green-300 border border-green-500/40'
+              : 'bg-red-500/15 text-red-300 border border-red-500/40';
 
             return (
               <li key={submission.id} className="bg-[#2a2d33] p-6 rounded-lg shadow-lg">
@@ -270,6 +277,14 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
                       Puntuacion: {submission.score ?? 'N/A'} | Percentil: {submission.percentile ?? 'N/A'}
                     </p>
                     <p className="text-xs text-gray-500">Enviado el {new Date(submission.submitted_at).toLocaleString()}</p>
+                    <span className={`mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold ${marketingBadgeClass}`}>
+                      <span
+                        className={`h-2 w-2 rounded-full ${
+                          marketingAllowed ? 'bg-green-300' : 'bg-red-300'
+                        }`}
+                      />
+                      {marketingAllowed ? 'Acepta comunicaciones de marketing' : 'Marketing no autorizado'}
+                    </span>
                   </div>
                   <div className="flex gap-3 mt-4 md:mt-0">
                     {!editing ? 

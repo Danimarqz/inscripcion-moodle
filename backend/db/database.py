@@ -4,6 +4,9 @@ from config import DATABASE_URL
 
 engine = create_engine(
     DATABASE_URL,
+    pool_size=1,
+    max_overflow=0,
+    pool_recycle=60,
     echo=False,
     pool_pre_ping=True
 )

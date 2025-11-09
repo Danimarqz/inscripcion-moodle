@@ -31,6 +31,7 @@ from services.auth.auth_service import (
     get_current_admin_user,
     get_password_hash,
 )
+from services.cache import invalidate_exam_cache, invalidate_check_cache_for_exam
 from services.exam.submit_exam import (
     normalize_dni,
     recalculate_scores,
@@ -171,6 +172,7 @@ def create_exam_with_answers(
     db.add(new_exam)
     db.commit()
     db.refresh(new_exam)
+    invalidate_exam_cache(new_exam.id)
 
     return {
         "id": new_exam.id,
@@ -255,6 +257,7 @@ def edit_exam_with_answers(
     recalculate_scores(existing_exam.id, db, commit=False)
     db.commit()
     db.refresh(existing_exam)
+    invalidate_exam_cache(existing_exam.id)
 
     return {
         "id": existing_exam.id,
@@ -275,6 +278,7 @@ def delete_exam(
 
     db.delete(exam)
     db.commit()
+    invalidate_exam_cache(exam_id)
 
     return {"detail": f"Examen {exam_id} eliminado correctamente."}
 
@@ -463,6 +467,7 @@ def update_submission(
 
     db.commit()
     db.refresh(submission)
+    invalidate_check_cache_for_exam(submission.exam_id)
     return submission
 
 
@@ -478,6 +483,7 @@ def delete_submission(
 
     db.delete(submission)
     db.commit()
+    invalidate_check_cache_for_exam(submission.exam_id)
     return {"detail": "Intento eliminado correctamente."}
 
 

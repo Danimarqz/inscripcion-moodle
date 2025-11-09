@@ -42,6 +42,7 @@ export type ExamUser = {
   surname: string;
   email?: string | null;
   dni: string;
+  accepts_marketing?: boolean;
 };
 
 export type AdminSubmission = {
@@ -56,6 +57,7 @@ export type AdminSubmission = {
   percentile?: number | null;
   submitted_at: string;
   answers: SubmissionAnswer[];
+  accepts_marketing?: boolean | null;
 };
 
 export type ExamSubmissionPayload = {
@@ -65,6 +67,7 @@ export type ExamSubmissionPayload = {
   surname: string;
   exam_id: number;
   answers: Answer[];
+  accepts_marketing: boolean;
 }
 
 export type SubmissionUpdatePayload = {

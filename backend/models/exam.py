@@ -16,6 +16,7 @@ class ExamSubmission(BaseModel):
     surname: str
     exam_id: int
     answers: List[AnswerSubmission]
+    accepts_marketing: bool = False
 
 
 class ExamUserBase(BaseModel):
@@ -23,6 +24,7 @@ class ExamUserBase(BaseModel):
     surname: str
     email: EmailStr | None = None
     dni: str
+    accepts_marketing: bool = False
 
 
 class ExamUserOut(ExamUserBase):
@@ -123,6 +125,10 @@ class UserExamSubmission(BaseModel):
     @computed_field
     def surname(self) -> str:
         return self.user.surname
+
+    @computed_field
+    def accepts_marketing(self) -> bool:
+        return bool(getattr(self.user, "accepts_marketing", False))
 
 
 class AdminSubmissionOut(UserExamSubmission):
