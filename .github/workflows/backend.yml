@@ -36,6 +36,13 @@ jobs:
           remote_user: ${{ secrets.SSH_USER }}
           remote_key: ${{ secrets.SSH_KEY }}
 
+      - name: Crear .env backend
+        working-directory: backend
+        run: |
+          cat <<'EOF' > .env
+          ${{ secrets.BACKEND_ENV }}
+          EOF
+
       - name: Install on server, run migrations and restart service
         uses: appleboy/ssh-action@v1.2.0
         with:
