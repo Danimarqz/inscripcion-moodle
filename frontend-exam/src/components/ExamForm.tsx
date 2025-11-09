@@ -26,7 +26,9 @@ export default function ExamForm({ examId }: ExamFormProps) {
   const [examToEdit, setExamToEdit] = useState<ExamEdit | null>(null);
   const [name, setName] = useState('');
   const [isActive, setIsActive] = useState(false);
-  const [showResponse, setShowResponse] = useState(false);
+  const [showScore, setShowScore] = useState(false);
+  const [showPercentile, setShowPercentile] = useState(false);
+  const [showScoreFull, setShowScoreFull] = useState(false);
 
   useEffect(() => {
     if (authenticating) return;
@@ -40,7 +42,9 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setExamToEdit(null);
       setName('');
       setIsActive(false);
-      setShowResponse(false);
+      setShowScore(false);
+      setShowPercentile(false);
+      setShowScoreFull(false);
       setAll([{ ...DEFAULT_QUESTION }]);
       setError(null);
       return;
@@ -51,7 +55,9 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setExamToEdit(examData);
       setName(examData.name ?? '');
       setIsActive(Boolean(examData.is_active));
-      setShowResponse(Boolean(examData.show_response));
+      setShowScore(Boolean(examData.show_score));
+      setShowPercentile(Boolean(examData.show_percentile));
+      setShowScoreFull(Boolean(examData.show_score_full));
 
       const normalizedQuestions = (examData.questions.length
         ? examData.questions
@@ -95,7 +101,9 @@ export default function ExamForm({ examId }: ExamFormProps) {
     const body: ExamCreateWithQuestions | ExamEdit = {
       name: trimmedName,
       is_active: isActive,
-      show_response: showResponse,
+      show_score: showScore,
+      show_percentile: showPercentile,
+      show_score_full: showScoreFull,
       questions: questions.map((q) => ({
         id: 'id' in q ? q.id : undefined,
         correct_option: q.correct_option.toUpperCase(),
@@ -229,16 +237,46 @@ export default function ExamForm({ examId }: ExamFormProps) {
         <label className="font-bold text-purple-500">Activo</label>
       </div>
 
-      <div className="mb-6 flex items-center">
-        <input
-          type="checkbox"
-          checked={showResponse}
-          onChange={(e) => setShowResponse(e.currentTarget.checked)}
-          className="mr-2"
-          disabled={isBusy}
-        />
-        <label className="font-bold text-purple-500">Mostrar respuestas</label>
-      </div>
+      <fieldset className="mb-6 border border-[#444] rounded-lg p-4" disabled={isBusy}>
+        <legend className="font-bold text-purple-400 px-2">Resultados visibles para el alumno</legend>
+        <p className="text-xs text-gray-400 mb-4">
+          Activa cada opción de forma independiente. Si ninguna está marcada, el alumno solo verá un mensaje de confirmación.
+        </p>
+        <div className="flex flex-col gap-3">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={showScore}
+              onChange={(e) => setShowScore(e.currentTarget.checked)}
+              className="mr-1"
+              disabled={isBusy}
+            />
+            <span className="font-bold text-purple-500">Mostrar nota final (porcentaje)</span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={showPercentile}
+              onChange={(e) => setShowPercentile(e.currentTarget.checked)}
+              className="mr-1"
+              disabled={isBusy}
+            />
+            <span className="font-bold text-purple-500">
+              Mostrar percentil y posición entre los exámenes entregados
+            </span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={showScoreFull}
+              onChange={(e) => setShowScoreFull(e.currentTarget.checked)}
+              className="mr-1"
+              disabled={isBusy}
+            />
+            <span className="font-bold text-purple-500">Mostrar detalle de aciertos (ej. “20 de 80 preguntas”)</span>
+          </label>
+        </div>
+      </fieldset>
 
       <fieldset className="border border-[#444] p-4 rounded-lg" disabled={isBusy}>
         <legend className="font-bold text-xl mb-4 text-purple-200">Preguntas</legend>

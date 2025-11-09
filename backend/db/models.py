@@ -43,7 +43,9 @@ class Exam(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=False)
-    show_response = Column(Boolean, default=False)
+    show_score = Column(Boolean, default=False)
+    show_percentile = Column(Boolean, default=False)
+    show_score_full = Column(Boolean, default=False)
     questions = relationship(
         "Question",
         back_populates="exam",

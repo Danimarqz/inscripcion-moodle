@@ -7,6 +7,10 @@ export const examUiInitialState: ExamUiState = {
   hasPreviousSubmission: false,
   score: null,
   percentile: null,
+  position: null,
+  totalSubmissions: null,
+  correctAnswers: null,
+  totalQuestions: null,
   submissionMessage: null,
   resultError: null,
 };
@@ -23,6 +27,10 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         resultError: null,
         score: null,
         percentile: null,
+        position: null,
+        totalSubmissions: null,
+        correctAnswers: null,
+        totalQuestions: null,
       };
     case 'CHECK_SUCCESS':
       return {
@@ -30,6 +38,10 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         hasPreviousSubmission: true,
         score: action.payload.score,
         percentile: action.payload.percentile,
+        position: action.payload.position,
+        totalSubmissions: action.payload.totalSubmissions,
+        correctAnswers: action.payload.correctAnswers,
+        totalQuestions: action.payload.totalQuestions,
         submissionMessage: action.payload.message,
         resultError: null,
       };
@@ -39,6 +51,10 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         hasPreviousSubmission: false,
         score: null,
         percentile: null,
+        position: null,
+        totalSubmissions: null,
+        correctAnswers: null,
+        totalQuestions: null,
         submissionMessage: null,
         resultError: action.payload ?? null,
       };
@@ -48,6 +64,10 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         hasPreviousSubmission: true,
         score: action.payload.score,
         percentile: action.payload.percentile,
+        position: action.payload.position,
+        totalSubmissions: action.payload.totalSubmissions,
+        correctAnswers: action.payload.correctAnswers,
+        totalQuestions: action.payload.totalQuestions,
         submissionMessage: action.payload.message,
         resultError: null,
       };
@@ -58,6 +78,10 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         hasPreviousSubmission: false,
         score: null,
         percentile: null,
+        position: null,
+        totalSubmissions: null,
+        correctAnswers: null,
+        totalQuestions: null,
         submissionMessage: null,
         resultError: action.payload ?? null,
       };

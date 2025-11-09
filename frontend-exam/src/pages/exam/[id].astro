@@ -7,14 +7,18 @@ import { getExams } from '../../services/examService';
 const examId = Number(Astro.params.id);
 
 let examName = 'Examen';
-let showResponse = false;
+let showScore = false;
+let showPercentile = false;
+let showScoreFull = false;
 
 try {
   const exams: Exam[] = await getExams();
   const exam = exams.find((item) => item.id === examId);
   if (exam) {
     examName = exam.name;
-    showResponse = Boolean(exam.show_response);
+    showScore = Boolean(exam.show_score);
+    showPercentile = Boolean(exam.show_percentile);
+    showScoreFull = Boolean(exam.show_score_full);
   }
 } catch (error) {
   console.error('Failed to load exam details', error);
@@ -22,5 +26,12 @@ try {
 ---
 
 <Layout title={examName}>
-  <ExamPage client:load examId={examId} examName={examName} showResponse={showResponse} />
+  <ExamPage
+    client:load
+    examId={examId}
+    examName={examName}
+    showScore={showScore}
+    showPercentile={showPercentile}
+    showScoreFull={showScoreFull}
+  />
 </Layout>

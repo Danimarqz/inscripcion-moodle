@@ -1,16 +1,20 @@
 export type Exam = {
   id: number;
   name: string;
-  score?: number;
-  percentile?: number;
-  show_response?: boolean;
+  score?: number | null;
+  percentile?: number | null;
+  show_score?: boolean;
+  show_percentile?: boolean;
+  show_score_full?: boolean;
 };
 export type ExamOut = {
-  id: number;
-  name: string;
-  score?: number;
-  percentile?: number;
-  message?: string;
+  score?: number | null;
+  percentile?: number | null;
+  position?: number | null;
+  total_submissions?: number | null;
+  correct_answers?: number | null;
+  total_questions?: number | null;
+  message?: string | null;
 };
 
 export type Question = {
@@ -83,7 +87,9 @@ export type QuestionCreate = {
 export type ExamCreateWithQuestions = {
   name: string;
   is_active?: boolean;
-  show_response?: boolean;
+  show_score?: boolean;
+  show_percentile?: boolean;
+  show_score_full?: boolean;
   questions: QuestionCreate[];
 };
 
@@ -97,7 +103,9 @@ export type ExamEdit = {
   id?: number;
   name?: string;
   is_active?: boolean;
-  show_response?: boolean;
+  show_score?: boolean;
+  show_percentile?: boolean;
+  show_score_full?: boolean;
   questions: QuestionEdit[];
 };
 
@@ -139,16 +147,30 @@ export type ExamUiState = {
   hasPreviousSubmission: boolean;
   score: number | null;
   percentile: number | null;
+  position: number | null;
+  totalSubmissions: number | null;
+  correctAnswers: number | null;
+  totalQuestions: number | null;
   submissionMessage: string | null;
   resultError: string | null;
+};
+
+export type ExamResultPayload = {
+  score: number | null;
+  percentile: number | null;
+  position: number | null;
+  totalSubmissions: number | null;
+  correctAnswers: number | null;
+  totalQuestions: number | null;
+  message: string;
 };
 
 export type ExamUiAction =
   | { type: 'RESET' }
   | { type: 'CHECK_START' }
-  | { type: 'CHECK_SUCCESS'; payload: { score: number | null; percentile: number | null; message: string } }
+  | { type: 'CHECK_SUCCESS'; payload: ExamResultPayload }
   | { type: 'CHECK_ERROR'; payload?: string | null }
-  | { type: 'SUBMIT_SUCCESS'; payload: { score: number | null; percentile: number | null; message: string } }
+  | { type: 'SUBMIT_SUCCESS'; payload: ExamResultPayload }
   | { type: 'SUBMIT_ERROR'; payload?: string | null };
 
 

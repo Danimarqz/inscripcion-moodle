@@ -122,7 +122,9 @@ def create_exam_with_answers(
     new_exam = Exam(
         name=exam_data.name,
         is_active=getattr(exam_data, "is_active", False),
-        show_response=getattr(exam_data, "show_response", False),
+        show_score=bool(getattr(exam_data, "show_score", False)),
+        show_percentile=bool(getattr(exam_data, "show_percentile", False)),
+        show_score_full=bool(getattr(exam_data, "show_score_full", False)),
         questions=question_models,
     )
 
@@ -152,8 +154,12 @@ def edit_exam_with_answers(
         existing_exam.name = exam_data.name
     if exam_data.is_active is not None:
         existing_exam.is_active = exam_data.is_active
-    if exam_data.show_response is not None:
-        existing_exam.show_response = exam_data.show_response
+    if exam_data.show_score is not None:
+        existing_exam.show_score = exam_data.show_score
+    if exam_data.show_percentile is not None:
+        existing_exam.show_percentile = exam_data.show_percentile
+    if exam_data.show_score_full is not None:
+        existing_exam.show_score_full = exam_data.show_score_full
 
     if not exam_data.questions:
         raise HTTPException(status_code=400, detail="El examen debe tener al menos una pregunta")

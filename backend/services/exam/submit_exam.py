@@ -1,6 +1,9 @@
+import logging
+from dataclasses import dataclass
 from math import isclose
-from typing import Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from db.models import Exam, ExamUser, Question, UserAnswer, UserExamSubmission
@@ -8,6 +11,16 @@ from models.exam import ExamSubmission
 
 DNI_LETTERS = "TRWAGMYFPDXBNJZSQVHLCKE"
 VALID_OPTIONS = {"A", "B", "C", "D"}
+
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ScoreBreakdown:
+    score: float
+    correct_answers: int
+    total_questions: int
 
 
 def calculate_percentile(user_score: float, all_scores: Iterable[float | None]) -> float:
@@ -89,10 +102,10 @@ def validate_answer_option(option: str) -> str:
     return upper
 
 
-def calculate_submission_score(
+def calculate_score_breakdown(
     active_questions: Iterable[Question],
     answers_by_question: Dict[int, str],
-) -> float:
+) -> ScoreBreakdown:
     active_list: List[Question] = [question for question in active_questions if question.is_active]
     total_active = len(active_list)
     if total_active == 0:
@@ -104,7 +117,15 @@ def calculate_submission_score(
         if answers_by_question.get(question.id, "").upper()
         == question.correct_option.upper()
     )
-    return correct_count / total_active * 100
+    score = correct_count / total_active * 100
+    return ScoreBreakdown(score=score, correct_answers=correct_count, total_questions=total_active)
+
+
+def calculate_submission_score(
+    active_questions: Iterable[Question],
+    answers_by_question: Dict[int, str],
+) -> float:
+    return calculate_score_breakdown(active_questions, answers_by_question).score
 
 
 def process_exam_submission(data: ExamSubmission, db: Session):
@@ -170,14 +191,14 @@ def process_exam_submission(data: ExamSubmission, db: Session):
         answers_by_question[ans.question_id] = validate_answer_option(ans.answer)
 
     try:
-        score = calculate_submission_score(questions, answers_by_question)
+        breakdown = calculate_score_breakdown(questions, answers_by_question)
     except ValueError as exc:
         raise Exception(str(exc))
 
     submission = UserExamSubmission(
         user_id=candidate.id,
         exam_id=data.exam_id,
-        score=score,
+        score=breakdown.score,
         percentile=0,
     )
     db.add(submission)
@@ -196,13 +217,13 @@ def process_exam_submission(data: ExamSubmission, db: Session):
     db.commit()
     db.refresh(submission)
 
-    if exam.show_response:
-        return {
-            "score": submission.score,
-            "percentile": submission.percentile,
-            "message": "Examen enviado correctamente",
-        }
-    return {"message": "Examen enviado correctamente"}
+    return build_submission_payload(
+        exam=exam,
+        submission=submission,
+        db=db,
+        message="Examen enviado correctamente",
+        score_breakdown=breakdown,
+    )
 
 
 def recalculate_scores(exam_id: int, db: Session, *, commit: bool = True) -> None:
@@ -234,3 +255,126 @@ def recalculate_scores(exam_id: int, db: Session, *, commit: bool = True) -> Non
 
     db.flush()
     recalculate_percentiles(exam_id, db, commit=commit)
+
+
+def fetch_score_breakdown_from_db(
+    *, exam_id: int, submission_id: int, db: Session
+) -> Optional[ScoreBreakdown]:
+    logger.debug(
+        "Fetching score breakdown from DB for exam_id=%s submission_id=%s",
+        exam_id,
+        submission_id,
+    )
+    questions = db.query(Question).filter(Question.exam_id == exam_id).all()
+    if not questions:
+        logger.warning(
+            "Cannot compute score breakdown: exam_id=%s has no questions", exam_id
+        )
+        return None
+
+    answers = db.query(UserAnswer).filter(UserAnswer.submission_id == submission_id).all()
+    answers_map = {answer.question_id: answer.answer.upper() for answer in answers}
+
+    try:
+        breakdown = calculate_score_breakdown(questions, answers_map)
+        logger.debug(
+            "Recovered breakdown for submission_id=%s -> correct=%s total=%s",
+            submission_id,
+            breakdown.correct_answers,
+            breakdown.total_questions,
+        )
+        return breakdown
+    except ValueError:
+        logger.exception(
+            "Failed to recalculate score breakdown for submission_id=%s", submission_id
+        )
+        return None
+
+
+def get_submission_position_data(
+    submission: UserExamSubmission,
+    db: Session,
+) -> Tuple[Optional[int], int]:
+    total = (
+        db.query(func.count(UserExamSubmission.id))
+        .filter(UserExamSubmission.exam_id == submission.exam_id)
+        .scalar()
+    )
+    total_submissions = int(total or 0)
+    if total_submissions == 0 or submission.score is None:
+        return None, total_submissions
+
+    better = (
+        db.query(func.count(UserExamSubmission.id))
+        .filter(
+            UserExamSubmission.exam_id == submission.exam_id,
+            UserExamSubmission.score.isnot(None),
+            UserExamSubmission.score > submission.score,
+        )
+        .scalar()
+    )
+    better_count = int(better or 0)
+    return better_count + 1, total_submissions
+
+
+def build_submission_payload(
+    *,
+    exam: Exam,
+    submission: UserExamSubmission,
+    db: Session,
+    message: str,
+    score_breakdown: Optional[ScoreBreakdown] = None,
+) -> Dict[str, Any]:
+    logger.debug(
+        "Building submission payload exam_id=%s submission_id=%s flags(score=%s, percentile=%s, score_full=%s)",
+        exam.id,
+        submission.id,
+        exam.show_score,
+        exam.show_percentile,
+        exam.show_score_full,
+    )
+    payload: Dict[str, Any] = {"message": message}
+    payload["score"] = submission.score if exam.show_score else None
+
+    if exam.show_percentile:
+        payload["percentile"] = submission.percentile
+        position, total = get_submission_position_data(submission, db)
+        payload["position"] = position
+        payload["total_submissions"] = total
+    else:
+        payload["percentile"] = None
+        payload["position"] = None
+        payload["total_submissions"] = None
+
+    if exam.show_score_full:
+        breakdown = score_breakdown or fetch_score_breakdown_from_db(
+            exam_id=exam.id,
+            submission_id=submission.id,
+            db=db,
+        )
+        if breakdown:
+            payload["correct_answers"] = breakdown.correct_answers
+            payload["total_questions"] = breakdown.total_questions
+            logger.debug(
+                "Included score_full data for submission_id=%s -> %s/%s",
+                submission.id,
+                breakdown.correct_answers,
+                breakdown.total_questions,
+            )
+        else:
+            payload["correct_answers"] = None
+            payload["total_questions"] = None
+            logger.warning(
+                "score_full requested but breakdown unavailable for submission_id=%s",
+                submission.id,
+            )
+    else:
+        payload["correct_answers"] = None
+        payload["total_questions"] = None
+
+    logger.debug(
+        "Final payload for submission_id=%s: %s",
+        submission.id,
+        {k: payload[k] for k in ("score", "percentile", "position", "correct_answers", "total_questions")},
+    )
+    return payload

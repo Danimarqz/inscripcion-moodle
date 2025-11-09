@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 
-import type { Answer, Exam, ExamSubmissionPayload, Question } from '../types/exam';
+import type { Answer, ExamOut, ExamResultPayload, ExamSubmissionPayload, Question } from '../types/exam';
 import { checkSubmission, submitExam } from '../services/examService';
 import { useExamQuestions } from '../hooks/useExamQuestions';
 import { useExamUi } from '../hooks/useExamUi';
@@ -9,26 +9,95 @@ import { isValidEmail, normalizeDni, roundToTwoDecimals, validateDniNie } from '
 interface ExamPageProps {
   examId: number;
   examName: string;
-  showResponse: boolean;
+  showScore: boolean;
+  showPercentile: boolean;
+  showScoreFull: boolean;
 }
 
 const ANSWER_OPTIONS = ['A', 'B', 'C', 'D'];
 
-export default function ExamPage({ examId, examName, showResponse }: ExamPageProps) {
+type ComposeMessageParams = {
+  baseMessage?: string | null;
+  showScore: boolean;
+  showPercentile: boolean;
+  showScoreFull: boolean;
+  score: number | null;
+  percentile: number | null;
+  position: number | null;
+  totalSubmissions: number | null;
+  correctAnswers: number | null;
+  totalQuestions: number | null;
+};
+
+function composeResultMessage({
+  baseMessage,
+  showScore,
+  showPercentile,
+  showScoreFull,
+  score,
+  percentile,
+  position,
+  totalSubmissions,
+  correctAnswers,
+  totalQuestions,
+}: ComposeMessageParams): string {
+  const parts: string[] = [];
+  if (baseMessage) {
+    parts.push(baseMessage.trim());
+  }
+  if (showScore && score !== null) {
+    parts.push(`Tu puntuación es ${score}`);
+  }
+  if (showScoreFull && correctAnswers !== null && totalQuestions !== null) {
+    parts.push(`Has acertado ${correctAnswers} de ${totalQuestions} preguntas`);
+  }
+  if (showPercentile && percentile !== null) {
+    let percentileMessage = `Tienes el percentil ${percentile}`;
+    if (position !== null && totalSubmissions !== null) {
+      percentileMessage += `, estás en la posición ${position} de ${totalSubmissions}`;
+    }
+    parts.push(percentileMessage);
+  }
+
+  const result = parts.filter(Boolean).join('. ').trim();
+  return result || 'Tu entrega ha sido registrada correctamente';
+}
+
+export default function ExamPage({
+  examId,
+  examName,
+  showScore,
+  showPercentile,
+  showScoreFull,
+}: ExamPageProps) {
   const [studentName, setStudentName] = useState('');
   const [studentSurname, setStudentSurname] = useState('');
   const [email, setEmail] = useState('');
   const [dni, setDni] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+  const [autoCheckDisabled, setAutoCheckDisabled] = useState(false);
 
   const [examUiState, dispatchExamUi] = useExamUi();
-  const { checking, hasPreviousSubmission, submissionMessage, resultError } = examUiState;
+  const {
+    checking,
+    hasPreviousSubmission,
+    submissionMessage,
+    resultError,
+    score: latestScore,
+    percentile: latestPercentile,
+    position,
+    totalSubmissions,
+    correctAnswers,
+    totalQuestions,
+  } = examUiState;
 
   const { questions, loading, error: questionsError } = useExamQuestions(examId);
+  const allowResultPreview = showScore || showPercentile || showScoreFull;
 
   useEffect(() => {
     dispatchExamUi({ type: 'RESET' });
-  }, [examId]);
+    setAutoCheckDisabled(false);
+  }, [examId, dispatchExamUi]);
 
   const questionEntries = useMemo(
     () => questions.map((question, index) => ({ index, question })),
@@ -37,8 +106,58 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
   const activeEntries = questionEntries.filter(({ question }) => question.is_active !== false);
   const reserveEntries = questionEntries.filter(({ question }) => question.is_active === false);
 
+  function buildResultPayload(result: ExamOut, context: 'check' | 'submit'): ExamResultPayload {
+    const baseMessage =
+      result.message ??
+      (context === 'check'
+        ? 'Ya has entregado este examen anteriormente'
+        : 'Tu entrega ha sido registrada correctamente');
+
+    const nextScore =
+      showScore && typeof result.score === 'number' ? roundToTwoDecimals(result.score) : null;
+    const nextPercentile =
+      showPercentile && typeof result.percentile === 'number'
+        ? roundToTwoDecimals(result.percentile)
+        : null;
+    const rawPosition = typeof result.position === 'number' ? result.position : null;
+    const rawTotalSubmissions =
+      typeof result.total_submissions === 'number' ? result.total_submissions : null;
+    const rawCorrectAnswers =
+      typeof result.correct_answers === 'number' ? result.correct_answers : null;
+    const rawTotalQuestions =
+      typeof result.total_questions === 'number' ? result.total_questions : null;
+
+    const nextPosition = showPercentile ? rawPosition : null;
+    const nextTotalSubmissions = showPercentile ? rawTotalSubmissions : null;
+    const nextCorrectAnswers = showScoreFull ? rawCorrectAnswers : null;
+    const nextTotalQuestions = showScoreFull ? rawTotalQuestions : null;
+
+    const message = composeResultMessage({
+      baseMessage,
+      showScore,
+      showPercentile,
+      showScoreFull,
+      score: nextScore,
+      percentile: nextPercentile,
+      position: nextPosition,
+      totalSubmissions: nextTotalSubmissions,
+      correctAnswers: nextCorrectAnswers,
+      totalQuestions: nextTotalQuestions,
+    });
+
+    return {
+      score: nextScore,
+      percentile: nextPercentile,
+      position: nextPosition,
+      totalSubmissions: nextTotalSubmissions,
+      correctAnswers: nextCorrectAnswers,
+      totalQuestions: nextTotalQuestions,
+      message,
+    };
+  }
+
   async function checkUserSubmission() {
-    if (!showResponse) return;
+    if (!allowResultPreview || autoCheckDisabled) return;
     if (checking) return;
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -49,16 +168,10 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
     dispatchExamUi({ type: 'CHECK_START' });
 
     try {
-      const data: Exam = await checkSubmission({ email: normalizedEmail, dni: normalizedDni, exam_id: examId });
-      const nextScore = roundToTwoDecimals(data.score);
-      const nextPercentile = roundToTwoDecimals(data.percentile);
-      const message = `Ya has entregado el examen. Tu puntuacion es: ${nextScore ?? 'N/A'}. Percentil: ${
-        nextPercentile ?? 'N/A'
-      }`;
-      dispatchExamUi({
-        type: 'CHECK_SUCCESS',
-        payload: { score: nextScore, percentile: nextPercentile, message },
-      });
+      const data: ExamOut = await checkSubmission({ email: normalizedEmail, dni: normalizedDni, exam_id: examId });
+      const payload = buildResultPayload(data, 'check');
+      dispatchExamUi({ type: 'CHECK_SUCCESS', payload });
+      setAutoCheckDisabled(true);
     } catch (error) {
       const message = (error as Error).message;
       if (message && message !== 'Submission not found') {
@@ -119,24 +232,13 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
 
     try {
       const result = await submitExam(payload);
-
-      let nextScore: number | null = null;
-      let nextPercentile: number | null = null;
-
-      if (showResponse) {
-        nextScore = roundToTwoDecimals(result.score);
-        nextPercentile = roundToTwoDecimals(result.percentile);
-      }
-
-      const baseMessage = result.message ?? 'Tu entrega ha sido registrada correctamente';
-      const message = `Examen entregado. ${baseMessage}. Tu puntuacion es: ${
-        nextScore ?? 'N/A'
-      }. Percentil: ${nextPercentile ?? 'N/A'}`;
+      const payloadResult = buildResultPayload(result, 'submit');
 
       dispatchExamUi({
         type: 'SUBMIT_SUCCESS',
-        payload: { score: nextScore, percentile: nextPercentile, message },
+        payload: payloadResult,
       });
+      setAutoCheckDisabled(true);
       setStudentName('');
       setStudentSurname('');
       setEmail('');
@@ -147,6 +249,48 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
       setFormError(message);
     }
   };
+
+  function renderSubmissionSummary(message: string) {
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage) return null;
+    const sentenceMatch = trimmedMessage.match(/.*?[.!?](?:\s|$)/);
+    const primaryMessage = (sentenceMatch ? sentenceMatch[0] : trimmedMessage).trim();
+    return (
+      <div className="mt-6 rounded-2xl border border-green-500/60 bg-green-500/5 p-6 shadow-[0_10px_25px_rgba(16,185,129,0.15)] text-left">
+        <p className="text-green-200 text-lg font-semibold mb-2">
+          {primaryMessage ?? trimmedMessage}
+        </p>
+
+        <div className="flex flex-wrap gap-4">
+          {showScore && typeof latestScore === 'number' && (
+            <div className="flex-1 min-w-[180px] rounded-xl bg-[#1f2a24] border border-green-500/30 p-4">
+              <p className="text-xs uppercase tracking-widest text-green-400/80">Puntuación</p>
+              <p className="text-2xl font-bold text-green-200">{latestScore}</p>
+            </div>
+          )}
+          {showScoreFull && typeof correctAnswers === 'number' && typeof totalQuestions === 'number' && (
+            <div className="flex-1 min-w-[180px] rounded-xl bg-[#1f252a] border border-teal-500/30 p-4">
+              <p className="text-xs uppercase tracking-widest text-teal-300/80">Aciertos</p>
+              <p className="text-2xl font-bold text-teal-200">
+                {correctAnswers} <span className="text-base text-teal-200/70">de</span> {totalQuestions}
+              </p>
+            </div>
+          )}
+          {showPercentile && typeof latestPercentile === 'number' && (
+            <div className="flex-1 min-w-[180px] rounded-xl bg-[#1f2330] border border-indigo-500/30 p-4">
+              <p className="text-xs uppercase tracking-widest text-indigo-300/80">Percentil</p>
+              <p className="text-2xl font-bold text-indigo-200">{latestPercentile}</p>
+              {typeof position === 'number' && typeof totalSubmissions === 'number' && (
+                <p className="text-sm text-indigo-200/70 mt-1">
+                  Posición {position} de {totalSubmissions}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   function renderQuestionCard(
     entry: { index: number; question: Question },
@@ -287,11 +431,7 @@ export default function ExamPage({ examId, examName, showResponse }: ExamPagePro
             Comprobando si ya has entregado el examen...
           </p>
         )}
-        {submissionMessage && (
-          <p className="text-center text-green-400 bg-green-400/10 border border-green-500 p-4 rounded-md mt-6">
-            {submissionMessage}
-          </p>
-        )}
+        {submissionMessage && renderSubmissionSummary(submissionMessage)}
         {resultError && (
           <p className="text-center text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mt-6">
             {resultError}

@@ -37,7 +37,9 @@ class ExamOut(BaseModel):
     name: str
     score: Optional[float] = None
     percentile: Optional[float] = None
-    show_response: Optional[bool] = False
+    show_score: bool = False
+    show_percentile: bool = False
+    show_score_full: bool = False
 
     class Config:
         from_attributes = True
@@ -59,7 +61,9 @@ class QuestionCreate(BaseModel):
 class ExamCreateWithQuestions(BaseModel):
     name: str
     is_active: Optional[bool] = None
-    show_response: Optional[bool] = None
+    show_score: Optional[bool] = None
+    show_percentile: Optional[bool] = None
+    show_score_full: Optional[bool] = None
     questions: List[QuestionCreate]
 
 
@@ -72,7 +76,9 @@ class QuestionEdit(BaseModel):
 class ExamEdit(BaseModel):
     name: Optional[str] = None
     is_active: Optional[bool] = None
-    show_response: Optional[bool] = None
+    show_score: Optional[bool] = None
+    show_percentile: Optional[bool] = None
+    show_score_full: Optional[bool] = None
     questions: List[QuestionEdit]
 
 
@@ -132,8 +138,13 @@ class SubmissionCheckRequest(BaseModel):
 
 
 class SubmissionCheckResponse(BaseModel):
-    score: float
-    percentile: float
+    score: Optional[float] = None
+    percentile: float | None = None
+    position: Optional[int] = None
+    total_submissions: Optional[int] = None
+    correct_answers: Optional[int] = None
+    total_questions: Optional[int] = None
+    message: Optional[str] = None
 
 
 class ExamOfficialResultOut(BaseModel):

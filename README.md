@@ -18,7 +18,7 @@ Este proyecto es una aplicación web completa que consta de dos partes principal
 *   **Gestión de Exámenes:** El panel de administración se divide en `/admin/exams`, `/admin/submissions` y `/admin/results` para crear/editar exámenes, revisar intentos y gestionar resultados oficiales importados.
 *   **Importación de resultados oficiales:** Desde `/admin/results` se puede subir un PDF (procesado con Tabula) y vincular automáticamente los registros con usuarios existentes.
 *   **Realización de Exámenes:** Los usuarios pueden acceder a los exámenes activos, responder las preguntas y enviar sus respuestas.
-*   **Resultados y Percentiles:** Al finalizar un examen, el usuario recibe su puntuación y su percentil en comparación con otros usuarios. Cuando `show_response` está activo, la ficha del examen muestra el resumen del último envío sin usar ventanas emergentes.
+*   **Resultados y Percentiles:** Al finalizar un examen, el usuario recibe su puntuación, percentil y/o detalle de aciertos según lo definido en los flags `show_score`, `show_percentile` y `show_score_full`. La ficha del examen refleja siempre la combinación activa para evitar pasos adicionales al alumno.
 *   **Autenticación de Administrador:** El panel de administración está protegido y requiere autenticación mediante JWT.
 
 ## Estructura del Proyecto
@@ -115,5 +115,5 @@ Este proyecto está bajo la Licencia MIT. Consulta el archivo `LICENSE` para má
 ## Notas recientes
 
 *   La importación de resultados oficiales utiliza `tabula-py` con `guess=false`; los registros que no se puedan asociar a un candidato existente se guardan con `user_id` vacío.
-*   La página de examen (`/exam/[id]`) recupera la configuración del examen en cada petición para respetar cambios en `show_response` sin recompilar.
+*   La página de examen (`/exam/[id]`) recupera la configuración del examen en cada petición para respetar cambios en `show_score`, `show_percentile` y `show_score_full` sin recompilar.
 *   Los mensajes de envío y de reintentos se muestran integrados en la interfaz en lugar de usar `alert()` del navegador.
