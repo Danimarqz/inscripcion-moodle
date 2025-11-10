@@ -466,7 +466,7 @@ def update_submission(
             db.delete(answer_obj)
 
     db.flush()
-    recalculate_scores(submission.exam_id, db, commit=False)
+    recalculate_scores_bulk(submission.exam_id, db, commit=False)
 
     db.commit()
     db.refresh(submission)
