@@ -10,15 +10,25 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 
+ALL_PATHS = ("/",)
+
+
 def _parse_path_prefixes(raw_value: str | None) -> Tuple[str, ...]:
     if not raw_value:
-        return ("/submit-exam",)
+        return ALL_PATHS
+
     prefixes = tuple(
         prefix.strip()
         for prefix in raw_value.split(",")
         if prefix.strip()
     )
-    return prefixes or ("/submit-exam",)
+    if not prefixes:
+        return ALL_PATHS
+
+    if any(prefix in {"*", "/"} for prefix in prefixes):
+        return ALL_PATHS
+
+    return prefixes
 
 
 def _resolve_client_ip(request: Request) -> str:
@@ -52,7 +62,7 @@ class ConstantMemoryRateLimiterMiddleware(BaseHTTPMiddleware):
         self.max_requests = max(
             max_requests
             if max_requests is not None
-            else int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "1")),
+            else int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "20")),
             1,
         )
         prefixes = (
