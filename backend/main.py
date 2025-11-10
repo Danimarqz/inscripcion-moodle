@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-app.add_middleware(ConstantMemoryRateLimiterMiddleware)
+# app.add_middleware(ConstantMemoryRateLimiterMiddleware)
 
 # TODO change on prod.
 app.add_middleware(
