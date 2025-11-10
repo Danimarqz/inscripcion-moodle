@@ -21,6 +21,16 @@ def _parse_path_prefixes(raw_value: str | None) -> Tuple[str, ...]:
     return prefixes or ("/submit-exam",)
 
 
+def _resolve_client_ip(request: Request) -> str:
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+    return request.client.host if request.client else "unknown"
+
+
 class ConstantMemoryRateLimiterMiddleware(BaseHTTPMiddleware):
     """Sliding-window IP limiter with bounded memory usage."""
 
@@ -71,7 +81,7 @@ class ConstantMemoryRateLimiterMiddleware(BaseHTTPMiddleware):
         if not self._should_limit(path):
             return await call_next(request)
 
-        client_host = request.client.host if request.client else "unknown"
+        client_host = _resolve_client_ip(request)
         now = time.monotonic()
 
         async with self._lock:

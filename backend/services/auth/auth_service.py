@@ -7,7 +7,7 @@ from typing import Optional
 from os import getenv
 
 from sqlalchemy.orm import Session
-from db.database import SessionLocal, get_db
+from db.database import get_db
 from db.models import AdminUser
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

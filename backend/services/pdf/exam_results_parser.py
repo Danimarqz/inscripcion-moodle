@@ -6,7 +6,6 @@ from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Iterable, List, Sequence
 
 if TYPE_CHECKING:
-    import pandas as pd
     from pandas import DataFrame
 else:
     DataFrame = Any
@@ -149,7 +148,6 @@ def _read_pdf_tables(
     lattice: bool = False,
     encoding: str = DEFAULT_ENCODING,
 ) -> list["DataFrame"]:
-    pd = _get_pandas()
     resolved = Path(pdf_path)
     if not resolved.exists():
         raise FileNotFoundError(f"Cannot find PDF at {resolved}")
