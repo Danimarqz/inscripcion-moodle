@@ -1,4 +1,4 @@
-name: Deploy Frontend Exam
+name: Deploy DEV Frontend Exam
 
 on:
   push:
