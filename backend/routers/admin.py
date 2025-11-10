@@ -34,7 +34,7 @@ from services.auth.auth_service import (
 from services.cache import invalidate_exam_cache, invalidate_check_cache_for_exam
 from services.exam.submit_exam import (
     normalize_dni,
-    recalculate_scores,
+    recalculate_scores_bulk,
     validate_answer_option,
     validate_dni_nie,
 )
@@ -254,7 +254,7 @@ def edit_exam_with_answers(
             detail="El examen debe tener al menos una pregunta activa no anulada",
         )
 
-    recalculate_scores(existing_exam.id, db, commit=False)
+    recalculate_scores_bulk(existing_exam.id, db)
     db.commit()
     db.refresh(existing_exam)
     invalidate_exam_cache(existing_exam.id)

@@ -1,4 +1,4 @@
-import logging
+import logging, asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -9,6 +9,7 @@ from db.database import engine
 from logging_config import configure_logging
 from rate_limiter import ConstantMemoryRateLimiterMiddleware
 from routers import admin, public, register
+from services.cache import public_cache
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -19,6 +20,11 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     yield
     logger.info("Apagando app...")
+
+async def cache_cleaner():
+    while True:
+        public_cache.cleanup()
+        await asyncio.sleep(60)
 
 app = FastAPI(lifespan=lifespan)
 

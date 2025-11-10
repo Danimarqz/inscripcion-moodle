@@ -73,3 +73,9 @@ def invalidate_exam_cache(exam_id: int | None = None) -> None:
 
 def invalidate_all_questions_cache() -> None:
     public_cache.invalidate_prefix("public:questions:")
+
+def cleanup(self):
+    now = time.time()
+    with self._lock:
+        for k in [k for k, (exp, _) in self._store.items() if exp <= now]:
+            self._store.pop(k, None)

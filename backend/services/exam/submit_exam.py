@@ -233,35 +233,29 @@ def process_exam_submission(data: ExamSubmission, db: Session):
 
 
 def recalculate_scores(exam_id: int, db: Session, *, commit: bool = True) -> None:
-    exam = (
-        db.query(Exam)
-        .options(
-            joinedload(Exam.questions),
-            joinedload(Exam.submissions).joinedload(UserExamSubmission.answers),
-        )
-        .filter(Exam.id == exam_id)
-        .first()
-    )
-    if not exam:
-        return
-
-    answers_by_submission: Dict[int, Dict[int, str]] = {}
-    for submission in exam.submissions:
-        answers_by_submission[submission.id] = {
-            answer.question_id: answer.answer.upper()
-            for answer in submission.answers
-        }
-
-    for submission in exam.submissions:
-        answer_map = answers_by_submission.get(submission.id, {})
-        try:
-            submission.score = calculate_submission_score(exam.questions, answer_map)
-        except ValueError:
-            submission.score = 0.0
-
-    db.flush()
     recalculate_percentiles(exam_id, db, commit=commit)
 
+def recalculate_scores_bulk(exam_id: int, db: Session) -> None:
+    """Recalcula todas las puntuaciones de un examen directamente en SQL."""
+    db.execute(text("""
+        UPDATE user_exam_submission AS u
+        JOIN (
+            SELECT
+                ua.submission_id,
+                ROUND(SUM(CASE
+                    WHEN UPPER(ua.answer) = q.correct_option AND q.is_active = 1 AND q.is_cancelled = 0
+                    THEN 1 ELSE 0 END) / COUNT(q.id) * 100, 2) AS score
+            FROM user_answer ua
+            JOIN question q ON q.id = ua.question_id
+            WHERE q.exam_id = :exam_id
+            GROUP BY ua.submission_id
+        ) AS t ON u.id = t.submission_id
+        SET u.score = t.score
+        WHERE u.exam_id = :exam_id
+    """), {"exam_id": exam_id})
+
+    # Actualiza percentiles tras recalcular
+    recalculate_percentiles(exam_id, db, commit=False)
 
 def fetch_score_breakdown_from_db(
     *, exam_id: int, submission_id: int, db: Session
