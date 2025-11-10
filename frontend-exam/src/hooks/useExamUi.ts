@@ -13,6 +13,7 @@ export const examUiInitialState: ExamUiState = {
   totalQuestions: null,
   submissionMessage: null,
   resultError: null,
+  answersReview: null,
 };
 
 export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action) => {
@@ -31,6 +32,7 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         totalSubmissions: null,
         correctAnswers: null,
         totalQuestions: null,
+        answersReview: null,
       };
     case 'CHECK_SUCCESS':
       return {
@@ -44,6 +46,7 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         totalQuestions: action.payload.totalQuestions,
         submissionMessage: action.payload.message,
         resultError: null,
+        answersReview: action.payload.answersReview,
       };
     case 'CHECK_ERROR':
       return {
@@ -70,6 +73,7 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         totalQuestions: action.payload.totalQuestions,
         submissionMessage: action.payload.message,
         resultError: null,
+        answersReview: action.payload.answersReview,
       };
     case 'SUBMIT_ERROR':
       return {
@@ -84,6 +88,7 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         totalQuestions: null,
         submissionMessage: null,
         resultError: action.payload ?? null,
+        answersReview: null,
       };
     default:
       return state;

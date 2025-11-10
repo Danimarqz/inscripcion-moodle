@@ -10,6 +10,7 @@ let examName = 'Examen';
 let showScore = false;
 let showPercentile = false;
 let showScoreFull = false;
+let validatedTribunal = false;
 
 try {
   const exams: Exam[] = await getExams();
@@ -19,6 +20,7 @@ try {
     showScore = Boolean(exam.show_score);
     showPercentile = Boolean(exam.show_percentile);
     showScoreFull = Boolean(exam.show_score_full);
+    validatedTribunal = Boolean(exam.validated_tribunal);
   }
 } catch (error) {
   console.error('Failed to load exam details', error);
@@ -33,5 +35,6 @@ try {
     showScore={showScore}
     showPercentile={showPercentile}
     showScoreFull={showScoreFull}
+    validatedTribunal={validatedTribunal}
   />
 </Layout>

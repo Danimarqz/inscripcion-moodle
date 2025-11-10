@@ -47,6 +47,7 @@ class Exam(Base):
     show_score = Column(Boolean, default=False)
     show_percentile = Column(Boolean, default=False)
     show_score_full = Column(Boolean, default=False)
+    validated_tribunal = Column(Boolean, default=False, nullable=False)
     questions = relationship(
         "Question",
         back_populates="exam",

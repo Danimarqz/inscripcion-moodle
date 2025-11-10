@@ -166,6 +166,7 @@ def create_exam_with_answers(
         show_score=bool(getattr(exam_data, "show_score", False)),
         show_percentile=bool(getattr(exam_data, "show_percentile", False)),
         show_score_full=bool(getattr(exam_data, "show_score_full", False)),
+        validated_tribunal=bool(getattr(exam_data, "validated_tribunal", False)),
         questions=question_models,
     )
 
@@ -202,6 +203,8 @@ def edit_exam_with_answers(
         existing_exam.show_percentile = exam_data.show_percentile
     if exam_data.show_score_full is not None:
         existing_exam.show_score_full = exam_data.show_score_full
+    if exam_data.validated_tribunal is not None:
+        existing_exam.validated_tribunal = exam_data.validated_tribunal
 
     if not exam_data.questions:
         raise HTTPException(status_code=400, detail="El examen debe tener al menos una pregunta")

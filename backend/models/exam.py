@@ -42,6 +42,7 @@ class ExamOut(BaseModel):
     show_score: bool = False
     show_percentile: bool = False
     show_score_full: bool = False
+    validated_tribunal: bool = False
 
     class Config:
         from_attributes = True
@@ -70,6 +71,7 @@ class ExamCreateWithQuestions(BaseModel):
     show_score: Optional[bool] = None
     show_percentile: Optional[bool] = None
     show_score_full: Optional[bool] = None
+    validated_tribunal: Optional[bool] = None
     questions: List[QuestionCreate]
 
 
@@ -87,7 +89,19 @@ class ExamEdit(BaseModel):
     show_score: Optional[bool] = None
     show_percentile: Optional[bool] = None
     show_score_full: Optional[bool] = None
+    validated_tribunal: Optional[bool] = None
     questions: List[QuestionEdit]
+
+
+class AnswerReview(BaseModel):
+    question_id: int
+    question_label: Optional[int] = None
+    selected_option: Optional[str] = None
+    correct_option: Optional[str] = None
+    is_correct: bool = False
+
+    class Config:
+        from_attributes = True
 
 
 class AnswerDetail(BaseModel):
@@ -157,6 +171,7 @@ class SubmissionCheckResponse(BaseModel):
     correct_answers: Optional[int] = None
     total_questions: Optional[int] = None
     message: Optional[str] = None
+    answers_review: Optional[List[AnswerReview]] = None
 
 
 class ExamOfficialResultOut(BaseModel):

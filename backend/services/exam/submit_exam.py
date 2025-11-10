@@ -317,6 +317,44 @@ def get_submission_position_data(
     return better_count + 1, total_submissions
 
 
+def build_answers_review(
+    *,
+    exam: Exam,
+    submission: UserExamSubmission,
+    db: Session,
+) -> List[Dict[str, Any]]:
+    questions: List[Question] = list(getattr(exam, "questions", []))
+    if not questions:
+        questions = db.query(Question).filter(Question.exam_id == exam.id).all()
+
+    answers: List[UserAnswer] = list(getattr(submission, "answers", []))
+    if not answers:
+        answers = db.query(UserAnswer).filter(UserAnswer.submission_id == submission.id).all()
+
+    answers_map = {answer.question_id: answer.answer.upper() for answer in answers}
+
+    def sort_key(question: Question) -> Tuple[float, int]:
+        name_value = question.name if isinstance(question.name, int) else float("inf")
+        return (float(name_value), question.id)
+
+    review: List[Dict[str, Any]] = []
+    for question in sorted(questions, key=sort_key):
+        if not question.is_active or getattr(question, "is_cancelled", False):
+            continue
+        selected = answers_map.get(question.id)
+        correct = question.correct_option.upper() if question.correct_option else None
+        review.append(
+            {
+                "question_id": question.id,
+                "question_label": question.name if isinstance(question.name, int) else None,
+                "selected_option": selected,
+                "correct_option": correct,
+                "is_correct": bool(selected and correct and selected == correct),
+            }
+        )
+    return review
+
+
 def build_submission_payload(
     *,
     exam: Exam,
@@ -376,5 +414,10 @@ def build_submission_payload(
         "Final payload for submission_id=%s: %s",
         submission.id,
         {k: payload[k] for k in ("score", "percentile", "position", "correct_answers", "total_questions")},
+    )
+    payload["answers_review"] = (
+        build_answers_review(exam=exam, submission=submission, db=db)
+        if getattr(exam, "validated_tribunal", False)
+        else None
     )
     return payload
