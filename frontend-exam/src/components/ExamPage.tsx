@@ -335,11 +335,11 @@ export default function ExamPage({
 
     return (
       <div
-        className="bg-[#2a2d33] p-6 mb-4 mt-4 rounded-lg shadow-lg border border-transparent hover:border-purple-500/40 transition-colors"
+        className="bg-[#2a2d33] p-6 mb-4 mt-4 rounded-lg shadow-lg border border-transparent hover:border-brand-blue/40 transition-colors"
         key={key}
       >
         <div className="flex items-center justify-between mb-4">
-          <p className="font-bold text-lg text-purple-200">{label}</p>
+          <p className="font-bold text-lg text-brand-blue text-opacity-80">{label}</p>
           <span className={`text-xs font-semibold px-2 py-1 rounded ${badgeConfig.className}`}>
             {badgeConfig.text}
           </span>
@@ -396,19 +396,21 @@ export default function ExamPage({
     <main>
       <a
         href="/"
-        className="inline-block mb-6 px-4 py-2 font-bold text-purple-300 border border-purple-300 rounded-md no-underline transition-colors duration-300 ease-in-out hover:bg-purple-300 hover:text-[#1a1c22]"
+        className="inline-block mb-6 px-4 py-2 font-bold text-brand-pink border border-brand-pink rounded-md no-underline transition-colors duration-300 ease-in-out hover:text-brand-yellow hover:border-brand-yellow"
       >
         &larr; Volver a la seleccion de examen
       </a>
-      <h1 className="text-5xl font-extrabold leading-tight text-center mb-12 text-purple-300 shadow-purple-500/50">{examName}</h1>
+      <h1 className="text-5xl font-extrabold leading-tight text-center mb-12 text-transparent bg-gradient-to-r from-brand-pink via-brand-yellow to-brand-blue bg-clip-text drop-shadow-[0_20px_45px_rgba(15,153,188,0.35)]">
+        {examName}
+      </h1>
 
       {allowResultPreview && (
-        <section className="mb-10 rounded-2xl border border-purple-500/30 bg-purple-500/5 p-6 shadow-[0_10px_30px_rgba(139,92,246,0.15)]">
+        <section className="mb-10 rounded-2xl border border-brand-blue-soft bg-brand-blue-soft p-6 shadow-[0_10px_30px_rgba(15,153,188,0.2)]">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
             <div>
-              <p className="text-sm uppercase tracking-widest text-purple-300/70">Consulta rápida</p>
-              <h2 className="text-2xl font-bold text-purple-100">Consultar mi nota</h2>
-              <p className="text-sm text-purple-200/80 mt-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.4em] text-brand-yellow">Consulta rápida</p>
+              <h2 className="text-2xl font-bold text-brand-pink">Consultar mi nota</h2>
+              <p className="text-sm text-brand-blue text-opacity-80 mt-1">
                 Introduce el mismo email y DNI/NIE con el que enviaste el intento para ver tu resultado.
               </p>
             </div>
@@ -418,31 +420,31 @@ export default function ExamPage({
             onSubmit={handleManualCheck}
             noValidate
           >
-            <label className="flex-1 text-sm text-purple-100/90">
+            <label className="flex-1 text-sm font-semibold text-brand-pink">
               Email
               <input
                 type="email"
                 value={email}
                 onInput={(event) => setEmail((event.target as HTMLInputElement).value)}
-                className="mt-1 w-full rounded border border-[#5a4a7a] bg-[#1d1f27] px-3 py-2 text-white focus:outline-none focus:border-purple-300 focus:ring-2 focus:ring-purple-400/40"
+                className="mt-1 w-full rounded border border-[#5a4a7a] bg-[#1d1f27] px-3 py-2 text-white focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/40"
                 placeholder="tu@email.com"
                 required
               />
             </label>
-            <label className="flex-1 text-sm text-purple-100/90">
+            <label className="flex-1 text-sm font-semibold text-brand-pink">
               DNI / NIE
               <input
                 type="text"
                 value={dni}
                 onInput={(event) => setDni(normalizeDni((event.target as HTMLInputElement).value))}
-                className="mt-1 w-full rounded border border-[#5a4a7a] bg-[#1d1f27] px-3 py-2 text-white uppercase focus:outline-none focus:border-purple-300 focus:ring-2 focus:ring-purple-400/40"
+                className="mt-1 w-full rounded border border-[#5a4a7a] bg-[#1d1f27] px-3 py-2 text-white uppercase focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/40"
                 placeholder="00000000A"
                 required
               />
             </label>
             <button
               type="submit"
-              className="w-full md:w-auto rounded-lg bg-purple-600 px-6 py-2 font-semibold cursor-pointer tracking-wide text-white transition-colors hover:bg-purple-500 disabled:opacity-60"
+              className="btn-brand w-full md:w-auto px-6"
               disabled={checking}
             >
               {checking ? 'Consultando...' : 'Consultar mi nota'}
@@ -454,7 +456,7 @@ export default function ExamPage({
 
       <form id="exam-form" onSubmit={handleSubmit} noValidate>
         <div className="mb-6">
-          <label htmlFor="name" className="block font-bold text-purple-500 mb-2">Nombre:</label>
+          <label htmlFor="name" className="block font-bold text-brand-pink mb-2">Nombre:</label>
           <input
             type="text"
             id="name"
@@ -462,12 +464,12 @@ export default function ExamPage({
             required
             value={studentName}
             onInput={(event) => setStudentName((event.target as HTMLInputElement).value)}
-            className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
+            className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/50"
           />
         </div>
 
         <div className="mb-6">
-          <label htmlFor="surname" className="block font-bold text-purple-500 mb-2">Apellidos:</label>
+          <label htmlFor="surname" className="block font-bold text-brand-pink mb-2">Apellidos:</label>
           <input
             type="text"
             id="surname"
@@ -475,12 +477,12 @@ export default function ExamPage({
             required
             value={studentSurname}
             onInput={(event) => setStudentSurname((event.target as HTMLInputElement).value)}
-            className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
+            className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/50"
           />
         </div>
 
         <div className="mb-6">
-          <label htmlFor="email" className="block font-bold text-purple-500 mb-2">Email:</label>
+          <label htmlFor="email" className="block font-bold text-brand-pink mb-2">Email:</label>
           <input
             type="email"
             id="email"
@@ -489,12 +491,12 @@ export default function ExamPage({
             value={email}
             onInput={(event) => setEmail((event.target as HTMLInputElement).value)}
             onBlur={handleCheckSubmissionBlur}
-            className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
+            className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/50"
           />
         </div>
 
         <div className="mb-6">
-          <label htmlFor="dni" className="block font-bold text-purple-500 mb-2">DNI/NIE:</label>
+          <label htmlFor="dni" className="block font-bold text-brand-pink mb-2">DNI/NIE:</label>
           <input
             type="text"
             id="dni"
@@ -503,12 +505,12 @@ export default function ExamPage({
             value={dni}
             onInput={(event) => setDni(normalizeDni((event.target as HTMLInputElement).value))}
             onBlur={handleCheckSubmissionBlur}
-            className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
+            className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/50"
           />
         </div>
 
         {checking && (
-          <p className="text-center text-purple-300 bg-purple-300/10 border border-purple-400 p-4 rounded-md mt-6">
+          <p className="text-center text-brand-blue bg-brand-blue/10 border border-brand-blue/50 p-4 rounded-md mt-6">
             Comprobando si ya has entregado el examen...
           </p>
         )}
@@ -522,14 +524,14 @@ export default function ExamPage({
         {!hasPreviousSubmission && (
           <>
             <section>
-              <h2 className="text-2xl font-semibold text-purple-300 mt-8">Preguntas activas</h2>
+              <h2 className="text-2xl font-semibold text-brand-pink mt-8">Preguntas activas</h2>
               <p className="text-sm text-gray-400 mt-1">Responde todas las preguntas activas; puntuan en la nota final.</p>
               {activeEntries.map((entry, index) => renderQuestionCard(entry, index + 1, false))}
             </section>
 
             {reserveEntries.length > 0 && (
               <section className="mt-8">
-                <h2 className="text-2xl font-semibold text-purple-300">Preguntas de reserva</h2>
+                <h2 className="text-2xl font-semibold text-brand-pink">Preguntas de reserva</h2>
                 {reserveEntries.map((entry, index) => renderQuestionCard(entry, activeEntries.length + index + 1, true))}
               </section>
             )}
@@ -543,7 +545,7 @@ export default function ExamPage({
                   required
                   checked={acceptsMarketing}
                   onChange={(event) => setAcceptsMarketing(event.currentTarget.checked)}
-                  className="mt-1 h-4 w-4 rounded border border-[#555] bg-[#2a2d33] text-purple-500 focus:ring-2 focus:ring-purple-400/60"
+                  className="mt-1 h-4 w-4 rounded border border-[#555] bg-[#2a2d33] text-brand-pink focus:ring-2 focus:ring-brand-yellow/60"
                 />
                 <span className="text-gray-300">
                   Acepto recibir por email recordatorios y novedades sobre nuevas oposiciones.
@@ -554,7 +556,7 @@ export default function ExamPage({
                 no usamos cookies de seguimiento. Consulta la{' '}
                 <a
                   href="/politica-de-privacidad"
-                  className="text-purple-300 underline decoration-dotted hover:text-purple-200"
+                  className="text-brand-pink underline decoration-dotted hover:text-brand-yellow"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -569,7 +571,7 @@ export default function ExamPage({
         {!hasPreviousSubmission && (
           <button
             type="submit"
-            className="w-full py-3 text-lg cursor-pointer font-bold mt-4 rounded-md bg-purple-600 hover:bg-purple-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+            className="btn-brand w-full text-lg mt-4"
           >
             Entregar Examen
           </button>

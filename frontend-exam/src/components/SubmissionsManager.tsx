@@ -234,14 +234,15 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   }
 
   return (
-    <section className="mt-8">
-
+    <section className="mt-8 space-y-6">
       <label className="block mb-4">
-        <span className="block font-semibold mb-2">Selecciona un examen</span>
+        <span className="block font-semibold mb-2 text-brand-pink tracking-[0.35em] uppercase text-xs">
+          Selecciona un examen
+        </span>
         <select
           value={selectedExamId}
           onChange={handleSelectExam}
-          className="w-full max-w-sm px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white"
+          className="w-full max-w-sm px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white transition-colors focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
         >
           <option value="">-- Escoge un examen --</option>
           {exams.map((exam) => (
@@ -261,39 +262,47 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
 
       {selectedExamId && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mb-6">
-          <div className="rounded-lg border border-[#3a3f49] bg-[#1f2229] p-4">
-            <p className="text-sm text-gray-400">Total de intentos</p>
-            <p className="text-2xl font-bold text-white">
+          <div className="rounded-xl border border-brand-pink-soft bg-brand-pink-soft p-5 shadow-lg">
+            <p className="text-xs font-semibold uppercase tracking-[0.4em] text-brand-pink">
+              Total de intentos
+            </p>
+            <p className="text-3xl font-extrabold text-brand-pink mt-2">
               {loading ? 'Actualizando...' : totalAttempts}
             </p>
             {selectedExamName && (
-              <p className="text-xs text-gray-500 mt-1">Examen: {selectedExamName}</p>
+              <p className="text-xs text-brand-yellow mt-2 opacity-90">
+                Examen: {selectedExamName}
+              </p>
             )}
           </div>
-          <div className="rounded-lg border border-[#3a3f49] bg-[#1f2229] p-4">
-            <p className="text-sm text-gray-400">Nota media</p>
-            <p className="text-2xl font-bold text-white">
+          <div className="rounded-xl border border-brand-blue-soft bg-brand-blue-soft p-5 shadow-lg">
+            <p className="text-xs font-semibold uppercase tracking-[0.4em] text-brand-blue">
+              Nota media
+            </p>
+            <p className="text-3xl font-extrabold text-brand-blue mt-2">
               {loading ? 'Actualizando...' : averageScore !== null ? averageScore.toFixed(2) : 'Sin datos'}
             </p>
             {!loading && scoredAttempts > 0 && (
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-brand-yellow mt-2 opacity-90">
                 Calculada sobre {scoredAttempts}{' '}
                 {scoredAttempts === 1 ? 'intento con nota' : 'intentos con nota'}
               </p>
             )}
             {!loading && scoredAttempts === 0 && (
-              <p className="text-xs text-gray-500 mt-1">Aún no hay notas registradas.</p>
+              <p className="text-xs text-brand-yellow mt-2 opacity-90">Aún no hay notas registradas.</p>
             )}
           </div>
         </div>
       )}
 
-      {!selectedExamId && <p>Selecciona un examen para ver los intentos disponibles.</p>}
+      {!selectedExamId && (
+        <p className="text-sm text-brand-blue">Selecciona un examen para ver los intentos disponibles.</p>
+      )}
 
-      {selectedExamId && loading && <p>Cargando intentos...</p>}
+      {selectedExamId && loading && <p className="text-brand-yellow">Cargando intentos...</p>}
 
       {selectedExamId && !loading && submissions.length === 0 && !error && (
-        <p>No hay intentos para este examen.</p>
+        <p className="text-sm text-brand-pink">No hay intentos para este examen.</p>
       )}
 
       {selectedExamId && !loading && submissions.length > 0 && (
@@ -310,40 +319,56 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
               submission.accepts_marketing ??
               false;
             const marketingBadgeClass = marketingAllowed
-              ? 'bg-green-500/15 text-green-300 border border-green-500/40'
-              : 'bg-red-500/15 text-red-300 border border-red-500/40';
+              ? 'bg-brand-yellow-soft text-brand-yellow border border-brand-yellow-soft'
+              : 'bg-brand-pink-soft text-brand-pink border border-brand-pink-soft';
 
             return (
-              <li key={submission.id} className="bg-[#2a2d33] p-6 rounded-lg shadow-lg">
+              <li
+                key={submission.id}
+                className="bg-[#1f2229] border border-brand-blue-soft p-6 rounded-2xl shadow-lg transition-all duration-300 hover:border-brand-pink-soft"
+              >
                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <p className="font-semibold">{displayName}</p>
-                    <p className="text-sm text-gray-400">Email: {displayEmail}</p>
-                    <p className="text-sm text-gray-400">DNI/NIE: {displayDni}</p>
-                    <p className="text-sm text-gray-400">
-                      Puntuacion: {submission.score ?? 'N/A'} | Percentil: {submission.percentile ?? 'N/A'}
+                  <div className="space-y-1">
+                    <p className="text-lg font-semibold text-brand-blue">{displayName}</p>
+                    <p className="text-sm text-gray-200">
+                      <span className="font-semibold text-brand-pink">Email:</span> {displayEmail}
                     </p>
-                    <p className="text-xs text-gray-500">Enviado el {new Date(submission.submitted_at).toLocaleString()}</p>
-                    <span className={`mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold ${marketingBadgeClass}`}>
+                    <p className="text-sm text-gray-200">
+                      <span className="font-semibold text-brand-pink">DNI/NIE:</span> {displayDni}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+                      <span className="px-3 py-1 rounded-full border border-brand-blue-soft text-brand-blue">
+                        Nota: {submission.score ?? 'N/A'}
+                      </span>
+                      <span className="px-3 py-1 rounded-full border border-brand-yellow-soft text-brand-yellow">
+                        Percentil: {submission.percentile ?? 'N/A'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-brand-yellow mt-2 opacity-90">
+                      Enviado el {new Date(submission.submitted_at).toLocaleString()}
+                    </p>
+                    <span
+                      className={`mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold ${marketingBadgeClass}`}
+                    >
                       <span
                         className={`h-2 w-2 rounded-full ${
-                          marketingAllowed ? 'bg-green-300' : 'bg-red-300'
+                          marketingAllowed ? 'bg-brand-yellow' : 'bg-brand-pink'
                         }`}
                       />
                       {marketingAllowed ? 'Acepta comunicaciones de marketing' : 'Marketing no autorizado'}
                     </span>
                   </div>
-                  <div className="flex gap-3 mt-4 md:mt-0">
+                  <div className="flex gap-3 mt-4 md:mt-0 flex-wrap">
                     {!editing ? 
                     <button
-                      className="py-2 px-4 rounded bg-purple-600 hover:bg-purple-700 transition-colors cursor-pointer"
+                      className="py-2 px-4 rounded bg-brand-pink text-dark-200 hover:bg-brand-yellow transition-colors cursor-pointer"
                       onClick={() => startEditing(submission)}
                     >
                       Editar
                     </button>
                     : 
                     <button
-                      className="py-2 px-4 rounded bg-gray-600 hover:bg-gray-700 transition-colors cursor-pointer"
+                      className="py-2 px-4 rounded border border-brand-pink-soft text-brand-pink hover:bg-brand-pink-soft transition-colors cursor-pointer"
                       onClick={() => setEditing(null)}
                     >
                       Cancelar
@@ -359,54 +384,54 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
                 </div>
 
                 {editing && editing.submissionId === submission.id && (
-                  <div className="mt-6 border-t border-[#444] pt-6">
-                    <h3 className="text-xl font-semibold mb-4">
+                  <div className="mt-6 border-t border-brand-blue-soft pt-6">
+                    <h3 className="text-xl font-semibold mb-4 text-brand-pink">
                       Editar intento ({selectedExamName})
                     </h3>
 
                     <div className="grid gap-4 md:grid-cols-2">
                       <label className="flex flex-col gap-1">
-                        <span>Nombre</span>
+                        <span className="text-sm font-semibold text-brand-blue">Nombre</span>
                         <input
                           type="text"
                           value={editing.name}
                           onInput={(event) =>
                             updateEditingField('name', (event.target as HTMLInputElement).value)
                           }
-                          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white"
+                          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
                         />
                       </label>
                       <label className="flex flex-col gap-1">
-                        <span>Apellidos</span>
+                        <span className="text-sm font-semibold text-brand-blue">Apellidos</span>
                         <input
                           type="text"
                           value={editing.surname}
                           onInput={(event) =>
                             updateEditingField('surname', (event.target as HTMLInputElement).value)
                           }
-                          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white"
+                          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
                         />
                       </label>
                       <label className="flex flex-col gap-1">
-                        <span>Email</span>
+                        <span className="text-sm font-semibold text-brand-blue">Email</span>
                         <input
                           type="email"
                           value={editing.email}
                           onInput={(event) =>
                             updateEditingField('email', (event.target as HTMLInputElement).value)
                           }
-                          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white"
+                          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
                         />
                       </label>
                       <label className="flex flex-col gap-1">
-                        <span>DNI/NIE</span>
+                        <span className="text-sm font-semibold text-brand-blue">DNI/NIE</span>
                         <input
                           type="text"
                           value={editing.dni}
                           onInput={(event) =>
                             updateEditingField('dni', normalizeDni((event.target as HTMLInputElement).value))
                           }
-                          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white"
+                          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
                         />
                       </label>
                     </div>
@@ -415,7 +440,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
                       {questions.map((question, index) => (
                         <div key={question.id ?? index} className="flex flex-wrap items-center gap-3">
                           <div className="flex items-center gap-2">
-                            <span className="font-semibold">Pregunta {index + 1}</span>
+                            <span className="font-semibold text-brand-pink">Pregunta {index + 1}</span>
                             {question.is_active === false && (
                               <span className="text-xs font-semibold px-2 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/50">
                                 Reserva
@@ -428,7 +453,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
                               question.id !== undefined &&
                               updateAnswer(question.id, (event.target as HTMLSelectElement).value)
                             }
-                            className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white"
+                            className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
                           >
                             {ANSWER_OPTIONS.map((option) => (
                               <option key={option} value={option}>
@@ -440,9 +465,9 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
                       ))}
                     </div>
 
-                    <div className="flex gap-3 mt-6">
+                    <div className="flex flex-wrap gap-3 mt-6">
                       <button
-                        className="py-2 px-4 rounded bg-green-600 hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-60"
+                        className="py-2 px-4 rounded bg-brand-blue text-white font-semibold hover:bg-[#12b2d4] transition-colors cursor-pointer disabled:opacity-60"
                         onClick={handleSave}
                         disabled={saving}
                       >

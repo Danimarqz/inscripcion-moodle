@@ -37,7 +37,7 @@ export default function AdminLogin({ className = "", redirectTo = "/admin/dashbo
   return (
     <form onSubmit={handleSubmit} className={["space-y-6", className].filter(Boolean).join(" ")}>
       <div>
-        <label htmlFor="username" className="block font-bold text-purple-500 mb-2">
+        <label htmlFor="username" className="block font-bold text-brand-pink mb-2">
           Usuario
         </label>
         <input
@@ -46,11 +46,11 @@ export default function AdminLogin({ className = "", redirectTo = "/admin/dashbo
           value={username}
           onInput={(event) => setUsername((event.target as HTMLInputElement).value)}
           required
-          className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
+          className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/50"
         />
       </div>
       <div>
-        <label htmlFor="password" className="block font-bold text-purple-500 mb-2">
+        <label htmlFor="password" className="block font-bold text-brand-pink mb-2">
           Contraseña
         </label>
         <input
@@ -59,13 +59,13 @@ export default function AdminLogin({ className = "", redirectTo = "/admin/dashbo
           value={password}
           onInput={(event) => setPassword((event.target as HTMLInputElement).value)}
           required
-          className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
+          className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/50"
         />
       </div>
       <button
         type="submit"
         disabled={isSubmitting}
-        className="w-full py-3 cursor-pointer text-lg font-bold rounded-md bg-purple-600 hover:bg-purple-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+        className="w-full py-3 cursor-pointer text-lg font-bold rounded-md bg-brand-pink text-dark-200 hover:bg-brand-yellow transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
       >
         {isSubmitting ? "Accediendo…" : "Acceder"}
       </button>

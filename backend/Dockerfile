@@ -37,4 +37,5 @@ EXPOSE 8000
 
 CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", \
      "-w", "2", "-b", "0.0.0.0:8000", "--forwarded-allow-ips=*", \
+     "--access-logfile", "-", \
      "--max-requests", "500", "--max-requests-jitter", "50"]

@@ -84,15 +84,17 @@ export default function AdminExamsManager() {
           {exams.map((exam) => (
             <li
               key={exam.id}
-              className="bg-[#2a2d34] p-4 my-4 rounded flex flex-col gap-4 md:flex-row md:items-center md:justify-between transition-colors duration-300 hover:bg-[#3a3d44]"
+              className="bg-[#1f232b] border border-brand-blue-soft p-4 my-4 rounded-xl flex flex-col gap-4 md:flex-row md:items-center md:justify-between shadow-lg transition-all duration-300 hover:bg-brand-yellow-soft hover:border-brand-yellow hover:shadow-[0_18px_40px_rgba(250,164,11,0.25)]"
             >
               <div>
-                <p className="font-semibold text-lg">{exam.name}</p>
-                <p className="text-xs text-gray-400">ID: {exam.id}</p>
+                <p className="font-semibold text-lg text-brand-blue">{exam.name}</p>
+                <p className="text-xs font-semibold text-brand-yellow opacity-90 mt-1">
+                  ID oficial #{exam.id}
+                </p>
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-3 flex-wrap">
                 <a
-                  className="py-2 px-5 rounded font-semibold cursor-pointer transition-all duration-300 no-underline inline-block border-none text-white bg-purple-600 hover:bg-purple-700 hover:shadow-lg hover:-translate-y-0.5"
+                  className="py-2 px-5 rounded font-semibold cursor-pointer transition-all duration-300 no-underline inline-block border-none text-dark-200 bg-brand-pink hover:bg-brand-yellow hover:-translate-y-0.5"
                   href={`/admin/exam/${exam.id}/edit`}
                 >
                   Editar

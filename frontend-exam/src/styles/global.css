@@ -1,5 +1,181 @@
 @import "tailwindcss";
 
+:root {
+  --brand-pink: #fb1159;
+  --brand-yellow: #faa40b;
+  --brand-blue: #0f99bc;
+}
+
 .dark-theme {
   background-color: #13151a !important;
+}
+
+@layer components {
+  .btn-brand {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 font-semibold text-white tracking-wide transition-all duration-300 hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed;
+    background-color: var(--brand-blue);
+    box-shadow: 0 12px 28px rgba(15, 153, 188, 0.35);
+  }
+
+  .btn-brand:hover {
+    background-color: #12b2d4;
+    box-shadow: 0 16px 32px rgba(15, 153, 188, 0.45);
+  }
+
+  .btn-brand:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px rgba(255, 255, 255, 0.25),
+      0 0 0 5px rgba(19, 21, 26, 0.9),
+      0 16px 32px rgba(15, 153, 188, 0.45);
+  }
+
+  .btn-brand-outline {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 font-semibold border bg-transparent transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed;
+    color: var(--brand-pink);
+    border-color: rgba(251, 17, 89, 0.7);
+  }
+
+  .btn-brand-outline:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px rgba(19, 21, 26, 0.9),
+      0 0 0 4px rgba(251, 17, 89, 0.5);
+  }
+
+  .btn-brand-outline:hover {
+    color: var(--brand-yellow);
+    background-color: rgba(251, 17, 89, 0.1);
+  }
+
+  .btn-brand-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 font-semibold text-white border transition-all duration-300 hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed;
+    background-color: var(--brand-pink);
+    border-color: rgba(251, 17, 89, 0.8);
+    box-shadow: 0 12px 28px rgba(251, 17, 89, 0.25);
+  }
+
+  .btn-brand-danger:hover {
+    background-color: #d60e4c;
+    box-shadow: 0 16px 32px rgba(251, 17, 89, 0.35);
+  }
+
+  .btn-brand-danger:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px rgba(19, 21, 26, 0.9),
+      0 0 0 4px rgba(251, 17, 89, 0.55),
+      0 16px 32px rgba(251, 17, 89, 0.35);
+  }
+}
+
+@layer utilities {
+  .text-brand-blue {
+    --tw-text-opacity: 1;
+    color: rgb(15 153 188 / var(--tw-text-opacity));
+  }
+
+  .text-brand-pink {
+    --tw-text-opacity: 1;
+    color: rgb(251 17 89 / var(--tw-text-opacity));
+  }
+
+  .text-brand-yellow {
+    --tw-text-opacity: 1;
+    color: rgb(250 164 11 / var(--tw-text-opacity));
+  }
+
+  .bg-brand-blue {
+    --tw-bg-opacity: 1;
+    background-color: rgb(15 153 188 / var(--tw-bg-opacity));
+  }
+
+  .bg-brand-pink {
+    --tw-bg-opacity: 1;
+    background-color: rgb(251 17 89 / var(--tw-bg-opacity));
+  }
+
+  .bg-brand-yellow {
+    --tw-bg-opacity: 1;
+    background-color: rgb(250 164 11 / var(--tw-bg-opacity));
+  }
+
+  .border-brand-blue {
+    --tw-border-opacity: 1;
+    border-color: rgb(15 153 188 / var(--tw-border-opacity));
+  }
+
+  .border-brand-pink {
+    --tw-border-opacity: 1;
+    border-color: rgb(251 17 89 / var(--tw-border-opacity));
+  }
+
+  .border-brand-yellow {
+    --tw-border-opacity: 1;
+    border-color: rgb(250 164 11 / var(--tw-border-opacity));
+  }
+
+  .hover\:text-brand-blue:hover {
+    --tw-text-opacity: 1;
+    color: rgb(15 153 188 / var(--tw-text-opacity));
+  }
+
+  .hover\:text-brand-yellow:hover {
+    --tw-text-opacity: 1;
+    color: rgb(250 164 11 / var(--tw-text-opacity));
+  }
+
+  .hover\:bg-brand-blue:hover {
+    --tw-bg-opacity: 1;
+    background-color: rgb(15 153 188 / var(--tw-bg-opacity));
+  }
+
+  .hover\:bg-brand-pink:hover {
+    --tw-bg-opacity: 1;
+    background-color: rgb(251 17 89 / var(--tw-bg-opacity));
+  }
+
+  .hover\:bg-brand-yellow:hover {
+    --tw-bg-opacity: 1;
+    background-color: rgb(250 164 11 / var(--tw-bg-opacity));
+  }
+
+  .hover\:border-brand-yellow:hover {
+    --tw-border-opacity: 1;
+    border-color: rgb(250 164 11 / var(--tw-border-opacity));
+  }
+
+  .text-dark-200 {
+    --tw-text-opacity: 1;
+    color: rgb(26 28 34 / var(--tw-text-opacity));
+  }
+
+  .hover\:text-dark-200:hover {
+    --tw-text-opacity: 1;
+    color: rgb(26 28 34 / var(--tw-text-opacity));
+  }
+
+  .bg-brand-blue-soft {
+    background-color: rgba(15, 153, 188, 0.1);
+  }
+
+  .bg-brand-pink-soft {
+    background-color: rgba(251, 17, 89, 0.12);
+  }
+
+  .bg-brand-yellow-soft {
+    background-color: rgba(250, 164, 11, 0.12);
+  }
+
+  .border-brand-blue-soft {
+    border-color: rgba(15, 153, 188, 0.45);
+  }
+
+  .border-brand-pink-soft {
+    border-color: rgba(251, 17, 89, 0.45);
+  }
+
+  .border-brand-yellow-soft {
+    border-color: rgba(250, 164, 11, 0.45);
+  }
 }

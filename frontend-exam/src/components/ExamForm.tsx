@@ -173,10 +173,10 @@ export default function ExamForm({ examId }: ExamFormProps) {
     return (
       <div
         key={key}
-        className="bg-[#2a2d33] p-6 mb-4 rounded-lg shadow-lg border border-transparent hover:border-purple-500/40 transition-colors"
+        className="bg-[#2a2d33] p-6 mb-4 rounded-lg shadow-lg border border-transparent hover:border-brand-blue/40 transition-colors"
       >
         <div className="flex items-center justify-between mb-3">
-          <span className="font-bold text-lg text-purple-200">{label}</span>
+          <span className="font-bold text-lg text-brand-pink">{label}</span>
           <span className={`text-xs font-semibold px-2 py-1 rounded ${badgeConfig.className}`}>
             {badgeConfig.text}
           </span>
@@ -189,12 +189,12 @@ export default function ExamForm({ examId }: ExamFormProps) {
             Esta pregunta se ha marcado como anulada y no contará para la nota.
           </p>
         )}
-        <label className="block font-bold text-purple-500 mb-2">
+        <label className="block font-bold text-brand-pink mb-2">
           Opcion correcta:
           <select
             value={(question.correct_option ?? 'A').toUpperCase()}
             onChange={(e) => updateQuestion(index, 'correct_option', e.currentTarget.value)}
-            className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
+            className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/50"
             disabled={isBusy}
           >
             {VALID_OPTIONS.map((option) => (
@@ -217,7 +217,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
           <button
             type="button"
             onClick={() => handleToggleState(index, isReserve)}
-            className="bg-purple-600 text-white border-none rounded px-3 py-1 cursor-pointer hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="bg-brand-blue text-white border-none rounded px-3 py-1 cursor-pointer hover:bg-brand-blue/80 disabled:opacity-60 disabled:cursor-not-allowed"
             disabled={isBusy}
           >
             {isReserve ? 'Activar' : 'Mover a reserva'}
@@ -244,14 +244,14 @@ export default function ExamForm({ examId }: ExamFormProps) {
       )}
 
       <div className="mb-6">
-        <label className="block font-bold text-purple-500 mb-2">
+        <label className="block font-bold text-brand-pink mb-2">
           Nombre del examen:
           <input
             type="text"
             value={name}
             onInput={(e) => setName((e.target as HTMLInputElement).value)}
             required
-            className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
+            className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/50"
             disabled={isBusy}
           />
         </label>
@@ -265,11 +265,11 @@ export default function ExamForm({ examId }: ExamFormProps) {
           className="mr-2"
           disabled={isBusy}
         />
-        <label className="font-bold text-purple-500">Activo</label>
+        <label className="font-bold text-brand-pink">Activo</label>
       </div>
 
       <fieldset className="mb-6 border border-[#444] rounded-lg p-4" disabled={isBusy}>
-        <legend className="font-bold text-purple-400 px-2">Resultados visibles para el alumno</legend>
+        <legend className="font-bold text-brand-pink px-2">Resultados visibles para el alumno</legend>
         <p className="text-xs text-gray-400 mb-4">
           Activa cada opción de forma independiente. Si ninguna está marcada, el alumno solo verá un mensaje de confirmación.
         </p>
@@ -282,7 +282,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
               className="mr-1"
               disabled={isBusy}
             />
-            <span className="font-bold text-purple-500">Mostrar nota final (porcentaje)</span>
+            <span className="font-bold text-brand-pink">Mostrar nota final (porcentaje)</span>
           </label>
           <label className="flex items-center gap-2">
             <input
@@ -292,7 +292,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
               className="mr-1"
               disabled={isBusy}
             />
-            <span className="font-bold text-purple-500">
+            <span className="font-bold text-brand-pink">
               Mostrar percentil y posición entre los exámenes entregados
             </span>
           </label>
@@ -304,16 +304,16 @@ export default function ExamForm({ examId }: ExamFormProps) {
               className="mr-1"
               disabled={isBusy}
             />
-            <span className="font-bold text-purple-500">Mostrar detalle de aciertos (ej. “20 de 80 preguntas”)</span>
+            <span className="font-bold text-brand-pink">Mostrar detalle de aciertos (ej. “20 de 80 preguntas”)</span>
           </label>
         </div>
       </fieldset>
 
       <fieldset className="border border-[#444] p-4 rounded-lg" disabled={isBusy}>
-        <legend className="font-bold text-xl mb-4 text-purple-200">Preguntas</legend>
+        <legend className="font-bold text-xl mb-4 text-brand-pink">Preguntas</legend>
 
         <section>
-          <h3 className="text-lg font-semibold text-purple-300 mb-3">Preguntas activas ({activeEntries.length})</h3>
+          <h3 className="text-lg font-semibold text-brand-pink mb-3">Preguntas activas ({activeEntries.length})</h3>
           {activeEntries.length === 0 ? (
             <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/40 p-3 rounded">
               Debe haber al menos una pregunta activa para poder publicar el examen.
@@ -324,7 +324,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
         </section>
 
         <section className="mt-6">
-          <h3 className="text-lg font-semibold text-purple-300 mb-2">Preguntas de reserva ({reserveEntries.length})</h3>
+          <h3 className="text-lg font-semibold text-brand-pink mb-2">Preguntas de reserva ({reserveEntries.length})</h3>
           <p className="text-xs text-gray-400 mb-4">
             Las preguntas de reserva no puntuan salvo que sustituyan a una activa invalidada.
           </p>
@@ -340,7 +340,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
         <button
           type="button"
           onClick={addQuestion}
-          className="bg-purple-600 text-white border-none rounded px-4 py-2 cursor-pointer mt-6 hover:bg-purple-700"
+          className="bg-brand-blue text-white border-none rounded px-4 py-2 cursor-pointer mt-6 hover:bg-brand-blue/80"
           disabled={isBusy}
         >
           Anadir pregunta
@@ -350,7 +350,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
       <button
         type="submit"
         disabled={isBusy}
-        className="w-full py-3 text-lg font-bold mt-8 cursor-pointer rounded-md bg-purple-600 hover:bg-purple-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+        className="w-full py-3 text-lg font-bold mt-8 cursor-pointer rounded-md bg-brand-blue hover:bg-brand-blue/80 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
       >
         {loading
           ? examToEdit
