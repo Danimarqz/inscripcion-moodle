@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from db.models import Base
 from db.database import engine
 from logging_config import configure_logging
+from rate_limiter import ConstantMemoryRateLimiterMiddleware
 from routers import admin, public, register
 
 configure_logging()
@@ -21,8 +22,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# TODO change on prod.
+app.add_middleware(ConstantMemoryRateLimiterMiddleware)
 
+# TODO change on prod.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

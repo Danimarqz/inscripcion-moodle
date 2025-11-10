@@ -1,19 +1,23 @@
 import logging
 
-from fastapi import FastAPI, Request, HTTPException, status
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from models.registerdata import RegisterData
 from services.register.pdf_utils import generate_pdf
 from services.register.email_utils import send_emails
 from services.register.moodle_api import create_moodle_user
 from services.register.gsheet_api import post_registration_to_gsheet
-from rate_limiter import check_rate_limit
+from rate_limiter import ConstantMemoryRateLimiterMiddleware
 from logging_config import configure_logging
 
 configure_logging()
 logger = logging.getLogger(__name__)
 
 register_app = FastAPI()
+register_app.add_middleware(
+    ConstantMemoryRateLimiterMiddleware,
+    path_prefixes=("/",),
+)
 
 register_app.add_middleware(
     CORSMiddleware,
@@ -23,8 +27,7 @@ register_app.add_middleware(
 )
 
 @register_app.post("/")
-async def register(request: Request, data: RegisterData):
-    check_rate_limit(request)
+async def register(data: RegisterData):
     if hasattr(data, "website") and data.website:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Spam detectado")
     error_creando_moodle = False

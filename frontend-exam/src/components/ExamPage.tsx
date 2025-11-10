@@ -1,3 +1,4 @@
+import type { JSX } from 'preact';
 import { useEffect, useMemo, useState } from 'preact/hooks';
 
 import type { Answer, ExamOut, ExamResultPayload, ExamSubmissionPayload, Question } from '../types/exam';
@@ -158,8 +159,9 @@ export default function ExamPage({
     };
   }
 
-  async function checkUserSubmission() {
-    if (!allowResultPreview || autoCheckDisabled) return;
+  async function checkUserSubmission(force = false) {
+    if (!allowResultPreview) return;
+    if (!force && autoCheckDisabled) return;
     if (checking) return;
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -182,6 +184,15 @@ export default function ExamPage({
         dispatchExamUi({ type: 'CHECK_ERROR' });
       }
     }
+  }
+
+  const handleCheckSubmissionBlur = (_event: JSX.TargetedFocusEvent<HTMLInputElement>) => {
+    void checkUserSubmission();
+  };
+
+  function handleManualCheck(event: Event) {
+    event.preventDefault();
+    void checkUserSubmission(true);
   }
 
   const handleSubmit = async (event: Event) => {
@@ -379,6 +390,8 @@ export default function ExamPage({
       </main>
     );
 
+  const resultsSummary = submissionMessage ? renderSubmissionSummary(submissionMessage) : null;
+
   return (
     <main>
       <a
@@ -388,6 +401,56 @@ export default function ExamPage({
         &larr; Volver a la seleccion de examen
       </a>
       <h1 className="text-5xl font-extrabold leading-tight text-center mb-12 text-purple-300 shadow-purple-500/50">{examName}</h1>
+
+      {allowResultPreview && (
+        <section className="mb-10 rounded-2xl border border-purple-500/30 bg-purple-500/5 p-6 shadow-[0_10px_30px_rgba(139,92,246,0.15)]">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+            <div>
+              <p className="text-sm uppercase tracking-widest text-purple-300/70">Consulta rápida</p>
+              <h2 className="text-2xl font-bold text-purple-100">Consultar mi nota</h2>
+              <p className="text-sm text-purple-200/80 mt-1">
+                Introduce el mismo email y DNI/NIE con el que enviaste el intento para ver tu resultado.
+              </p>
+            </div>
+          </div>
+          <form
+            className="flex flex-col gap-4 md:flex-row md:items-end"
+            onSubmit={handleManualCheck}
+            noValidate
+          >
+            <label className="flex-1 text-sm text-purple-100/90">
+              Email
+              <input
+                type="email"
+                value={email}
+                onInput={(event) => setEmail((event.target as HTMLInputElement).value)}
+                className="mt-1 w-full rounded border border-[#5a4a7a] bg-[#1d1f27] px-3 py-2 text-white focus:outline-none focus:border-purple-300 focus:ring-2 focus:ring-purple-400/40"
+                placeholder="tu@email.com"
+                required
+              />
+            </label>
+            <label className="flex-1 text-sm text-purple-100/90">
+              DNI / NIE
+              <input
+                type="text"
+                value={dni}
+                onInput={(event) => setDni(normalizeDni((event.target as HTMLInputElement).value))}
+                className="mt-1 w-full rounded border border-[#5a4a7a] bg-[#1d1f27] px-3 py-2 text-white uppercase focus:outline-none focus:border-purple-300 focus:ring-2 focus:ring-purple-400/40"
+                placeholder="00000000A"
+                required
+              />
+            </label>
+            <button
+              type="submit"
+              className="w-full md:w-auto rounded-lg bg-purple-600 px-6 py-2 font-semibold cursor-pointer tracking-wide text-white transition-colors hover:bg-purple-500 disabled:opacity-60"
+              disabled={checking}
+            >
+              {checking ? 'Consultando...' : 'Consultar mi nota'}
+            </button>
+          </form>
+        </section>
+      )}
+      {allowResultPreview && resultsSummary}
 
       <form id="exam-form" onSubmit={handleSubmit} noValidate>
         <div className="mb-6">
@@ -425,7 +488,7 @@ export default function ExamPage({
             required
             value={email}
             onInput={(event) => setEmail((event.target as HTMLInputElement).value)}
-            onBlur={checkUserSubmission}
+            onBlur={handleCheckSubmissionBlur}
             className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
           />
         </div>
@@ -439,7 +502,7 @@ export default function ExamPage({
             required
             value={dni}
             onInput={(event) => setDni(normalizeDni((event.target as HTMLInputElement).value))}
-            onBlur={checkUserSubmission}
+            onBlur={handleCheckSubmissionBlur}
             className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50"
           />
         </div>
@@ -449,7 +512,7 @@ export default function ExamPage({
             Comprobando si ya has entregado el examen...
           </p>
         )}
-        {submissionMessage && renderSubmissionSummary(submissionMessage)}
+        {!allowResultPreview && resultsSummary}
         {resultError && (
           <p className="text-center text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mt-6">
             {resultError}

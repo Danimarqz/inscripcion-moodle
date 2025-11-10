@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from math import isclose
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session, joinedload
 
 from db.models import Exam, ExamUser, Question, UserAnswer, UserExamSubmission
@@ -41,31 +41,29 @@ def calculate_percentile(user_score: float, all_scores: Iterable[float | None]) 
 
 
 def recalculate_percentiles(exam_id: int, db: Session, *, commit: bool = True) -> None:
-    submissions = (
-        db.query(UserExamSubmission)
-        .filter(UserExamSubmission.exam_id == exam_id)
-        .all()
+    percentile_sql = text(
+        """
+        UPDATE user_exam_submission AS u
+        JOIN (
+            SELECT
+                id,
+                exam_id,
+                ROUND(
+                    CUME_DIST() OVER (PARTITION BY exam_id ORDER BY score) * 100,
+                    2
+                ) AS pct
+            FROM user_exam_submission
+            WHERE exam_id = :exam_id AND score IS NOT NULL
+        ) ranked ON ranked.id = u.id
+        SET u.percentile = ranked.pct
+        WHERE u.exam_id = :exam_id
+        """
     )
-    if not submissions:
-        return
 
-    scores = [submission.score for submission in submissions if submission.score is not None]
-
-    for submission in submissions:
-        if submission.score is None:
-            submission.percentile = 0.0
-            continue
-
-        if not scores:
-            submission.percentile = 100.0
-            continue
-
-        submission.percentile = calculate_percentile(submission.score, scores)
+    db.execute(percentile_sql, {"exam_id": exam_id})
 
     if commit:
         db.commit()
-    else:
-        db.flush()
 
 
 def normalize_dni(value: str) -> str:

@@ -1,12 +1,11 @@
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from db.database import get_db
 from db.models import Exam, ExamUser, UserExamSubmission
 from models.exam import ExamOut, ExamSubmission, QuestionStubOut, SubmissionCheckRequest, SubmissionCheckResponse
-from rate_limiter import check_rate_limit
 from services.cache import (
     EXAMS_CACHE_KEY,
     public_cache,
@@ -22,8 +21,7 @@ from services.exam.submit_exam import (
 router = APIRouter()
 
 @router.post("/submit-exam")
-def submit_exam(request: Request, data: ExamSubmission, db: Session = Depends(get_db)):
-    check_rate_limit(request)
+def submit_exam(data: ExamSubmission, db: Session = Depends(get_db)):
     try:
         result = process_exam_submission(data, db)
         return result
