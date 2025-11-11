@@ -14,7 +14,9 @@ COPY --from=deps /app/node_modules ./node_modules
 
 COPY . .
 
-RUN npm run build
+ARG PUBLIC_API_URL
+ENV PUBLIC_API_URL=$PUBLIC_API_URL
+RUN echo "PUBLIC_API_URL=$PUBLIC_API_URL" && npm run build
 
 FROM node:20-bookworm-slim AS runner
 

@@ -8,7 +8,7 @@ import type {
   UserSubmissionCheck,
 } from '../types/exam';
 
-const API_URL = "https://simulador.opositatcae.es/api";
+const API_URL = import.meta.env.PUBLIC_API_URL;
 
 export async function getExams(): Promise<Exam[]> {
   const response = await fetch(`${API_URL}/exams`);

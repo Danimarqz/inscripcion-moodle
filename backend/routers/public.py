@@ -91,7 +91,7 @@ def check_submission(
     if not exam or not exam.is_active:
         raise HTTPException(status_code=403, detail="Exam is not active or responses not visible")
 
-    if not any([exam.show_score, exam.show_percentile, exam.show_score_full]):
+    if not (exam.validated_tribunal or any([exam.show_score, exam.show_percentile, exam.show_score_full])):
         raise HTTPException(
             status_code=403,
             detail="Los resultados no están disponibles para este examen",

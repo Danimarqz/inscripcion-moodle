@@ -105,7 +105,8 @@ export default function ExamPage({
   } = examUiState;
 
   const { questions, loading, error: questionsError } = useExamQuestions(examId);
-  const allowResultPreview = showScore || showPercentile || showScoreFull;
+  const allowResultPreview =
+    showScore || showPercentile || showScoreFull || validatedTribunal;
 
   useEffect(() => {
     dispatchExamUi({ type: 'RESET' });

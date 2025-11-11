@@ -6,7 +6,15 @@ on:
     paths:
       - "backend/**"
   workflow_dispatch:
-
+    inputs:
+      deploy-branch:
+        description: "Branch to deploy"
+        required: true
+        default: "develop"
+        type: choice
+        options:
+          - develop
+          - production
 jobs:
   docker-image:
     runs-on: ubuntu-latest

@@ -1,12 +1,20 @@
 name: Deploy DEV Frontend Exam
 
 on:
-  push:
-    branches: [develop]
-    paths:
-      - "frontend-exam/**"
+  # push:
+  #   branches: [develop]
+  #   paths:
+  #     - "frontend-exam/**"
   workflow_dispatch:
-
+    inputs:
+      deploy-branch:
+        description: "Branch to deploy"
+        required: true
+        default: "develop"
+        type: choice
+        options:
+          - develop
+          - production
 jobs:
   docker-image:
     runs-on: ubuntu-latest
@@ -27,7 +35,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build and push frontend exam image
         env:
           GH_OWNER: ${{ github.repository_owner }}
@@ -39,5 +46,6 @@ jobs:
             -f frontend-exam/Dockerfile \
             -t ${IMAGE}:devlatest \
             -t ${IMAGE}:${{ github.sha }} \
+                  --build-arg PUBLIC_API_URL=${{ github.event.inputs.deploy-branch == 'production' && secrets.API_URL_PROD || secrets.API_URL_DEV }} \
             frontend-exam \
             --push
