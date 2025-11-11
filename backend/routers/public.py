@@ -1,7 +1,7 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from db.database import get_db
 from db.models import Exam, ExamUser, UserExamSubmission
@@ -70,6 +70,7 @@ def check_submission(
 
     submission = (
         db.query(UserExamSubmission)
+        .options(joinedload(UserExamSubmission.answers))
         .join(ExamUser)
         .filter(
             ExamUser.dni == normalize_dni(data.dni),
@@ -81,11 +82,16 @@ def check_submission(
     if not submission:
         raise HTTPException(status_code=404, detail="Submission not found")
 
-    exam = db.query(Exam).filter(Exam.id == data.exam_id).first()
+    exam = (
+        db.query(Exam)
+        .options(joinedload(Exam.questions))
+        .filter(Exam.id == data.exam_id)
+        .first()
+    )
     if not exam or not exam.is_active:
         raise HTTPException(status_code=403, detail="Exam is not active or responses not visible")
 
-    if not any([exam.show_score, exam.show_percentile, exam.show_score_full]):
+    if not (exam.validated_tribunal or any([exam.show_score, exam.show_percentile, exam.show_score_full])):
         raise HTTPException(
             status_code=403,
             detail="Los resultados no están disponibles para este examen",

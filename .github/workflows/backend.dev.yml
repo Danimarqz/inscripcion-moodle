@@ -1,0 +1,51 @@
+name: Deploy DEV Backend
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - "backend/**"
+  workflow_dispatch:
+    inputs:
+      deploy-branch:
+        description: "Branch to deploy"
+        required: true
+        default: "develop"
+        type: choice
+        options:
+          - develop
+          - production
+jobs:
+  docker-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        env:
+          GH_OWNER: ${{ github.repository_owner }}
+        run: |
+          OWNER=$(echo "${GH_OWNER:-Danimarqz}" | tr '[:upper:]' '[:lower:]')
+          IMAGE=ghcr.io/${OWNER}/backend-moodle
+          docker buildx build \
+            --platform linux/amd64 \
+            -f backend/Dockerfile \
+            -t ${IMAGE}:devlatest \
+            -t ${IMAGE}:${{ github.sha }} \
+            backend \
+            --push

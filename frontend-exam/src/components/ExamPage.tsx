@@ -1,7 +1,14 @@
 import type { JSX } from 'preact';
 import { useEffect, useMemo, useState } from 'preact/hooks';
 
-import type { Answer, ExamOut, ExamResultPayload, ExamSubmissionPayload, Question } from '../types/exam';
+import type {
+  Answer,
+  AnswerReview,
+  ExamOut,
+  ExamResultPayload,
+  ExamSubmissionPayload,
+  Question,
+} from '../types/exam';
 import { checkSubmission, submitExam } from '../services/examService';
 import { useExamQuestions } from '../hooks/useExamQuestions';
 import { useExamUi } from '../hooks/useExamUi';
@@ -13,6 +20,7 @@ interface ExamPageProps {
   showScore: boolean;
   showPercentile: boolean;
   showScoreFull: boolean;
+  validatedTribunal?: boolean;
 }
 
 const ANSWER_OPTIONS = ['A', 'B', 'C', 'D'];
@@ -70,6 +78,7 @@ export default function ExamPage({
   showScore,
   showPercentile,
   showScoreFull,
+  validatedTribunal = false,
 }: ExamPageProps) {
   const [studentName, setStudentName] = useState('');
   const [studentSurname, setStudentSurname] = useState('');
@@ -78,6 +87,7 @@ export default function ExamPage({
   const [acceptsMarketing, setAcceptsMarketing] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [autoCheckDisabled, setAutoCheckDisabled] = useState(false);
+  const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
 
   const [examUiState, dispatchExamUi] = useExamUi();
   const {
@@ -91,15 +101,18 @@ export default function ExamPage({
     totalSubmissions,
     correctAnswers,
     totalQuestions,
+    answersReview,
   } = examUiState;
 
   const { questions, loading, error: questionsError } = useExamQuestions(examId);
-  const allowResultPreview = showScore || showPercentile || showScoreFull;
+  const allowResultPreview =
+    showScore || showPercentile || showScoreFull || validatedTribunal;
 
   useEffect(() => {
     dispatchExamUi({ type: 'RESET' });
     setAutoCheckDisabled(false);
     setAcceptsMarketing(false);
+    setUserAnswers({});
   }, [examId, dispatchExamUi]);
 
   const questionEntries = useMemo(
@@ -108,6 +121,25 @@ export default function ExamPage({
   );
   const activeEntries = questionEntries.filter(({ question }) => question.is_active !== false);
   const reserveEntries = questionEntries.filter(({ question }) => question.is_active === false);
+
+  function setAnswerForQuestion(questionId: number, option: string) {
+    const normalizedOption = option.toUpperCase();
+    setUserAnswers((prev) => ({
+      ...prev,
+      [questionId]: normalizedOption,
+    }));
+  }
+
+  function clearAnswerForQuestion(questionId: number) {
+    setUserAnswers((prev) => {
+      if (!(questionId in prev)) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[questionId];
+      return next;
+    });
+  }
 
   function buildResultPayload(result: ExamOut, context: 'check' | 'submit'): ExamResultPayload {
     const baseMessage =
@@ -129,6 +161,10 @@ export default function ExamPage({
       typeof result.correct_answers === 'number' ? result.correct_answers : null;
     const rawTotalQuestions =
       typeof result.total_questions === 'number' ? result.total_questions : null;
+    const review =
+      Array.isArray(result.answers_review) && result.answers_review.length > 0
+        ? (result.answers_review as AnswerReview[])
+        : null;
 
     const nextPosition = showPercentile ? rawPosition : null;
     const nextTotalSubmissions = showPercentile ? rawTotalSubmissions : null;
@@ -156,6 +192,7 @@ export default function ExamPage({
       correctAnswers: nextCorrectAnswers,
       totalQuestions: nextTotalQuestions,
       message,
+      answersReview: review,
     };
   }
 
@@ -230,13 +267,13 @@ export default function ExamPage({
       return;
     }
 
-    const answers: Answer[] = [];
-    for (const [key, value] of formData.entries()) {
-      if (key.startsWith('question-') && typeof value === 'string') {
-        const questionId = parseInt(key.split('-')[1], 10);
-        answers.push({ question_id: questionId, answer: value });
+    const answers: Answer[] = Object.entries(userAnswers).reduce<Answer[]>((acc, [questionId, value]) => {
+      const numericId = Number(questionId);
+      if (Number.isFinite(numericId) && value) {
+        acc.push({ question_id: numericId, answer: value });
       }
-    }
+      return acc;
+    }, []);
 
     const payload: ExamSubmissionPayload = {
       email: emailRaw,
@@ -262,6 +299,7 @@ export default function ExamPage({
       setEmail('');
       setDni('');
       setAcceptsMarketing(false);
+      setUserAnswers({});
     } catch (error) {
       const message = (error as Error).message || 'Error al enviar el examen';
       dispatchExamUi({ type: 'SUBMIT_ERROR', payload: message });
@@ -269,7 +307,7 @@ export default function ExamPage({
     }
   };
 
-  function renderSubmissionSummary(message: string) {
+  function renderSubmissionSummary(message: string, review: AnswerReview[] | null) {
     const trimmedMessage = message.trim();
     if (!trimmedMessage) return null;
     const sentenceMatch = trimmedMessage.match(/.*?[.!?](?:\s|$)/);
@@ -307,6 +345,70 @@ export default function ExamPage({
             </div>
           )}
         </div>
+        {Array.isArray(review) && review.length > 0 && (
+          <div className="mt-6">
+            <h3 className="text-base font-semibold text-brand-yellow mb-3">
+              Detalle de respuestas
+            </h3>
+            <div className="overflow-x-auto rounded-2xl border border-brand-blue-soft bg-[#12141b]">
+              <table className="min-w-full text-sm">
+                <thead className="text-xs uppercase tracking-[0.35em] text-brand-yellow/80">
+                  <tr>
+                    <th className="px-4 py-2 text-left">Pregunta</th>
+                    <th className="px-4 py-2 text-left">Tu respuesta</th>
+                    <th className="px-4 py-2 text-left">Respuesta correcta</th>
+                    <th className="px-4 py-2 text-left">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {review.map((item, index) => {
+                    const questionNumber = item.question_label ?? index + 1;
+                    const selected = item.selected_option ?? 'Sin marcar';
+                    const correct = item.correct_option ?? '—';
+                    const isAnswered = Boolean(item.selected_option);
+                    const statusLabel = item.is_correct
+                      ? 'Correcta'
+                      : isAnswered
+                        ? 'Incorrecta'
+                        : 'Sin responder';
+                    const rowClass = item.is_correct
+                      ? 'bg-green-500/5'
+                      : isAnswered
+                        ? 'bg-brand-pink-soft'
+                        : '';
+                    const statusClass = item.is_correct
+                      ? 'text-green-300'
+                      : isAnswered
+                        ? 'text-brand-pink'
+                        : 'text-gray-400';
+                    return (
+                      <tr key={`${item.question_id}-${index}`} className={rowClass}>
+                        <td className="px-4 py-2 font-semibold text-white">
+                          Pregunta {questionNumber}
+                        </td>
+                        <td className="px-4 py-2">
+                          <span
+                            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${
+                              item.is_correct
+                                ? 'border-green-500/40 text-green-300'
+                                : isAnswered
+                                  ? 'border-brand-pink-soft text-brand-pink'
+                                  : 'border-gray-600 text-gray-400'
+                            }`}
+                          >
+                            {selected}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-brand-yellow font-semibold">{correct}</td>
+                        <td className={`px-4 py-2 text-sm font-semibold ${statusClass}`}>{statusLabel}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -317,10 +419,14 @@ export default function ExamPage({
     isReserve: boolean,
   ) {
     const { question, index: originalIndex } = entry;
+    const questionId = question.id;
+    if (typeof questionId !== 'number') {
+      return null;
+    }
     const isCancelled = question.is_cancelled === true;
     const displayName = question.name ?? position;
     const label = `${isReserve ? 'Reserva' : 'Pregunta'} ${displayName}`;
-    const key = question.id ?? `${isReserve ? 'reserve' : 'active'}-${position}-${originalIndex}`;
+    const key = `${questionId}-${isReserve ? 'reserve' : 'active'}-${originalIndex}`;
     const badgeConfig = isCancelled
       ? {
           text: 'Anulada',
@@ -332,6 +438,7 @@ export default function ExamPage({
             ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
             : 'bg-green-500/20 text-green-300 border border-green-500/50',
         };
+    const selectedOption = userAnswers[questionId] ?? null;
 
     return (
       <div
@@ -344,26 +451,51 @@ export default function ExamPage({
             {badgeConfig.text}
           </span>
         </div>
-        <ul className="list-none p-0 m-0 flex flex-wrap gap-4">
-          {ANSWER_OPTIONS.map((optionChar) => (
-            <li key={optionChar} className="mb-0">
-              <input
-                type="radio"
-                name={`question-${question.id}`}
-                value={optionChar}
-                id={`option-${question.id}-${optionChar}`}
-                required={!isCancelled}
-                className="mr-1 transform scale-125 cursor-pointer"
-              />
-              <label
-                htmlFor={`option-${question.id}-${optionChar}`}
-                className="text-gray-300 text-lg cursor-pointer"
-              >
-                {optionChar}
-              </label>
-            </li>
-          ))}
+        <ul className="list-none p-0 m-0 flex flex-wrap gap-3">
+          {ANSWER_OPTIONS.map((optionChar) => {
+            const isSelected = selectedOption === optionChar;
+            return (
+              <li key={`${questionId}-${optionChar}`}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isCancelled) return;
+                    if (isSelected) {
+                      clearAnswerForQuestion(questionId);
+                    } else {
+                      setAnswerForQuestion(questionId, optionChar);
+                    }
+                  }}
+                  disabled={isCancelled}
+                  aria-pressed={isSelected}
+                  className={`w-16 text-center px-4 py-2 text-lg font-semibold rounded-md border transition-all duration-200 ${
+                    isCancelled
+                      ? 'border-gray-600 text-gray-600 cursor-not-allowed'
+                      : isSelected
+                        ? 'border-brand-yellow bg-brand-yellow text-dark-200 shadow-lg cursor-pointer'
+                        : 'border-[#555] text-gray-200 hover:border-brand-blue hover:text-brand-yellow cursor-pointer'
+                  }`}
+                >
+                  {optionChar}
+                </button>
+              </li>
+            );
+          })}
         </ul>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <p className="text-xs text-gray-500">
+            Usa los botones para marcar tu opción; si pulsas de nuevo o en &ldquo;Borrar respuesta&rdquo; la pregunta
+            queda en blanco.
+          </p>
+          <button
+            type="button"
+            onClick={() => clearAnswerForQuestion(questionId)}
+            disabled={!selectedOption}
+            className="text-xs font-semibold px-3 py-1 rounded border border-brand-blue-soft text-brand-blue hover:bg-brand-blue-soft disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          >
+            Borrar respuesta
+          </button>
+        </div>
       </div>
     );
   }
@@ -390,7 +522,7 @@ export default function ExamPage({
       </main>
     );
 
-  const resultsSummary = submissionMessage ? renderSubmissionSummary(submissionMessage) : null;
+  const resultsSummary = submissionMessage ? renderSubmissionSummary(submissionMessage, answersReview) : null;
 
   return (
     <main>
@@ -453,7 +585,11 @@ export default function ExamPage({
         </section>
       )}
       {allowResultPreview && resultsSummary}
-
+      {validatedTribunal && (
+                <p className="text-xs text-brand-yellow mt-2">
+                  Estas respuestas NO las puedes modificar, si te has confundido al meter alguna respuesta envíanos un correo a <a href="mailto:info.opositatcae@gmail.com">info.opositatcae@gmail.com</a> y lo corregiremos.
+                </p>
+              )}
       <form id="exam-form" onSubmit={handleSubmit} noValidate>
         <div className="mb-6">
           <label htmlFor="name" className="block font-bold text-brand-pink mb-2">Nombre:</label>

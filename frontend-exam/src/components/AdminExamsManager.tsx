@@ -91,6 +91,11 @@ export default function AdminExamsManager() {
                 <p className="text-xs font-semibold text-brand-yellow opacity-90 mt-1">
                   ID oficial #{exam.id}
                 </p>
+                {exam.validated_tribunal && (
+                  <span className="inline-flex items-center gap-1 mt-2 text-xs font-semibold uppercase tracking-[0.3em] text-brand-yellow">
+                    ✓ Validado tribunal
+                  </span>
+                )}
               </div>
               <div className="flex gap-3 flex-wrap">
                 <a

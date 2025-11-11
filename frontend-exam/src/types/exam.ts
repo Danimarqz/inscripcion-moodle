@@ -6,6 +6,7 @@ export type Exam = {
   show_score?: boolean;
   show_percentile?: boolean;
   show_score_full?: boolean;
+  validated_tribunal?: boolean;
 };
 export type ExamOut = {
   score?: number | null;
@@ -15,6 +16,7 @@ export type ExamOut = {
   correct_answers?: number | null;
   total_questions?: number | null;
   message?: string | null;
+  answers_review?: AnswerReview[] | null;
 };
 
 export type Question = {
@@ -97,6 +99,7 @@ export type ExamCreateWithQuestions = {
   show_score?: boolean;
   show_percentile?: boolean;
   show_score_full?: boolean;
+  validated_tribunal?: boolean;
   questions: QuestionCreate[];
 };
 
@@ -115,7 +118,16 @@ export type ExamEdit = {
   show_score?: boolean;
   show_percentile?: boolean;
   show_score_full?: boolean;
+  validated_tribunal?: boolean;
   questions: QuestionEdit[];
+};
+
+export type AnswerReview = {
+  question_id: number;
+  question_label?: number | null;
+  selected_option?: string | null;
+  correct_option?: string | null;
+  is_correct: boolean;
 };
 
 export type UserSubmissionCheck = {
@@ -162,6 +174,7 @@ export type ExamUiState = {
   totalQuestions: number | null;
   submissionMessage: string | null;
   resultError: string | null;
+  answersReview: AnswerReview[] | null;
 };
 
 export type ExamResultPayload = {
@@ -172,6 +185,7 @@ export type ExamResultPayload = {
   correctAnswers: number | null;
   totalQuestions: number | null;
   message: string;
+  answersReview: AnswerReview[] | null;
 };
 
 export type ExamUiAction =

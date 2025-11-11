@@ -29,6 +29,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
   const [showScore, setShowScore] = useState(false);
   const [showPercentile, setShowPercentile] = useState(false);
   const [showScoreFull, setShowScoreFull] = useState(false);
+  const [validatedTribunal, setValidatedTribunal] = useState(false);
 
   useEffect(() => {
     if (authenticating) return;
@@ -45,6 +46,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setShowScore(false);
       setShowPercentile(false);
       setShowScoreFull(false);
+      setValidatedTribunal(false);
       setAll([{ ...DEFAULT_QUESTION }]);
       setError(null);
       return;
@@ -58,6 +60,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setShowScore(Boolean(examData.show_score));
       setShowPercentile(Boolean(examData.show_percentile));
       setShowScoreFull(Boolean(examData.show_score_full));
+      setValidatedTribunal(Boolean(examData.validated_tribunal));
 
       const normalizedQuestions = (examData.questions.length
         ? examData.questions
@@ -110,6 +113,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
       show_score: showScore,
       show_percentile: showPercentile,
       show_score_full: showScoreFull,
+      validated_tribunal: validatedTribunal,
       questions: questions.map((q) => ({
         id: 'id' in q ? q.id : undefined,
         correct_option: q.correct_option.toUpperCase(),
@@ -304,8 +308,25 @@ export default function ExamForm({ examId }: ExamFormProps) {
               className="mr-1"
               disabled={isBusy}
             />
-            <span className="font-bold text-brand-pink">Mostrar detalle de aciertos (ej. “20 de 80 preguntas”)</span>
+            <span className="font-bold text-brand-pink">Mostrar detalle de aciertos (ej. "20 de 80 preguntas")</span>
           </label>
+          <div className="flex flex-col gap-1">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={validatedTribunal}
+                onChange={(e) => setValidatedTribunal(e.currentTarget.checked)}
+                className="mr-1"
+                disabled={isBusy}
+              />
+              <span className="font-bold text-brand-pink">
+                Validado por tribunal (muestra respuestas correctas en la consulta r&aacute;pida)
+              </span>
+            </label>
+            <p className="text-xs text-gray-400 ml-6">
+              Al activarlo, los alumnos ver&aacute;n qu&eacute; marcaron frente a la respuesta oficial cuando consulten su nota.
+            </p>
+          </div>
         </div>
       </fieldset>
 
