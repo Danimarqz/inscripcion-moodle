@@ -545,11 +545,6 @@ export default function ExamPage({
               <p className="text-sm text-brand-blue text-opacity-80 mt-1">
                 Introduce el mismo email y DNI/NIE con el que enviaste el intento para ver tu resultado.
               </p>
-              {validatedTribunal && (
-                <p className="text-xs text-brand-yellow mt-2">
-                  Este examen est&aacute; validado por tribunal: al consultar ver&aacute;s tus respuestas comparadas con las correctas.
-                </p>
-              )}
             </div>
           </div>
           <form
@@ -590,7 +585,11 @@ export default function ExamPage({
         </section>
       )}
       {allowResultPreview && resultsSummary}
-
+      {validatedTribunal && (
+                <p className="text-xs text-brand-yellow mt-2">
+                  Estas respuestas NO las puedes modificar, si te has confundido al meter alguna respuesta envíanos un correo a <a href="mailto:info.opositatcae@gmail.com">info.opositatcae@gmail.com</a> y lo corregiremos.
+                </p>
+              )}
       <form id="exam-form" onSubmit={handleSubmit} noValidate>
         <div className="mb-6">
           <label htmlFor="name" className="block font-bold text-brand-pink mb-2">Nombre:</label>
