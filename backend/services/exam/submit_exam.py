@@ -108,7 +108,7 @@ def calculate_score_breakdown(
     active_list: List[Question] = [
         question
         for question in active_questions
-        if question.is_active and not getattr(question, "is_cancelled", False)
+        if question.is_active and not question.is_cancelled
     ]
     total_active = len(active_list)
     if total_active == 0:
