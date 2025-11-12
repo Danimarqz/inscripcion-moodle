@@ -186,7 +186,7 @@ def process_exam_submission(data: ExamSubmission, db: Session):
     if not questions:
         raise Exception("El examen no tiene preguntas configuradas")
 
-    questions_dict: Dict[int, Question] = {q.id: q for q in questions}
+    questions_dict: Dict[int, Question] = {q.id: q for q in questions if q.is_active and not q.is_cancelled}
     answers_by_question: Dict[int, str] = {}
 
     for ans in data.answers:
@@ -243,7 +243,7 @@ def recalculate_scores_bulk(exam_id: int, db: Session) -> None:
             SELECT
                 ua.submission_id,
                 ROUND(SUM(CASE
-                    WHEN UPPER(ua.answer) = q.correct_option AND q.is_active = 1 AND q.is_cancelled = 0
+                    WHEN UPPER(ua.answer) = q.correct_option AND q.is_active = 1 AND not q.is_cancelled
                     THEN 1 ELSE 0 END) / COUNT(q.id) * 100, 2) AS score
             FROM user_answer ua
             JOIN question q ON q.id = ua.question_id
