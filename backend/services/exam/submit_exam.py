@@ -265,7 +265,7 @@ def fetch_score_breakdown_from_db(
         exam_id,
         submission_id,
     )
-    questions = db.query(Question).filter(Question.exam_id == exam_id).all()
+    questions = db.query(Question).filter(Question.exam_id == exam_id and Question.is_active and not  Question.is_cancelled).all()
     if not questions:
         logger.warning(
             "Cannot compute score breakdown: exam_id=%s has no questions", exam_id
