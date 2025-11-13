@@ -271,8 +271,8 @@ def fetch_score_breakdown_from_db(
         db.query(Question)
         .filter(
             Question.exam_id == exam_id,
-            Question.is_active == True,
-            Question.is_cancelled == False,
+            Question.is_active,
+            not Question.is_cancelled,
         )
         .all()
     )
