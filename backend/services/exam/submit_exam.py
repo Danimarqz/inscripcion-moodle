@@ -243,11 +243,13 @@ def recalculate_scores_bulk(exam_id: int, db: Session) -> None:
             SELECT
                 ua.submission_id,
                 ROUND(SUM(CASE
-                    WHEN UPPER(ua.answer) = q.correct_option AND q.is_active = 1 AND not q.is_cancelled
+                    WHEN UPPER(ua.answer) = q.correct_option
                     THEN 1 ELSE 0 END) / COUNT(q.id) * 100, 2) AS score
             FROM user_answer ua
             JOIN question q ON q.id = ua.question_id
             WHERE q.exam_id = :exam_id
+              AND q.is_active = 1
+              AND NOT q.is_cancelled
             GROUP BY ua.submission_id
         ) AS t ON u.id = t.submission_id
         SET u.score = t.score
@@ -265,7 +267,15 @@ def fetch_score_breakdown_from_db(
         exam_id,
         submission_id,
     )
-    questions = db.query(Question).filter(Question.exam_id == exam_id and Question.is_active and not  Question.is_cancelled).all()
+    questions = (
+        db.query(Question)
+        .filter(
+            Question.exam_id == exam_id,
+            Question.is_active == True,
+            Question.is_cancelled == False,
+        )
+        .all()
+    )
     if not questions:
         logger.warning(
             "Cannot compute score breakdown: exam_id=%s has no questions", exam_id
