@@ -1,8 +1,8 @@
 ---
-import Header from '../components/Header.tsx';
-import '../styles/global.css';
+import Header from "../components/Header.tsx";
+import "../styles/global.css";
 interface Props {
-	title: string;
+  title: string;
 }
 
 const { title } = Astro.props;
@@ -10,42 +10,82 @@ const { title } = Astro.props;
 
 <!doctype html>
 <html lang="es" class="dark-theme">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="description" content="Simulador de exámenes de oposición de OpositaTCAE" />
-        <meta name="viewport" content="width=device-width" />
-        <link rel="icon" href="/favicon.ico" />
-        <meta name="generator" content={Astro.generator} />
-        <title>{title}</title>
-    </head>
-    <body class="text-white font-sans">
-        <header class="bg-[#1a1c22] sticky top-0 z-10 py-4 px-6 md:px-8 border-b border-dark-300 shadow-lg mb-12">
-            <div class="max-w-6xl mx-auto flex justify-between items-center">
-                <a href="/" class="text-white no-underline">
-                    <div class="flex items-center">
-                        <img src="/favicon.ico" alt="OpositaTCAE Logo" class="h-10 md:h-12 mr-4" />
-                        <h1 class="text-3xl md:text-4xl font-bold m-0 bg-gradient-to-r from-accent via-accent-light to-white bg-clip-text text-transparent bg-[length:400%_400%] bg-right-bottom transition-all duration-1000 ease-in-out hover:bg-left-top">
-                            OpositaTCAE
-                        </h1>
-                    </div>
-                </a>
-                <Header client:only="preact" />
-            </div>
-        </header>
-        <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <slot />
-        </main>
-               <footer class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center md:text-left text-sm text-gray-400">
-            <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <span>
-                    &copy; 2025 made by
-                    <a href="https://danimarqz.dev" class="underline hover:text-white" target="_blank" rel="noopener noreferrer">danimarqz.dev</a>
-                </span>
-                <nav class="flex flex-wrap items-center justify-center md:justify-end gap-x-6 gap-y-2">
-                    <a href="/politica-de-privacidad" class="hover:text-white">Política de privacidad</a>
-                    <a href="https://opositatcae.es/terminos-y-condiciones/" class="hover:text-white" target="_blank" rel="noopener noreferrer">Términos y condiciones</a>
-                </nav>
-            </div>
-        </footer>
-    </body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="description"
+      content="Simulador de exámenes de oposición de OpositaTCAE"
+    />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title}</title>
+  </head>
+  <body class="text-white font-sans">
+    <header
+      class="bg-[#1a1c22] sticky top-0 z-10 py-4 px-6 md:px-8 border-b border-dark-300 shadow-lg mb-12"
+    >
+      <div class="max-w-6xl mx-auto flex justify-between items-center">
+        <a href="/" class="text-white no-underline">
+          <div class="flex items-center">
+            <img
+              src="/favicon.ico"
+              alt="OpositaTCAE Logo"
+              class="h-10 md:h-12 mr-4"
+            />
+            <h1
+              class="text-3xl md:text-4xl font-bold m-0 bg-gradient-to-r from-accent via-accent-light to-white bg-clip-text text-transparent bg-[length:400%_400%] bg-right-bottom transition-all duration-1000 ease-in-out hover:bg-left-top"
+            >
+              OpositaTCAE
+            </h1>
+          </div>
+        </a>
+        <Header client:only="preact" />
+      </div>
+    </header>
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <slot />
+      <div class="flex items-center justify-center mt-12">
+        <iframe
+          width="560"
+          height="315"
+          src="https://www.youtube.com/embed/9zuuJQ71Krs?si=aTuZqlo2SL8SDL5g"
+          title="YouTube video player"
+          frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          referrerpolicy="strict-origin-when-cross-origin"
+          allowfullscreen></iframe>
+      </div>
+    </main>
+    <footer
+      class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center md:text-left text-sm text-gray-400"
+    >
+      <div
+        class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+      >
+        <span>
+          &copy; 2025 made by
+          <a
+            href="https://danimarqz.dev"
+            class="underline hover:text-white"
+            target="_blank"
+            rel="noopener noreferrer">danimarqz.dev</a
+          >
+        </span>
+        <nav
+          class="flex flex-wrap items-center justify-center md:justify-end gap-x-6 gap-y-2"
+        >
+          <a href="/politica-de-privacidad" class="hover:text-white"
+            >Política de privacidad</a
+          >
+          <a
+            href="https://opositatcae.es/terminos-y-condiciones/"
+            class="hover:text-white"
+            target="_blank"
+            rel="noopener noreferrer">Términos y condiciones</a
+          >
+        </nav>
+      </div>
+    </footer>
+  </body>
 </html>

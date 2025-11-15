@@ -1,41 +1,16 @@
-FROM python:3.11-slim AS runtime
+FROM golang:1.25.3-alpine AS builder
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    FORWARDED_ALLOW_IPS=*
-
-WORKDIR /app
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        build-essential \
-        default-jre-headless \
-        fonts-dejavu-core \
-        ghostscript \
-        libgl1 \
-        libglib2.0-0 \
-        libsm6 \
-        libxext6 \
-        libxrender1 \
-        poppler-utils \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY requirements.txt .
-
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
 
 COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /usr/local/bin/backend ./cmd/api
 
-RUN mkdir -p generated_pdfs \
-    && useradd --create-home appuser \
-    && chown -R appuser:appuser /app
+FROM gcr.io/distroless/base-debian12
 
-USER appuser
+COPY --from=builder /usr/local/bin/backend /usr/local/bin/backend
 
 EXPOSE 8000
 
-CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "main:app", \
-     "-w", "2", "-b", "0.0.0.0:8000", "--forwarded-allow-ips=*", \
-     "--access-logfile", "-", \
-     "--max-requests", "500", "--max-requests-jitter", "50"]
+ENTRYPOINT ["/usr/local/bin/backend"]

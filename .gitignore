@@ -45,6 +45,16 @@ backend/generated_pdfs/
 dist/
 build/
 
+# Go artifacts that should never be committed
+/bin/
+/pkg/
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
 # Otros
 databasedata/
 
