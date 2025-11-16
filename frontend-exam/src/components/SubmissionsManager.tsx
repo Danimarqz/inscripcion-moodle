@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 
-import type { AdminSubmission, Exam, QuestionEdit } from '../types/exam';
+import type { AdminSubmission, AdminSubmissionsResponse, Exam, QuestionEdit } from '../types/exam';
 import {
   deleteSubmissionAttempt,
   getExamById,
@@ -10,6 +10,17 @@ import {
 import { normalizeDni, validateDniNie } from '../utils/validation';
 
 const ANSWER_OPTIONS = ['A', 'B', 'C', 'D'];
+
+type SubmissionStats = {
+  totalSubmissions: number;
+  averageScore: number | null;
+};
+
+const PAGE_SIZE = 25;
+const INITIAL_SUBMISSION_STATS: SubmissionStats = {
+  totalSubmissions: 0,
+  averageScore: null,
+};
 
 interface SubmissionsManagerProps {
   exams: Exam[];
@@ -38,29 +49,49 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   const [feedback, setFeedback] = useState<string | null>(null);
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [saving, setSaving] = useState<boolean>(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [submissionStats, setSubmissionStats] = useState<SubmissionStats>(() => ({
+    ...INITIAL_SUBMISSION_STATS,
+  }));
+  const [needsStats, setNeedsStats] = useState(true);
 
   const selectedExamName = useMemo(() => {
     const numericId = Number(selectedExamId);
     return exams.find((exam) => exam.id === numericId)?.name ?? '';
   }, [exams, selectedExamId]);
 
-  const { totalAttempts, scoredAttempts, averageScore } = useMemo(() => {
-    const total = submissions.length;
-    if (total === 0) {
-      return { totalAttempts: 0, scoredAttempts: 0, averageScore: null };
+  async function loadSubmissionsPage(
+    examNumericId: number,
+    page: number,
+    includeStats = false,
+  ): Promise<AdminSubmissionsResponse | null> {
+    const response = await getExamSubmissions(examNumericId, token, {
+      limit: PAGE_SIZE,
+      offset: (page - 1) * PAGE_SIZE,
+      firstLoad: includeStats,
+    });
+    const knownTotal = includeStats && response.stats_included
+      ? response.total_submissions
+      : submissionStats.totalSubmissions;
+    const totalPages = Math.max(1, Math.ceil(Math.max(knownTotal, 1) / PAGE_SIZE));
+    if (page > totalPages) {
+      setCurrentPage(totalPages);
+      return null;
     }
 
-    const scores = submissions
-      .map((submission) => submission.score)
-      .filter((score): score is number => typeof score === 'number' && Number.isFinite(score));
-
-    if (scores.length === 0) {
-      return { totalAttempts: total, scoredAttempts: 0, averageScore: null };
+    setSubmissions(response.submissions);
+    if (includeStats && response.stats_included) {
+      setSubmissionStats({
+        totalSubmissions: response.total_submissions,
+        averageScore: response.average_score,
+      });
+      setNeedsStats(false);
     }
+    return response;
+  }
 
-    const average = scores.reduce((sum, value) => sum + value, 0) / scores.length;
-    return { totalAttempts: total, scoredAttempts: scores.length, averageScore: average };
-  }, [submissions]);
+  const { totalSubmissions, averageScore } = submissionStats;
+  const totalPages = Math.max(1, Math.ceil(totalSubmissions / PAGE_SIZE));
 
   useEffect(() => {
     async function loadData(examNumericId: number) {
@@ -69,16 +100,19 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
       setFeedback(null);
       setEditing(null);
       try {
-        const [submissionData, examData] = await Promise.all([
-          getExamSubmissions(examNumericId, token),
-          getExamById(examNumericId, token),
-        ]);
-        setSubmissions(submissionData);
-        setQuestions(examData.questions ?? []);
+        const pageResponse = await loadSubmissionsPage(examNumericId, currentPage, needsStats);
+        if (!pageResponse) {
+          return;
+        }
+        if (needsStats) {
+          const examData = await getExamById(examNumericId, token);
+          setQuestions(examData.questions ?? []);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
         setSubmissions([]);
         setQuestions([]);
+        setSubmissionStats({ ...INITIAL_SUBMISSION_STATS });
       } finally {
         setLoading(false);
       }
@@ -89,6 +123,8 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
       setQuestions([]);
       setEditing(null);
       setFeedback(null);
+      setSubmissionStats({ ...INITIAL_SUBMISSION_STATS });
+      setNeedsStats(true);
       return;
     }
 
@@ -97,11 +133,23 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
       setError('Identificador de examen invalido.');
       setSubmissions([]);
       setQuestions([]);
+      setSubmissionStats({ ...INITIAL_SUBMISSION_STATS });
       return;
     }
 
     loadData(examNumericId);
-  }, [selectedExamId, token]);
+  }, [selectedExamId, token, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    setNeedsStats(true);
+    setSubmissionStats({ ...INITIAL_SUBMISSION_STATS });
+    setSubmissions([]);
+    setQuestions([]);
+    setEditing(null);
+    setFeedback(null);
+    setError(null);
+  }, [selectedExamId]);
 
   function handleSelectExam(event: Event) {
     const value = (event.target as HTMLSelectElement).value;
@@ -133,7 +181,12 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
 
     try {
       await deleteSubmissionAttempt(submissionId, token);
-      setSubmissions((prev) => prev.filter((item) => item.id !== submissionId));
+      if (selectedExamId) {
+        const examNumericId = Number(selectedExamId);
+        if (!Number.isNaN(examNumericId)) {
+          await loadSubmissionsPage(examNumericId, currentPage);
+        }
+      }
       setFeedback('Intento eliminado correctamente.');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -216,12 +269,9 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
         token,
       );
 
-      setSubmissions((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
-
       const examNumericId = Number(selectedExamId);
       if (selectedExamId && !Number.isNaN(examNumericId)) {
-        const refreshedSubmissions = await getExamSubmissions(examNumericId, token);
-        setSubmissions(refreshedSubmissions);
+        await loadSubmissionsPage(examNumericId, currentPage);
       }
 
       setEditing(null);
@@ -267,7 +317,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
               Total de intentos
             </p>
             <p className="text-3xl font-extrabold text-brand-pink mt-2">
-              {loading ? 'Actualizando...' : totalAttempts}
+              {loading ? 'Actualizando...' : totalSubmissions}
             </p>
             {selectedExamName && (
               <p className="text-xs text-brand-yellow mt-2 opacity-90">
@@ -282,13 +332,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
             <p className="text-3xl font-extrabold text-brand-blue mt-2">
               {loading ? 'Actualizando...' : averageScore !== null ? averageScore.toFixed(2) : 'Sin datos'}
             </p>
-            {!loading && scoredAttempts > 0 && (
-              <p className="text-xs text-brand-yellow mt-2 opacity-90">
-                Calculada sobre {scoredAttempts}{' '}
-                {scoredAttempts === 1 ? 'intento con nota' : 'intentos con nota'}
-              </p>
-            )}
-            {!loading && scoredAttempts === 0 && (
+            {!loading && averageScore === null && (
               <p className="text-xs text-brand-yellow mt-2 opacity-90">Aún no hay notas registradas.</p>
             )}
           </div>
@@ -301,8 +345,11 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
 
       {selectedExamId && loading && <p className="text-brand-yellow">Cargando intentos...</p>}
 
-      {selectedExamId && !loading && submissions.length === 0 && !error && (
+      {selectedExamId && !loading && totalSubmissions === 0 && !error && (
         <p className="text-sm text-brand-pink">No hay intentos para este examen.</p>
+      )}
+      {selectedExamId && !loading && totalSubmissions > 0 && submissions.length === 0 && !error && (
+        <p className="text-sm text-brand-blue">Esta pagina no contiene intentos.</p>
       )}
 
       {selectedExamId && !loading && submissions.length > 0 && (
@@ -480,6 +527,37 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
             );
           })}
         </ul>
+      )}
+      {selectedExamId && !loading && totalSubmissions > 0 && (
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mt-6">
+          <button
+            type="button"
+            disabled={currentPage <= 1}
+            onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+            className={`px-4 py-2 rounded border border-brand-blue-soft text-brand-blue transition-colors ${
+              currentPage <= 1
+                ? 'opacity-40 cursor-not-allowed'
+                : 'hover:bg-[#1b2635] hover:border-brand-pink-soft'
+            }`}
+          >
+            Anterior
+          </button>
+          <p className="text-sm text-gray-300">
+            Pagina {currentPage} de {totalPages}
+          </p>
+          <button
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+            className={`px-4 py-2 rounded border border-brand-blue-soft text-brand-blue transition-colors ${
+              currentPage >= totalPages
+                ? 'opacity-40 cursor-not-allowed'
+                : 'hover:bg-[#1b2635] hover:border-brand-pink-soft'
+            }`}
+          >
+            Siguiente
+          </button>
+        </div>
       )}
     </section>
   );

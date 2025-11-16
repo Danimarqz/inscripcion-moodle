@@ -1,5 +1,6 @@
 import type {
   AdminSubmission,
+  AdminSubmissionsResponse,
   Exam,
   ExamCreateWithQuestions,
   ExamEdit,
@@ -122,8 +123,27 @@ export async function getExamById(examId: number, token: string): Promise<ExamEd
   return await response.json();
 }
 
-export async function getExamSubmissions(examId: number, token: string): Promise<AdminSubmission[]> {
-  const response = await fetch(`${API_URL}/admin/results?exam_id=${examId}`, {
+interface FetchSubmissionsOptions {
+  limit?: number;
+  offset?: number;
+  firstLoad?: boolean;
+}
+
+export async function getExamSubmissions(
+  examId: number,
+  token: string,
+  options: FetchSubmissionsOptions = {},
+): Promise<AdminSubmissionsResponse> {
+  const params = new URLSearchParams({ exam_id: String(examId) });
+  if (options.limit !== undefined) {
+    params.set('limit', String(options.limit));
+  }
+  if (options.offset !== undefined) {
+    params.set('offset', String(options.offset));
+  }
+  const firstLoad = options.firstLoad ?? false;
+  params.set('first_load', String(firstLoad));
+  const response = await fetch(`${API_URL}/admin/results?${params.toString()}`, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${token}`,

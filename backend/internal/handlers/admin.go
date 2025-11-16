@@ -274,12 +274,13 @@ func (h *AdminHandler) listSubmissions(w http.ResponseWriter, r *http.Request) {
 	}
 	limit := parseLimitParam(r.URL.Query().Get("limit"))
 	offset := parseOffsetParam(r.URL.Query().Get("offset"))
-	results, err := h.service.ListSubmissions(uint(examID), limit, offset)
+	includeStats := parseBoolParam(r.URL.Query().Get("first_load"), true)
+	result, err := h.service.ListSubmissions(uint(examID), limit, offset, includeStats)
 	if err != nil {
 		http.Error(w, "failed to load submissions", http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, results)
+	writeJSON(w, result)
 }
 
 func (h *AdminHandler) deleteSubmission(w http.ResponseWriter, r *http.Request) {

@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -166,7 +167,7 @@ func (s *Service) DeleteSubmission(submissionID uint) (examID uint, err error) {
 	return submission.ExamID, nil
 }
 
-func (s *Service) ListSubmissions(examID uint, limit, offset int) ([]models.UserExamSubmission, error) {
+func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats bool) (*ListSubmissionsResult, error) {
 	var subs []models.UserExamSubmission
 	query := s.db.Preload("User").Preload("Answers").
 		Where("exam_id = ?", examID).
@@ -180,7 +181,33 @@ func (s *Service) ListSubmissions(examID uint, limit, offset int) ([]models.User
 	if err := query.Find(&subs).Error; err != nil {
 		return nil, err
 	}
-	return subs, nil
+
+	result := &ListSubmissionsResult{
+		Submissions: subs,
+	}
+	if includeStats {
+		var totalCount int64
+		if err := s.db.Model(&models.UserExamSubmission{}).
+			Where("exam_id = ?", examID).
+			Count(&totalCount).Error; err != nil {
+			return nil, err
+		}
+
+		var avg sql.NullFloat64
+		if err := s.db.Model(&models.UserExamSubmission{}).
+			Select("AVG(score)").
+			Where("exam_id = ? AND score IS NOT NULL", examID).
+			Row().Scan(&avg); err != nil {
+			return nil, err
+		}
+
+		result.TotalSubmissions = totalCount
+		if avg.Valid {
+			result.AverageScore = &avg.Float64
+		}
+		result.StatsIncluded = true
+	}
+	return result, nil
 }
 
 func (s *Service) ListOfficialResults(examID uint) ([]models.ExamOfficialResult, error) {

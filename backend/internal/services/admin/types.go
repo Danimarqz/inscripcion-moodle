@@ -1,5 +1,7 @@
 package admin
 
+import "github.com/inscripcion-moodle/go-backend/internal/models"
+
 type QuestionInput struct {
 	ID            *uint  `json:"id,omitempty"`
 	Name          *int   `json:"name,omitempty"`
@@ -26,4 +28,11 @@ type EditExamRequest struct {
 	ShowScoreFull     *bool           `json:"show_score_full,omitempty"`
 	ValidatedTribunal *bool           `json:"validated_tribunal,omitempty"`
 	Questions         []QuestionInput `json:"questions"`
+}
+
+type ListSubmissionsResult struct {
+	Submissions      []models.UserExamSubmission `json:"submissions"`
+	TotalSubmissions int64                       `json:"total_submissions,omitempty"`
+	AverageScore     *float64                    `json:"average_score,omitempty"`
+	StatsIncluded    bool                        `json:"stats_included"`
 }
