@@ -36,3 +36,16 @@ type ListSubmissionsResult struct {
 	AverageScore     *float64                    `json:"average_score,omitempty"`
 	StatsIncluded    bool                        `json:"stats_included"`
 }
+
+type SubmissionAnswerInput struct {
+	QuestionID uint   `json:"question_id"`
+	Answer     string `json:"answer"`
+}
+
+type SubmissionUpdateRequest struct {
+	Name    string                  `json:"name"`
+	Surname string                  `json:"surname"`
+	Email   string                  `json:"email"`
+	DNI     string                  `json:"dni"`
+	Answers []SubmissionAnswerInput `json:"answers"`
+}

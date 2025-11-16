@@ -73,6 +73,7 @@ func (h *AdminHandler) RegisterRoutes(r chi.Router) {
 		r.Delete("/exams/{exam_id}/delete", h.deleteExam)
 		r.Get("/exams/{exam_id}", h.getExam)
 		r.Get("/results", h.listSubmissions)
+		r.Put("/results/{submission_id}", h.updateSubmission)
 		r.Delete("/results/{submission_id}", h.deleteSubmission)
 		r.Get("/exams/{exam_id}/results/official", h.listOfficialResults)
 		r.Post("/exams/{exam_id}/results/import", h.importOfficialResults)
@@ -284,6 +285,30 @@ func (h *AdminHandler) listSubmissions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, result)
+}
+
+func (h *AdminHandler) updateSubmission(w http.ResponseWriter, r *http.Request) {
+	submissionIDStr := chi.URLParam(r, "submission_id")
+	submissionID, err := strconv.ParseUint(submissionIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid submission id", http.StatusBadRequest)
+		return
+	}
+	var payload admin.SubmissionUpdateRequest
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	updated, err := h.service.UpdateSubmission(uint(submissionID), payload)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			http.Error(w, "Intento no encontrado", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to update submission", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, updated)
 }
 
 func (h *AdminHandler) deleteSubmission(w http.ResponseWriter, r *http.Request) {

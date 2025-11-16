@@ -167,6 +167,69 @@ func (s *Service) DeleteSubmission(submissionID uint) (examID uint, err error) {
 	return submission.ExamID, nil
 }
 
+func (s *Service) UpdateSubmission(submissionID uint, req SubmissionUpdateRequest) (*models.UserExamSubmission, error) {
+	var submission models.UserExamSubmission
+	if err := s.db.Preload("User").Preload("Answers").First(&submission, submissionID).Error; err != nil {
+		return nil, err
+	}
+
+	updated := false
+	if req.Name != "" && submission.User.Name != req.Name {
+		submission.User.Name = req.Name
+		updated = true
+	}
+	if req.Surname != "" && submission.User.Surname != req.Surname {
+		submission.User.Surname = req.Surname
+		updated = true
+	}
+	if req.Email != "" && submission.User.Email != req.Email {
+		submission.User.Email = req.Email
+		updated = true
+	}
+	if req.DNI != "" && submission.User.DNI != req.DNI {
+		submission.User.DNI = req.DNI
+		updated = true
+	}
+	if updated && submission.User.ID != 0 {
+		if err := s.db.Model(&submission.User).Updates(submission.User).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	if err := s.db.Save(&submission).Error; err != nil {
+		return nil, err
+	}
+
+	answerMap := make(map[uint]*models.UserAnswer)
+	for i := range submission.Answers {
+		answer := submission.Answers[i]
+		answerMap[answer.QuestionID] = &submission.Answers[i]
+	}
+
+	for _, answer := range req.Answers {
+		if existing, ok := answerMap[answer.QuestionID]; ok {
+			existing.Answer = answer.Answer
+			if err := s.db.Save(existing).Error; err != nil {
+				return nil, err
+			}
+		} else {
+			newAnswer := models.UserAnswer{
+				SubmissionID: submission.ID,
+				QuestionID:   answer.QuestionID,
+				Answer:       answer.Answer,
+			}
+			if err := s.db.Create(&newAnswer).Error; err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if err := s.db.Preload("User").Preload("Answers").First(&submission, submission.ID).Error; err != nil {
+		return nil, err
+	}
+	return &submission, nil
+}
+
 func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats bool, search, orderBy, orderDir string) (*ListSubmissionsResult, error) {
 	var subs []models.UserExamSubmission
 	query := s.db.Preload("User").Preload("Answers").

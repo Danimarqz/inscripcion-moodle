@@ -16,7 +16,6 @@ type SubmissionStats = {
   averageScore: number | null;
 };
 
-const PAGE_SIZE = 25;
 const INITIAL_SUBMISSION_STATS: SubmissionStats = {
   totalSubmissions: 0,
   averageScore: null,
@@ -57,6 +56,8 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   const [searchTerm, setSearchTerm] = useState('');
   const [orderBy, setOrderBy] = useState<'submitted_at' | 'score' | 'name' | 'surname'>('submitted_at');
   const [orderDir, setOrderDir] = useState<'asc' | 'desc'>('desc');
+  const [pageLimit, setPageLimit] = useState(25);
+  const [pageInput, setPageInput] = useState(1);
   const resetFilters = useCallback(() => {
     setCurrentPage(1);
     setNeedsStats(true);
@@ -69,6 +70,8 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     setSearchTerm('');
     setOrderBy('submitted_at');
     setOrderDir('desc');
+    setPageLimit(25);
+    setPageInput(1);
   }, []);
   const handleSearchInput = (value: string) => {
     setSearchTerm(value);
@@ -82,6 +85,19 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     setOrderDir(value);
     setCurrentPage(1);
   };
+  const handleLimitChange = (value: number) => {
+    if (value <= 0) return;
+    setPageLimit(value);
+    setCurrentPage(1);
+    setPageInput(1);
+  };
+  const handlePageInputChange = (value: number) => {
+    setPageInput(value);
+  };
+  const goToPage = () => {
+    const desired = Math.max(1, Math.min(totalPages, Math.floor(pageInput)));
+    setCurrentPage(desired);
+  };
 
   const selectedExamName = useMemo(() => {
     const numericId = Number(selectedExamId);
@@ -91,14 +107,15 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   async function loadSubmissionsPage(
     examNumericId: number,
     page: number,
+    limit: number,
     includeStats = false,
     search = '',
     orderBy: 'submitted_at' | 'score' | 'name' | 'surname' = 'submitted_at',
     orderDir: 'asc' | 'desc' = 'desc',
   ): Promise<AdminSubmissionsResponse | null> {
     const response = await getExamSubmissions(examNumericId, token, {
-      limit: PAGE_SIZE,
-      offset: (page - 1) * PAGE_SIZE,
+      limit,
+      offset: (page - 1) * limit,
       firstLoad: includeStats,
       search,
       orderBy,
@@ -107,7 +124,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     const knownTotal = includeStats && response.stats_included
       ? response.total_submissions
       : submissionStats.totalSubmissions;
-    const totalPages = Math.max(1, Math.ceil(Math.max(knownTotal, 1) / PAGE_SIZE));
+    const totalPages = Math.max(1, Math.ceil(Math.max(knownTotal, 1) / limit));
     if (page > totalPages) {
       setCurrentPage(totalPages);
       return null;
@@ -125,7 +142,8 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   }
 
   const { totalSubmissions, averageScore } = submissionStats;
-  const totalPages = Math.max(1, Math.ceil(totalSubmissions / PAGE_SIZE));
+  const effectiveLimit = pageLimit > 0 ? pageLimit : 1;
+  const totalPages = Math.max(1, Math.ceil(totalSubmissions / effectiveLimit));
 
   useEffect(() => {
     async function loadData(examNumericId: number) {
@@ -137,6 +155,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
         const pageResponse = await loadSubmissionsPage(
           examNumericId,
           currentPage,
+          pageLimit,
           needsStats,
           searchTerm,
           orderBy,
@@ -179,11 +198,15 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     }
 
     loadData(examNumericId);
-  }, [selectedExamId, token, currentPage, searchTerm, orderBy, orderDir]);
+  }, [selectedExamId, token, currentPage, searchTerm, orderBy, orderDir, pageLimit]);
 
   useEffect(() => {
     resetFilters();
   }, [selectedExamId, resetFilters]);
+
+  useEffect(() => {
+    setPageInput(currentPage);
+  }, [currentPage]);
 
   function handleSelectExam(event: Event) {
     const target = event.currentTarget as HTMLSelectElement;
@@ -217,9 +240,17 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
       await deleteSubmissionAttempt(submissionId, token);
       if (selectedExamId) {
         const examNumericId = Number(selectedExamId);
-        if (!Number.isNaN(examNumericId)) {
-          await loadSubmissionsPage(examNumericId, currentPage, needsStats, searchTerm, orderBy, orderDir);
-        }
+          if (!Number.isNaN(examNumericId)) {
+            await loadSubmissionsPage(
+              examNumericId,
+              currentPage,
+              pageLimit,
+              needsStats,
+              searchTerm,
+              orderBy,
+              orderDir,
+            );
+          }
       }
       setFeedback('Intento eliminado correctamente.');
     } catch (err) {
@@ -304,9 +335,17 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
       );
 
       const examNumericId = Number(selectedExamId);
-      if (selectedExamId && !Number.isNaN(examNumericId)) {
-        await loadSubmissionsPage(examNumericId, currentPage, needsStats, searchTerm, orderBy, orderDir);
-      }
+        if (selectedExamId && !Number.isNaN(examNumericId)) {
+          await loadSubmissionsPage(
+            examNumericId,
+            currentPage,
+            pageLimit,
+            needsStats,
+            searchTerm,
+            orderBy,
+            orderDir,
+          );
+        }
 
       setEditing(null);
       setFeedback('Intento actualizado correctamente.');
@@ -382,6 +421,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
         </label>
       </div>
 
+
       {error && (
         <p className="text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mb-4">{error}</p>
       )}
@@ -417,7 +457,47 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
           </div>
         </div>
       )}
-
+      <div className="grid gap-4 md:grid-cols-3 mb-6">
+        <label className="flex flex-col gap-2">
+          <span className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-blue">Mostrar por página</span>
+          <select
+            value={pageLimit}
+            onChange={(event) => handleLimitChange(Number(event.currentTarget.value))}
+            className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
+          >
+            {[10, 25, 50, 100].map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-2">
+          <span className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-blue">Ir a página</span>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              min={1}
+              max={totalPages}
+              value={pageInput}
+              onInput={(event) => handlePageInputChange(Number(event.currentTarget.value))}
+              className="w-full px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
+            />
+            <button
+              type="button"
+              onClick={goToPage}
+              className="px-4 py-2 rounded cursor-pointer border border-brand-blue-soft text-brand-blue transition-colors hover:bg-[#1b2635] hover:border-brand-pink-soft"
+            >
+              Ir
+            </button>
+          </div>
+        </label>
+        <div className="flex flex-col justify-end">
+          <p className="text-xs text-gray-400">
+            de {totalPages} {totalPages === 1 ? 'página' : 'páginas'}
+          </p>
+        </div>
+      </div>
       {!selectedExamId && (
         <p className="text-sm text-brand-blue">Selecciona un examen para ver los intentos disponibles.</p>
       )}
@@ -439,7 +519,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
             className={`px-4 py-2 rounded border border-brand-blue-soft text-brand-blue transition-colors ${
               currentPage <= 1
                 ? 'opacity-40 cursor-not-allowed'
-                : 'hover:bg-[#1b2635] hover:border-brand-pink-soft'
+                : 'hover:bg-[#1b2635] hover:border-brand-pink-soft cursor-pointer'
             }`}
           >
             Anterior
@@ -454,7 +534,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
             className={`px-4 py-2 rounded border border-brand-blue-soft text-brand-blue transition-colors ${
               currentPage >= totalPages
                 ? 'opacity-40 cursor-not-allowed'
-                : 'hover:bg-[#1b2635] hover:border-brand-pink-soft'
+                : 'hover:bg-[#1b2635] hover:border-brand-pink-soft cursor-pointer'
             }`}
           >
             Siguiente
@@ -658,7 +738,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
             className={`px-4 py-2 rounded border border-brand-blue-soft text-brand-blue transition-colors ${
               currentPage <= 1
                 ? 'opacity-40 cursor-not-allowed'
-                : 'hover:bg-[#1b2635] hover:border-brand-pink-soft'
+                : 'hover:bg-[#1b2635] hover:border-brand-pink-soft cursor-pointer'
             }`}
           >
             Anterior
@@ -673,7 +753,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
             className={`px-4 py-2 rounded border border-brand-blue-soft text-brand-blue transition-colors ${
               currentPage >= totalPages
                 ? 'opacity-40 cursor-not-allowed'
-                : 'hover:bg-[#1b2635] hover:border-brand-pink-soft'
+                : 'hover:bg-[#1b2635] hover:border-brand-pink-soft cursor-pointer'
             }`}
           >
             Siguiente
