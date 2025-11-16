@@ -9,13 +9,15 @@ import { createExam, editExam, getExamById } from '../services/adminService';
 import { useAdminAuth } from '../hooks/useAdminAuth';
 import { useQuestionList } from '../hooks/useQuestionList';
 import { useAsyncTask } from '../hooks/useAsyncTask';
+import QuestionCardFrame from './questions/QuestionCardFrame';
+import QuestionSection from './questions/QuestionSection';
+import { ANSWER_OPTIONS, type AnswerOption } from '../constants/answerOptions';
 
 interface ExamFormProps {
   examId?: number;
 }
 
 const DEFAULT_QUESTION: QuestionCreate = { correct_option: 'A', is_active: true, is_cancelled: false };
-const VALID_OPTIONS = ['A', 'B', 'C', 'D'];
 
 export default function ExamForm({ examId }: ExamFormProps) {
   const { token, loading: authenticating, error: authError } = useAdminAuth();
@@ -33,6 +35,16 @@ export default function ExamForm({ examId }: ExamFormProps) {
 
   useEffect(() => {
     if (authenticating) return;
+
+    if (
+      questions.some((q) => {
+        const normalized = ((q.correct_option ?? 'A').toUpperCase() as AnswerOption);
+        return !ANSWER_OPTIONS.includes(normalized);
+      })
+    ) {
+      setError('Todas las preguntas deben tener una opcion correcta valida (A, B, C o D).');
+      return;
+    }
 
     if (!token) {
       setError('No autorizado: token no disponible.');
@@ -97,7 +109,12 @@ export default function ExamForm({ examId }: ExamFormProps) {
       return;
     }
 
-    if (questions.some((q) => !VALID_OPTIONS.includes(q.correct_option.toUpperCase()))) {
+    if (
+      questions.some((q) => {
+        const normalized = ((q.correct_option ?? 'A').toUpperCase() as AnswerOption);
+        return !ANSWER_OPTIONS.includes(normalized);
+      })
+    ) {
       setError('Todas las preguntas deben tener una opcion correcta valida (A, B, C o D).');
       return;
     }
@@ -174,17 +191,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
             : 'bg-green-500/20 text-green-300 border border-green-500/50',
         };
 
-    return (
-      <div
-        key={key}
-        className="bg-[#2a2d33] p-6 mb-4 rounded-lg shadow-lg border border-transparent hover:border-brand-blue/40 transition-colors"
-      >
-        <div className="flex items-center justify-between mb-3">
-          <span className="font-bold text-lg text-brand-pink">{label}</span>
-          <span className={`text-xs font-semibold px-2 py-1 rounded ${badgeConfig.className}`}>
-            {badgeConfig.text}
-          </span>
-        </div>
+    const meta = (
+      <>
         {'id' in question && question.id ? (
           <p className="text-xs text-gray-400 mb-2">ID interno: {question.id}</p>
         ) : null}
@@ -193,6 +201,17 @@ export default function ExamForm({ examId }: ExamFormProps) {
             Esta pregunta se ha marcado como anulada y no contará para la nota.
           </p>
         )}
+      </>
+    );
+
+    return (
+      <QuestionCardFrame
+        key={key}
+        label={label}
+        badgeText={badgeConfig.text}
+        badgeClassName={badgeConfig.className}
+        meta={meta}
+      >
         <label className="block font-bold text-brand-pink mb-2">
           Opcion correcta:
           <select
@@ -201,7 +220,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
             className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/50"
             disabled={isBusy}
           >
-            {VALID_OPTIONS.map((option) => (
+            {ANSWER_OPTIONS.map((option) => (
               <option key={option} value={option}>
                 {option}
               </option>
@@ -235,7 +254,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
             {isCancelled ? 'Quitar anulación' : 'Marcar como anulada'}
           </button>
         </div>
-      </div>
+      </QuestionCardFrame>
     );
   }
 
@@ -333,30 +352,21 @@ export default function ExamForm({ examId }: ExamFormProps) {
       <fieldset className="border border-[#444] p-4 rounded-lg" disabled={isBusy}>
         <legend className="font-bold text-xl mb-4 text-brand-pink">Preguntas</legend>
 
-        <section>
-          <h3 className="text-lg font-semibold text-brand-pink mb-3">Preguntas activas ({activeEntries.length})</h3>
-          {activeEntries.length === 0 ? (
-            <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/40 p-3 rounded">
-              Debe haber al menos una pregunta activa para poder publicar el examen.
-            </p>
-          ) : (
-            activeEntries.map((entry, idx) => renderQuestionCard(entry, idx + 1, false))
-          )}
-        </section>
+        <QuestionSection
+          title="Preguntas activas"
+          entries={activeEntries}
+          emptyMessage="Debe haber al menos una pregunta activa para poder publicar el examen."
+          renderEntry={(entry, position) => renderQuestionCard(entry, position, false)}
+        />
 
-        <section className="mt-6">
-          <h3 className="text-lg font-semibold text-brand-pink mb-2">Preguntas de reserva ({reserveEntries.length})</h3>
-          <p className="text-xs text-gray-400 mb-4">
-            Las preguntas de reserva no puntuan salvo que sustituyan a una activa invalidada.
-          </p>
-          {reserveEntries.length === 0 ? (
-            <p className="text-sm text-gray-400 bg-gray-500/10 border border-gray-500/30 p-3 rounded">
-              No hay preguntas de reserva configuradas.
-            </p>
-          ) : (
-            reserveEntries.map((entry, idx) => renderQuestionCard(entry, idx + 1, true))
-          )}
-        </section>
+        <QuestionSection
+          title="Preguntas de reserva"
+          description="Las preguntas de reserva no puntuan salvo que sustituyan a una activa invalidada."
+          entries={reserveEntries}
+          emptyMessage="No hay preguntas de reserva configuradas."
+          emptyMessageClassName="text-sm text-gray-400 bg-gray-500/10 border border-gray-500/30 p-3 rounded"
+          renderEntry={(entry, position) => renderQuestionCard(entry, position, true)}
+        />
 
         <button
           type="button"

@@ -11,7 +11,15 @@ import {
 } from '../services/adminService';
 import { normalizeDni, validateDniNie } from '../utils/validation';
 
-const ANSWER_OPTIONS = ['A', 'B', 'C', 'D'];
+import ExamSelector from './submissions/ExamSelector';
+import SubmissionFilters from './submissions/SubmissionFilters';
+import SubmissionFilterActions from './submissions/SubmissionFilterActions';
+import SubmissionStats from './submissions/SubmissionStats';
+import PaginationSettings from './submissions/PaginationSettings';
+import PaginationControls from './submissions/PaginationControls';
+import SubmissionList from './submissions/SubmissionList';
+import { ANSWER_OPTIONS } from './submissions/types';
+import type { AnswerOption, EditingState, SubmissionOrderBy, SubmissionOrderDir } from './submissions/types';
 
 type SubmissionStats = {
   totalSubmissions: number;
@@ -26,15 +34,6 @@ const INITIAL_SUBMISSION_STATS: SubmissionStats = {
 interface SubmissionsManagerProps {
   exams: Exam[];
   token: string;
-}
-
-interface EditingState {
-  submissionId: number;
-  name: string;
-  surname: string;
-  email: string;
-  dni: string;
-  answers: Record<number, string>;
 }
 
 function isValidEmail(value: string): boolean {
@@ -64,8 +63,8 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   const [needsStats, setNeedsStats] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [orderBy, setOrderBy] = useState<'submitted_at' | 'score' | 'name' | 'surname'>('submitted_at');
-  const [orderDir, setOrderDir] = useState<'asc' | 'desc'>('desc');
+  const [orderBy, setOrderBy] = useState<SubmissionOrderBy>('submitted_at');
+  const [orderDir, setOrderDir] = useState<SubmissionOrderDir>('desc');
   const [pageLimit, setPageLimit] = useState(25);
   const [pageInput, setPageInput] = useState(1);
   const resetFilters = useCallback(() => {
@@ -87,11 +86,11 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     setSearchTerm(value);
     setCurrentPage(1);
   };
-  const handleOrderByChange = (value: 'submitted_at' | 'score' | 'name' | 'surname') => {
+  const handleOrderByChange = (value: SubmissionOrderBy) => {
     setOrderBy(value);
     setCurrentPage(1);
   };
-  const handleOrderDirChange = (value: 'asc' | 'desc') => {
+  const handleOrderDirChange = (value: SubmissionOrderDir) => {
     setOrderDir(value);
     setCurrentPage(1);
   };
@@ -120,8 +119,8 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     limit: number,
     includeStats = false,
     search = '',
-    orderBy: 'submitted_at' | 'score' | 'name' | 'surname' = 'submitted_at',
-    orderDir: 'asc' | 'desc' = 'desc',
+    orderBy: SubmissionOrderBy = 'submitted_at',
+    orderDir: SubmissionOrderDir = 'desc',
     moodleSynced?: boolean,
   ): Promise<AdminSubmissionsResponse | null> {
     const response = await getExamSubmissions(examNumericId, token, {
@@ -156,6 +155,9 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   const { totalSubmissions, averageScore } = submissionStats;
   const effectiveLimit = pageLimit > 0 ? pageLimit : 1;
   const totalPages = Math.max(1, Math.ceil(totalSubmissions / effectiveLimit));
+
+  const handlePrevPage = () => setCurrentPage((prev) => Math.max(1, prev - 1));
+  const handleNextPage = () => setCurrentPage((prev) => Math.min(totalPages, prev + 1));
 
   useEffect(() => {
     async function loadData(examNumericId: number) {
@@ -248,15 +250,14 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     setPageInput(currentPage);
   }, [currentPage]);
 
-  function handleSelectExam(event: Event) {
-    const target = event.currentTarget as HTMLSelectElement;
-    setSelectedExamId(target.value);
-  }
-
   function startEditing(submission: AdminSubmission) {
-    const initialAnswers: Record<number, string> = {};
+    const initialAnswers: Record<number, AnswerOption> = {};
     submission.answers.forEach((answer) => {
-      initialAnswers[answer.question_id] = answer.answer;
+      const normalizedAnswer = (answer.answer ?? '').toUpperCase();
+      const castAnswer = normalizedAnswer as AnswerOption;
+      initialAnswers[answer.question_id] = ANSWER_OPTIONS.includes(castAnswer)
+        ? castAnswer
+        : ANSWER_OPTIONS[0];
     });
 
     const user = submission.user;
@@ -310,13 +311,14 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   function updateAnswer(questionId: number, value: string) {
     if (!editing) return;
     const upper = value.toUpperCase();
-    if (!ANSWER_OPTIONS.includes(upper)) return;
+    const normalized = upper as AnswerOption;
+    if (!ANSWER_OPTIONS.includes(normalized)) return;
 
     setEditing({
       ...editing,
       answers: {
         ...editing.answers,
-        [questionId]: upper,
+        [questionId]: normalized,
       },
     });
   }
@@ -453,119 +455,35 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
 
   return (
     <section className="mt-8 space-y-6">
-      <div className="flex flex-wrap items-end gap-3 mb-4">
-        <label className="flex-1 min-w-[240px]">
-          <span className="block font-semibold mb-2 text-brand-pink tracking-[0.35em] uppercase text-xs">
-            Selecciona un examen
-          </span>
-          <select
-            value={selectedExamId}
-            onChange={handleSelectExam}
-            className="w-full px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white transition-colors focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-          >
-            <option value="">-- Escoge un examen --</option>
-            {exams.map((exam) => (
-              <option key={exam.id} value={exam.id}>
-                {exam.name} (ID: {exam.id})
-              </option>
-            ))}
-          </select>
-        </label>
-        {selectedExamId && totalSubmissions > 0 && (
-          <button
-            type="button"
-            onClick={handleSyncMoodleUsers}
-            disabled={syncingMoodle}
-            className={`px-4 py-2 rounded border border-brand-blue-soft text-white transition-colors ${
-              syncingMoodle
-                ? 'bg-[#1c2230] opacity-60 cursor-progress'
-                : 'bg-brand-blue hover:bg-[#12b2d4] cursor-pointer'
-            }`}
-          >
-            {syncingMoodle ? 'Sincronizando usuarios Moodle...' : 'Sincronizar usuarios Moodle'}
-          </button>
-        )}
-        {syncMessage && (
-          <p className="text-xs text-brand-blue w-full md:w-auto">{syncMessage}</p>
-        )}
-        {syncError && (
-          <p className="text-xs text-brand-pink w-full md:w-auto">{syncError}</p>
-        )}
-      </div>
+      <ExamSelector
+        exams={exams}
+        selectedExamId={selectedExamId}
+        onSelectExam={(value) => setSelectedExamId(value)}
+        onSyncMoodleUsers={handleSyncMoodleUsers}
+        syncingMoodle={syncingMoodle}
+        syncMessage={syncMessage}
+        syncError={syncError}
+        canSync={Boolean(selectedExamId && totalSubmissions > 0)}
+      />
 
-      <div className="grid gap-4 md:grid-cols-3 mb-4">
-        <label className="flex flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-blue">Buscar</span>
-          <input
-            type="text"
-            placeholder="Nombre, email o DNI"
-            value={searchTerm}
-            onInput={(event) =>
-              handleSearchInput((event.currentTarget as HTMLInputElement).value)
-            }
-            className="w-full px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-          />
-        </label>
-        <label className="flex flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-blue">Ordenar por</span>
-          <select
-            value={orderBy}
-            onChange={(event) =>
-              handleOrderByChange(
-                event.currentTarget.value as 'submitted_at' | 'score' | 'name' | 'surname',
-              )
-            }
-            className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-          >
-            <option value="submitted_at">Fecha envío</option>
-            <option value="score">Nota</option>
-            <option value="name">Nombre</option>
-            <option value="surname">Apellido</option>
-          </select>
-        </label>
-        <label className="flex flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-blue">Dirección</span>
-          <select
-            value={orderDir}
-            onChange={(event) =>
-              handleOrderDirChange(event.currentTarget.value as 'asc' | 'desc')
-            }
-            className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-          >
-            <option value="desc">Descendente</option>
-            <option value="asc">Ascendente</option>
-          </select>
-        </label>
-      </div>
+      <SubmissionFilters
+        searchTerm={searchTerm}
+        onSearchTermChange={handleSearchInput}
+        orderBy={orderBy}
+        onOrderByChange={handleOrderByChange}
+        orderDir={orderDir}
+        onOrderDirChange={handleOrderDirChange}
+      />
 
       {selectedExamId && totalSubmissions > 0 && (
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <label className="flex items-center gap-2 text-xs font-semibold text-white">
-            <input
-              type="checkbox"
-              checked={filterMoodleUsers}
-              onInput={(event) =>
-                setFilterMoodleUsers((event.currentTarget as HTMLInputElement).checked)
-              }
-              className="h-4 w-4 rounded border border-[#444] bg-[#1f2229] text-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue"
-            />
-            Mostrar solo usuarios con cuenta Moodle
-          </label>
-          <button
-            type="button"
-            onClick={handleDownloadEmails}
-            disabled={downloadingEmails}
-            className={`px-4 py-2 rounded text-white transition-colors ${
-              downloadingEmails
-                ? 'bg-[#1c2230] opacity-60 cursor-progress border border-[#444]'
-                : 'bg-brand-pink hover:bg-[#ff8b6d] border border-brand-pink-soft cursor-pointer'
-            }`}
-          >
-            {downloadingEmails ? 'Generando lista...' : 'Descargar emails (.txt)'}
-          </button>
-          {downloadMessage && <p className="text-xs text-brand-blue w-full md:w-auto">{downloadMessage}</p>}
-          {downloadError && <p className="text-xs text-brand-pink w-full md:w-auto">{downloadError}</p>}
-        </div>
+        <SubmissionFilterActions
+          filterMoodleUsers={filterMoodleUsers}
+          onFilterChange={(value) => setFilterMoodleUsers(value)}
+          downloadingEmails={downloadingEmails}
+          downloadMessage={downloadMessage}
+          downloadError={downloadError}
+          onDownloadEmails={handleDownloadEmails}
+        />
       )}
 
       {error && (
@@ -574,75 +492,26 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
       {feedback && (
         <p className="text-green-400 bg-green-400/10 border border-green-500 p-4 rounded-md mb-4">{feedback}</p>
       )}
+
       {selectedExamId && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mb-6">
-          <div className="rounded-xl border border-brand-pink-soft bg-brand-pink-soft p-5 shadow-lg">
-            <p className="text-xs font-semibold uppercase tracking-[0.4em] text-brand-pink">
-              Total de intentos
-            </p>
-            <p className="text-3xl font-extrabold text-brand-pink mt-2">
-              {needsStats ? 'Actualizando...' : totalSubmissions}
-            </p>
-            {selectedExamName && (
-              <p className="text-xs text-brand-yellow mt-2 opacity-90">
-                Examen: {selectedExamName}
-              </p>
-            )}
-          </div>
-          <div className="rounded-xl border border-brand-blue-soft bg-brand-blue-soft p-5 shadow-lg">
-            <p className="text-xs font-semibold uppercase tracking-[0.4em] text-brand-blue">
-              Nota media
-            </p>
-            <p className="text-3xl font-extrabold text-brand-blue mt-2">
-              {needsStats ? 'Actualizando...' : averageScore !== null ? averageScore.toFixed(2) : 'Sin datos'}
-            </p>
-            {!loading && averageScore === null && (
-              <p className="text-xs text-brand-yellow mt-2 opacity-90">Aún no hay notas registradas.</p>
-            )}
-          </div>
-        </div>
+        <SubmissionStats
+          totalSubmissions={totalSubmissions}
+          averageScore={averageScore}
+          needsStats={needsStats}
+          selectedExamName={selectedExamName}
+          loading={loading}
+        />
       )}
-      <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <label className="flex flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-blue">Mostrar por página</span>
-          <select
-            value={pageLimit}
-            onChange={(event) => handleLimitChange(Number(event.currentTarget.value))}
-            className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-          >
-            {[10, 25, 50, 100].map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-blue">Ir a página</span>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              min={1}
-              max={totalPages}
-              value={pageInput}
-              onInput={(event) => handlePageInputChange(Number(event.currentTarget.value))}
-              className="w-full px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-            />
-            <button
-              type="button"
-              onClick={goToPage}
-              className="px-4 py-2 rounded cursor-pointer border border-brand-blue-soft text-brand-blue transition-colors hover:bg-[#1b2635] hover:border-brand-pink-soft"
-            >
-              Ir
-            </button>
-          </div>
-        </label>
-        <div className="flex flex-col justify-end">
-          <p className="text-xs text-gray-400">
-            de {totalPages} {totalPages === 1 ? 'página' : 'páginas'}
-          </p>
-        </div>
-      </div>
+
+      <PaginationSettings
+        pageLimit={pageLimit}
+        onLimitChange={handleLimitChange}
+        pageInput={pageInput}
+        onPageInputChange={handlePageInputChange}
+        totalPages={totalPages}
+        goToPage={goToPage}
+      />
+
       {!selectedExamId && (
         <p className="text-sm text-brand-blue">Selecciona un examen para ver los intentos disponibles.</p>
       )}
@@ -652,276 +521,44 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
       {selectedExamId && !loading && totalSubmissions === 0 && !error && (
         <p className="text-sm text-brand-pink">No hay intentos para este examen.</p>
       )}
+
       {selectedExamId && !loading && totalSubmissions > 0 && submissions.length === 0 && !error && (
         <p className="text-sm text-brand-blue">Esta pagina no contiene intentos.</p>
       )}
+
       {selectedExamId && !loading && totalSubmissions > 0 && (
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mt-6">
-          <button
-            type="button"
-            disabled={currentPage <= 1}
-            onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-            className={`px-4 py-2 rounded border border-brand-blue-soft text-brand-blue transition-colors ${
-              currentPage <= 1
-                ? 'opacity-40 cursor-not-allowed'
-                : 'hover:bg-[#1b2635] hover:border-brand-pink-soft cursor-pointer'
-            }`}
-          >
-            Anterior
-          </button>
-          <p className="text-sm text-gray-300">
-            Pagina {currentPage} de {totalPages}
-          </p>
-          <button
-            type="button"
-            disabled={currentPage >= totalPages}
-            onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-            className={`px-4 py-2 rounded border border-brand-blue-soft text-brand-blue transition-colors ${
-              currentPage >= totalPages
-                ? 'opacity-40 cursor-not-allowed'
-                : 'hover:bg-[#1b2635] hover:border-brand-pink-soft cursor-pointer'
-            }`}
-          >
-            Siguiente
-          </button>
-        </div>
+        <PaginationControls
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPrev={handlePrevPage}
+          onNext={handleNextPage}
+        />
       )}
+
       {selectedExamId && !loading && submissions.length > 0 && (
-        <ul className="list-none p-0 space-y-6">
-          {submissions.map((submission) => {
-            const user = submission.user;
-            const displayName = `${user?.name ?? submission.name ?? ''} ${user?.surname ?? submission.surname ?? ''}`
-              .trim()
-              || 'Usuario sin nombre';
-            const displayEmail = submission.email ?? user?.email ?? 'Sin email registrado';
-            const displayDni = submission.dni || user?.dni || 'Sin DNI';
-            const moodleUserId = user?.moodle_id ?? null;
-            const marketingAllowed =
-              user?.accepts_marketing ??
-              submission.accepts_marketing ??
-              false;
-            const marketingBadgeClass = marketingAllowed
-              ? 'bg-brand-yellow-soft text-brand-yellow border border-brand-yellow-soft'
-              : 'bg-brand-pink-soft text-brand-pink border border-brand-pink-soft';
-
-            return (
-              <li
-                key={submission.id}
-                className="bg-[#1f2229] border border-brand-blue-soft p-6 rounded-2xl shadow-lg transition-all duration-300 hover:border-brand-pink-soft"
-              >
-                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                  <div className="space-y-1">
-                    <p className="text-lg font-semibold text-brand-blue">{displayName}</p>
-                    <p className="text-sm text-gray-200">
-                      <span className="font-semibold text-brand-pink">Email:</span> {displayEmail}
-                    </p>
-                    <p className="text-sm text-gray-200">
-                      <span className="font-semibold text-brand-pink">DNI/NIE:</span> {displayDni}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
-                      <span className="px-3 py-1 rounded-full border border-brand-blue-soft text-brand-blue">
-                        Nota: {submission.score ?? 'N/A'}
-                      </span>
-                      <span className="px-3 py-1 rounded-full border border-brand-yellow-soft text-brand-yellow">
-                        Percentil: {submission.percentile ?? 'N/A'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-brand-yellow mt-2 opacity-90">
-                      Enviado el {new Date(submission.submitted_at).toLocaleString()}
-                    </p>
-                    <span
-                      className={`mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold ${marketingBadgeClass}`}
-                    >
-                      <span
-                        className={`h-2 w-2 rounded-full ${
-                          marketingAllowed ? 'bg-brand-yellow' : 'bg-brand-pink'
-                        }`}
-                      />
-                      {marketingAllowed ? 'Acepta comunicaciones de marketing' : 'Marketing no autorizado'}
-                    </span>
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                      {moodleUserId ? (
-                        <a
-                          href={`https://moodle.opositatcae.es/user/view.php?id=${moodleUserId}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 font-semibold text-brand-blue hover:underline"
-                        >
-                          Ver en moodle
-                        </a>
-                      ) : (
-                        <span className="text-gray-400">Sin usuario Moodle asignado</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex gap-3 mt-4 md:mt-0 flex-wrap">
-                    {!editing ? 
-                    <button
-                      className="py-2 px-4 rounded bg-brand-pink text-dark-200 hover:bg-brand-yellow transition-colors cursor-pointer"
-                      onClick={() => startEditing(submission)}
-                    >
-                      Editar
-                    </button>
-                    : 
-                    <button
-                      className="py-2 px-4 rounded border border-brand-pink-soft text-brand-pink hover:bg-brand-pink-soft transition-colors cursor-pointer"
-                      onClick={() => setEditing(null)}
-                    >
-                      Cancelar
-                    </button>
-                    }
-                    <button
-                      className="py-2 px-4 rounded bg-red-600 hover:bg-red-700 transition-colors cursor-pointer"
-                      onClick={() => handleDelete(submission.id)}
-                    >
-                      Borrar
-                    </button>
-                  </div>
-                </div>
-
-                {editing && editing.submissionId === submission.id && (
-                  <div className="mt-6 border-t border-brand-blue-soft pt-6">
-                    <h3 className="text-xl font-semibold mb-4 text-brand-pink">
-                      Editar intento ({selectedExamName})
-                    </h3>
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <label className="flex flex-col gap-1">
-                        <span className="text-sm font-semibold text-brand-blue">Nombre</span>
-                        <input
-                          type="text"
-                          value={editing.name}
-                          onInput={(event) =>
-                            updateEditingField(
-                              'name',
-                              (event.currentTarget as HTMLInputElement).value,
-                            )
-                          }
-                          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-                        />
-                      </label>
-                      <label className="flex flex-col gap-1">
-                        <span className="text-sm font-semibold text-brand-blue">Apellidos</span>
-                        <input
-                          type="text"
-                          value={editing.surname}
-                          onInput={(event) =>
-                            updateEditingField(
-                              'surname',
-                              (event.currentTarget as HTMLInputElement).value,
-                            )
-                          }
-                          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-                        />
-                      </label>
-                      <label className="flex flex-col gap-1">
-                        <span className="text-sm font-semibold text-brand-blue">Email</span>
-                        <input
-                          type="email"
-                          value={editing.email}
-                          onInput={(event) =>
-                            updateEditingField(
-                              'email',
-                              (event.currentTarget as HTMLInputElement).value,
-                            )
-                          }
-                          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-                        />
-                      </label>
-                      <label className="flex flex-col gap-1">
-                        <span className="text-sm font-semibold text-brand-blue">DNI/NIE</span>
-                        <input
-                          type="text"
-                          value={editing.dni}
-                          onInput={(event) =>
-                            updateEditingField(
-                              'dni',
-                              normalizeDni((event.currentTarget as HTMLInputElement).value),
-                            )
-                          }
-                          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-                        />
-                      </label>
-                    </div>
-
-                    <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                      {questions.map((question, index) => (
-                        <div
-                          key={question.id ?? index}
-                          className="flex flex-col gap-4 rounded border border-[#444] bg-[#171a23] p-4"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-brand-pink">Pregunta {index + 1}</span>
-                            {question.is_active === false && (
-                              <span className="text-xs font-semibold px-2 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/50">
-                                Reserva
-                              </span>
-                            )}
-                          </div>
-                          <select
-                            value={editing.answers[question.id ?? -1] || 'A'}
-                            onChange={(event) =>
-                              question.id !== undefined &&
-                              updateAnswer(question.id, (event.currentTarget as HTMLSelectElement).value)
-                            }
-                            className="w-full rounded border border-[#444] bg-[#1f2229] px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-                          >
-                            {ANSWER_OPTIONS.map((option) => (
-                              <option key={option} value={option}>
-                                {option}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex flex-wrap gap-3 mt-6">
-                      <button
-                        className="py-2 px-4 rounded bg-brand-blue text-white font-semibold hover:bg-[#12b2d4] transition-colors cursor-pointer disabled:opacity-60"
-                        onClick={handleSave}
-                        disabled={saving}
-                      >
-                        {saving ? 'Guardando...' : 'Guardar cambios'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+        <SubmissionList
+          submissions={submissions}
+          editing={editing}
+          questions={questions}
+          selectedExamName={selectedExamName}
+          answerOptions={ANSWER_OPTIONS}
+          onStartEditing={startEditing}
+          onCancelEditing={() => setEditing(null)}
+          onDelete={handleDelete}
+          onUpdateField={updateEditingField}
+          onUpdateAnswer={updateAnswer}
+          onSave={handleSave}
+          saving={saving}
+        />
       )}
+
       {selectedExamId && !loading && totalSubmissions > 0 && (
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mt-6">
-          <button
-            type="button"
-            disabled={currentPage <= 1}
-            onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-            className={`px-4 py-2 rounded border border-brand-blue-soft text-brand-blue transition-colors ${
-              currentPage <= 1
-                ? 'opacity-40 cursor-not-allowed'
-                : 'hover:bg-[#1b2635] hover:border-brand-pink-soft cursor-pointer'
-            }`}
-          >
-            Anterior
-          </button>
-          <p className="text-sm text-gray-300">
-            Pagina {currentPage} de {totalPages}
-          </p>
-          <button
-            type="button"
-            disabled={currentPage >= totalPages}
-            onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-            className={`px-4 py-2 rounded border border-brand-blue-soft text-brand-blue transition-colors ${
-              currentPage >= totalPages
-                ? 'opacity-40 cursor-not-allowed'
-                : 'hover:bg-[#1b2635] hover:border-brand-pink-soft cursor-pointer'
-            }`}
-          >
-            Siguiente
-          </button>
-        </div>
+        <PaginationControls
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPrev={handlePrevPage}
+          onNext={handleNextPage}
+        />
       )}
     </section>
   );

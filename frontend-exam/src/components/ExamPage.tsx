@@ -13,6 +13,10 @@ import { checkSubmission, submitExam } from '../services/examService';
 import { useExamQuestions } from '../hooks/useExamQuestions';
 import { useExamUi } from '../hooks/useExamUi';
 import { isValidEmail, normalizeDni, roundToTwoDecimals, validateDniNie } from '../utils/validation';
+import { ANSWER_OPTIONS } from '../constants/answerOptions';
+import QuestionCardFrame from './questions/QuestionCardFrame';
+import QuestionSection from './questions/QuestionSection';
+import SubmissionSummary from './submissions/SubmissionSummary';
 
 interface ExamPageProps {
   examId: number;
@@ -22,8 +26,6 @@ interface ExamPageProps {
   showScoreFull: boolean;
   validatedTribunal?: boolean;
 }
-
-const ANSWER_OPTIONS = ['A', 'B', 'C', 'D'];
 
 type ComposeMessageParams = {
   baseMessage?: string | null;
@@ -307,112 +309,6 @@ export default function ExamPage({
     }
   };
 
-  function renderSubmissionSummary(message: string, review: AnswerReview[] | null) {
-    const trimmedMessage = message.trim();
-    if (!trimmedMessage) return null;
-    const sentenceMatch = trimmedMessage.match(/.*?[.!?](?:\s|$)/);
-    const primaryMessage = (sentenceMatch ? sentenceMatch[0] : trimmedMessage).trim();
-    return (
-      <div className="mt-6 rounded-2xl border border-green-500/60 bg-green-500/5 p-6 shadow-[0_10px_25px_rgba(16,185,129,0.15)] text-left">
-        <p className="text-green-200 text-lg font-semibold mb-2">
-          {primaryMessage ?? trimmedMessage}
-        </p>
-
-        <div className="flex flex-wrap gap-4">
-          {showScore && typeof latestScore === 'number' && (
-            <div className="flex-1 min-w-[180px] rounded-xl bg-[#1f2a24] border border-green-500/30 p-4">
-              <p className="text-xs uppercase tracking-widest text-green-400/80">Puntuación</p>
-              <p className="text-2xl font-bold text-green-200">{latestScore}</p>
-            </div>
-          )}
-          {showScoreFull && typeof correctAnswers === 'number' && typeof totalQuestions === 'number' && (
-            <div className="flex-1 min-w-[180px] rounded-xl bg-[#1f252a] border border-teal-500/30 p-4">
-              <p className="text-xs uppercase tracking-widest text-teal-300/80">Aciertos</p>
-              <p className="text-2xl font-bold text-teal-200">
-                {correctAnswers} <span className="text-base text-teal-200/70">de</span> {totalQuestions}
-              </p>
-            </div>
-          )}
-          {showPercentile && typeof latestPercentile === 'number' && (
-            <div className="flex-1 min-w-[180px] rounded-xl bg-[#1f2330] border border-indigo-500/30 p-4">
-              <p className="text-xs uppercase tracking-widest text-indigo-300/80">Percentil</p>
-              <p className="text-2xl font-bold text-indigo-200">{latestPercentile}</p>
-              {typeof position === 'number' && typeof totalSubmissions === 'number' && (
-                <p className="text-sm text-indigo-200/70 mt-1">
-                  Posición {position} de {totalSubmissions}
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-        {Array.isArray(review) && review.length > 0 && (
-          <div className="mt-6">
-            <h3 className="text-base font-semibold text-brand-yellow mb-3">
-              Detalle de respuestas
-            </h3>
-            <div className="overflow-x-auto rounded-2xl border border-brand-blue-soft bg-[#12141b]">
-              <table className="min-w-full text-sm">
-                <thead className="text-xs uppercase tracking-[0.35em] text-brand-yellow/80">
-                  <tr>
-                    <th className="px-4 py-2 text-left">Pregunta</th>
-                    <th className="px-4 py-2 text-left">Tu respuesta</th>
-                    <th className="px-4 py-2 text-left">Respuesta correcta</th>
-                    <th className="px-4 py-2 text-left">Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {review.map((item, index) => {
-                    const questionNumber = item.question_label ?? index + 1;
-                    const selected = item.selected_option ?? 'Sin marcar';
-                    const correct = item.correct_option ?? '—';
-                    const isAnswered = Boolean(item.selected_option);
-                    const statusLabel = item.is_correct
-                      ? 'Correcta'
-                      : isAnswered
-                        ? 'Incorrecta'
-                        : 'Sin responder';
-                    const rowClass = item.is_correct
-                      ? 'bg-green-500/5'
-                      : isAnswered
-                        ? 'bg-brand-pink-soft'
-                        : '';
-                    const statusClass = item.is_correct
-                      ? 'text-green-300'
-                      : isAnswered
-                        ? 'text-brand-pink'
-                        : 'text-gray-400';
-                    return (
-                      <tr key={`${item.question_id}-${index}`} className={rowClass}>
-                        <td className="px-4 py-2 font-semibold text-white">
-                          Pregunta {questionNumber}
-                        </td>
-                        <td className="px-4 py-2">
-                          <span
-                            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${
-                              item.is_correct
-                                ? 'border-green-500/40 text-green-300'
-                                : isAnswered
-                                  ? 'border-brand-pink-soft text-brand-pink'
-                                  : 'border-gray-600 text-gray-400'
-                            }`}
-                          >
-                            {selected}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2 text-brand-yellow font-semibold">{correct}</td>
-                        <td className={`px-4 py-2 text-sm font-semibold ${statusClass}`}>{statusLabel}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
   function renderQuestionCard(
     entry: { index: number; question: Question },
     position: number,
@@ -440,17 +336,20 @@ export default function ExamPage({
         };
     const selectedOption = userAnswers[questionId] ?? null;
 
+    const meta = isCancelled ? (
+      <p className="text-sm text-red-300 mb-4">
+        Esta pregunta se ha marcado como anulada y no cuenta para la nota final.
+      </p>
+    ) : null;
+
     return (
-      <div
-        className="bg-[#2a2d33] p-6 mb-4 mt-4 rounded-lg shadow-lg border border-transparent hover:border-brand-blue/40 transition-colors"
+      <QuestionCardFrame
         key={key}
+        label={label}
+        badgeText={badgeConfig.text}
+        badgeClassName={badgeConfig.className}
+        meta={meta}
       >
-        <div className="flex items-center justify-between mb-4">
-          <p className="font-bold text-lg text-brand-blue text-opacity-80">{label}</p>
-          <span className={`text-xs font-semibold px-2 py-1 rounded ${badgeConfig.className}`}>
-            {badgeConfig.text}
-          </span>
-        </div>
         <ul className="list-none p-0 m-0 flex flex-wrap gap-3">
           {ANSWER_OPTIONS.map((optionChar) => {
             const isSelected = selectedOption === optionChar;
@@ -496,7 +395,7 @@ export default function ExamPage({
             Borrar respuesta
           </button>
         </div>
-      </div>
+      </QuestionCardFrame>
     );
   }
 
@@ -522,7 +421,22 @@ export default function ExamPage({
       </main>
     );
 
-  const resultsSummary = submissionMessage ? renderSubmissionSummary(submissionMessage, answersReview) : null;
+  const resultsSummary =
+    submissionMessage ? (
+      <SubmissionSummary
+        message={submissionMessage}
+        review={answersReview}
+        showScore={showScore}
+        showScoreFull={showScoreFull}
+        showPercentile={showPercentile}
+        score={latestScore}
+        correctAnswers={correctAnswers}
+        totalQuestions={totalQuestions}
+        percentile={latestPercentile}
+        position={position}
+        totalSubmissions={totalSubmissions}
+      />
+    ) : null;
 
   return (
     <main>
@@ -659,17 +573,33 @@ export default function ExamPage({
 
         {!hasPreviousSubmission && (
           <>
-            <section>
-              <h2 className="text-2xl font-semibold text-brand-pink mt-8">Preguntas activas</h2>
-              <p className="text-sm text-gray-400 mt-1">Responde todas las preguntas activas; puntuan en la nota final.</p>
-              {activeEntries.map((entry, index) => renderQuestionCard(entry, index + 1, false))}
-            </section>
+            <QuestionSection
+              title="Preguntas activas"
+              entries={activeEntries}
+              description={
+                <p className="text-sm text-gray-400 mt-1">
+                  Responde todas las preguntas activas; puntuan en la nota final.
+                </p>
+              }
+              renderEntry={(entry, index) => renderQuestionCard(entry, index + 1, false)}
+              showCount={false}
+              titleTag="h2"
+              titleClassName="text-2xl font-semibold text-brand-pink"
+              sectionClassName="mt-8"
+            />
 
             {reserveEntries.length > 0 && (
-              <section className="mt-8">
-                <h2 className="text-2xl font-semibold text-brand-pink">Preguntas de reserva</h2>
-                {reserveEntries.map((entry, index) => renderQuestionCard(entry, activeEntries.length + index + 1, true))}
-              </section>
+              <QuestionSection
+                title="Preguntas de reserva"
+                entries={reserveEntries}
+                renderEntry={(entry, index) =>
+                  renderQuestionCard(entry, activeEntries.length + index + 1, true)
+                }
+                showCount={false}
+                titleTag="h2"
+                titleClassName="text-2xl font-semibold text-brand-pink"
+                sectionClassName="mt-8"
+              />
             )}
 
             <div className="mt-8 space-top-3 text-sm">
