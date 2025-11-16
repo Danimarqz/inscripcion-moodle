@@ -54,6 +54,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   }));
   const [needsStats, setNeedsStats] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [orderBy, setOrderBy] = useState<'submitted_at' | 'score' | 'name' | 'surname'>('submitted_at');
   const [orderDir, setOrderDir] = useState<'asc' | 'desc'>('desc');
   const [pageLimit, setPageLimit] = useState(25);
@@ -157,7 +158,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
           currentPage,
           pageLimit,
           needsStats,
-          searchTerm,
+          debouncedSearchTerm,
           orderBy,
           orderDir,
         );
@@ -198,7 +199,14 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     }
 
     loadData(examNumericId);
-  }, [selectedExamId, token, currentPage, searchTerm, orderBy, orderDir, pageLimit]);
+  }, [selectedExamId, token, currentPage, debouncedSearchTerm, orderBy, orderDir, pageLimit]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
 
   useEffect(() => {
     resetFilters();
@@ -436,7 +444,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
               Total de intentos
             </p>
             <p className="text-3xl font-extrabold text-brand-pink mt-2">
-              {loading ? 'Actualizando...' : totalSubmissions}
+              {needsStats ? 'Actualizando...' : totalSubmissions}
             </p>
             {selectedExamName && (
               <p className="text-xs text-brand-yellow mt-2 opacity-90">
@@ -449,7 +457,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
               Nota media
             </p>
             <p className="text-3xl font-extrabold text-brand-blue mt-2">
-              {loading ? 'Actualizando...' : averageScore !== null ? averageScore.toFixed(2) : 'Sin datos'}
+              {needsStats ? 'Actualizando...' : averageScore !== null ? averageScore.toFixed(2) : 'Sin datos'}
             </p>
             {!loading && averageScore === null && (
               <p className="text-xs text-brand-yellow mt-2 opacity-90">Aún no hay notas registradas.</p>
