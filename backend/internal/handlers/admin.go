@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -82,6 +83,7 @@ func (h *AdminHandler) RegisterRoutes(r chi.Router) {
 		r.Get("/results", h.listSubmissions)
 		r.Put("/results/{submission_id}", h.updateSubmission)
 		r.Delete("/results/{submission_id}", h.deleteSubmission)
+		r.Get("/results/emails", h.downloadSubmissionEmails)
 		r.Post("/moodle/sync-users", h.syncMoodleUsers)
 		r.Get("/exams/{exam_id}/results/official", h.listOfficialResults)
 		r.Post("/exams/{exam_id}/results/import", h.importOfficialResults)
@@ -287,12 +289,44 @@ func (h *AdminHandler) listSubmissions(w http.ResponseWriter, r *http.Request) {
 	search := strings.TrimSpace(r.URL.Query().Get("search"))
 	orderBy := sanitizeOrderBy(r.URL.Query().Get("order_by"))
 	orderDir := sanitizeOrderDir(r.URL.Query().Get("order_dir"))
-	result, err := h.service.ListSubmissions(uint(examID), limit, offset, includeStats, search, orderBy, orderDir)
+	moodleSynced := parseOptionalBool(r.URL.Query().Get("moodle_synced"))
+	result, err := h.service.ListSubmissions(uint(examID), limit, offset, includeStats, search, orderBy, orderDir, moodleSynced)
 	if err != nil {
 		http.Error(w, "failed to load submissions", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, result)
+}
+
+func (h *AdminHandler) downloadSubmissionEmails(w http.ResponseWriter, r *http.Request) {
+	examIDStr := r.URL.Query().Get("exam_id")
+	if examIDStr == "" {
+		http.Error(w, "exam_id required", http.StatusBadRequest)
+		return
+	}
+	examID, err := strconv.ParseUint(examIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid exam id", http.StatusBadRequest)
+		return
+	}
+
+	search := strings.TrimSpace(r.URL.Query().Get("search"))
+	orderBy := sanitizeOrderBy(r.URL.Query().Get("order_by"))
+	orderDir := sanitizeOrderDir(r.URL.Query().Get("order_dir"))
+	moodleSynced := parseOptionalBool(r.URL.Query().Get("moodle_synced"))
+
+	emails, err := h.service.ListSubmissionEmails(uint(examID), search, orderBy, orderDir, moodleSynced)
+	if err != nil {
+		http.Error(w, "failed to load submission emails", http.StatusInternalServerError)
+		return
+	}
+
+	filename := fmt.Sprintf("emails_exam_%d.txt", examID)
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	if _, err := w.Write([]byte(strings.Join(emails, "\n"))); err != nil {
+		log.Printf("failed to write emails response: %v", err)
+	}
 }
 
 func (h *AdminHandler) updateSubmission(w http.ResponseWriter, r *http.Request) {
@@ -485,6 +519,17 @@ func parseOffsetParam(raw string) int {
 		return 0
 	}
 	return value
+}
+
+func parseOptionalBool(raw string) *bool {
+	if raw == "" {
+		return nil
+	}
+	value, err := strconv.ParseBool(strings.ToLower(strings.TrimSpace(raw)))
+	if err != nil {
+		return nil
+	}
+	return &value
 }
 
 func parseBoolParam(raw string, def bool) bool {

@@ -230,12 +230,19 @@ func (s *Service) UpdateSubmission(submissionID uint, req SubmissionUpdateReques
 	return &submission, nil
 }
 
-func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats bool, search, orderBy, orderDir string) (*ListSubmissionsResult, error) {
+func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats bool, search, orderBy, orderDir string, moodleSynced *bool) (*ListSubmissionsResult, error) {
 	var subs []models.UserExamSubmission
 	query := s.db.Preload("User").Preload("Answers").
 		Where("exam_id = ?", examID).
 		Order("submitted_at DESC")
 	query = query.Joins("LEFT JOIN exam_user ON exam_user.id = user_exam_submission.user_id")
+	if moodleSynced != nil {
+		if *moodleSynced {
+			query = query.Where("exam_user.moodle_id IS NOT NULL")
+		} else {
+			query = query.Where("exam_user.moodle_id IS NULL")
+		}
+	}
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
@@ -286,6 +293,60 @@ func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats b
 		result.StatsIncluded = true
 	}
 	return result, nil
+}
+
+type submissionEmailRow struct {
+	SubmissionEmail sql.NullString `gorm:"column:submission_email"`
+}
+
+func (s *Service) ListSubmissionEmails(examID uint, search, orderBy, orderDir string, moodleSynced *bool) ([]string, error) {
+	var rows []submissionEmailRow
+	query := s.db.Model(&models.UserExamSubmission{}).
+		Select("exam_user.email AS submission_email").
+		Joins("LEFT JOIN exam_user ON exam_user.id = user_exam_submission.user_id").
+		Where("exam_id = ?", examID)
+	if moodleSynced != nil {
+		if *moodleSynced {
+			query = query.Where("exam_user.moodle_id IS NOT NULL")
+		} else {
+			query = query.Where("exam_user.moodle_id IS NULL")
+		}
+	}
+	if sanitized := strings.TrimSpace(search); sanitized != "" {
+		like := fmt.Sprintf("%%%s%%", strings.ToLower(sanitized))
+		query = query.Where(
+			"LOWER(COALESCE(exam_user.name, '')) LIKE ? OR "+
+				"LOWER(COALESCE(exam_user.surname, '')) LIKE ? OR "+
+				"LOWER(COALESCE(exam_user.email, '')) LIKE ? OR "+
+				"LOWER(COALESCE(exam_user.dni, '')) LIKE ?",
+			like, like, like, like,
+		)
+	}
+	orderClause := buildSubmissionOrder(strings.TrimSpace(orderBy), strings.TrimSpace(orderDir))
+	if orderClause != "" {
+		query = query.Order(orderClause)
+	}
+	if err := query.Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	seen := map[string]struct{}{}
+	emails := make([]string, 0, len(rows))
+	for _, row := range rows {
+		for _, candidate := range []sql.NullString{row.SubmissionEmail} {
+			email := strings.TrimSpace(candidate.String)
+			if email == "" {
+				continue
+			}
+			normalized := strings.ToLower(email)
+			if _, ok := seen[normalized]; ok {
+				continue
+			}
+			seen[normalized] = struct{}{}
+			emails = append(emails, email)
+		}
+	}
+	return emails, nil
 }
 
 func buildSubmissionOrder(orderBy, orderDir string) string {

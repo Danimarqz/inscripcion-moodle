@@ -3,8 +3,10 @@ import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
 import type { AdminSubmission, AdminSubmissionsResponse, Exam, QuestionEdit } from '../types/exam';
 import {
   deleteSubmissionAttempt,
+  downloadSubmissionEmails,
   getExamById,
   getExamSubmissions,
+  syncMoodleUsers,
   updateSubmissionAttempt,
 } from '../services/adminService';
 import { normalizeDni, validateDniNie } from '../utils/validation';
@@ -48,6 +50,13 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   const [feedback, setFeedback] = useState<string | null>(null);
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [saving, setSaving] = useState<boolean>(false);
+  const [filterMoodleUsers, setFilterMoodleUsers] = useState(false);
+  const [syncingMoodle, setSyncingMoodle] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [downloadingEmails, setDownloadingEmails] = useState(false);
+  const [downloadMessage, setDownloadMessage] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [submissionStats, setSubmissionStats] = useState<SubmissionStats>(() => ({
     ...INITIAL_SUBMISSION_STATS,
@@ -113,6 +122,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     search = '',
     orderBy: 'submitted_at' | 'score' | 'name' | 'surname' = 'submitted_at',
     orderDir: 'asc' | 'desc' = 'desc',
+    moodleSynced?: boolean,
   ): Promise<AdminSubmissionsResponse | null> {
     const response = await getExamSubmissions(examNumericId, token, {
       limit,
@@ -121,6 +131,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
       search,
       orderBy,
       orderDir,
+      moodleSynced,
     });
     const knownTotal = includeStats && response.stats_included
       ? response.total_submissions
@@ -161,6 +172,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
           debouncedSearchTerm,
           orderBy,
           orderDir,
+          filterMoodleUsers ? true : undefined,
         );
         if (!pageResponse) {
           return;
@@ -199,7 +211,16 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     }
 
     loadData(examNumericId);
-  }, [selectedExamId, token, currentPage, debouncedSearchTerm, orderBy, orderDir, pageLimit]);
+  }, [
+    selectedExamId,
+    token,
+    currentPage,
+    debouncedSearchTerm,
+    orderBy,
+    orderDir,
+    pageLimit,
+    filterMoodleUsers,
+  ]);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -211,6 +232,17 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   useEffect(() => {
     resetFilters();
   }, [selectedExamId, resetFilters]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    setNeedsStats(true);
+    setSubmissionStats({ ...INITIAL_SUBMISSION_STATS });
+  }, [filterMoodleUsers]);
+
+  useEffect(() => {
+    setDownloadMessage(null);
+    setDownloadError(null);
+  }, [searchTerm, filterMoodleUsers]);
 
   useEffect(() => {
     setPageInput(currentPage);
@@ -257,6 +289,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
               searchTerm,
               orderBy,
               orderDir,
+              filterMoodleUsers ? true : undefined,
             );
           }
       }
@@ -352,6 +385,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
             searchTerm,
             orderBy,
             orderDir,
+            filterMoodleUsers ? true : undefined,
           );
         }
 
@@ -364,25 +398,100 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     }
   }
 
+  async function handleSyncMoodleUsers() {
+    setSyncMessage(null);
+    setSyncError(null);
+    setSyncingMoodle(true);
+    try {
+      const result = await syncMoodleUsers(token);
+      setSyncMessage(
+        `Sincronizados ${result.synced} de ${result.checked} usuarios (fallidos: ${result.failed}).`,
+      );
+    } catch (err) {
+      setSyncError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSyncingMoodle(false);
+    }
+  }
+
+  async function handleDownloadEmails() {
+    if (!selectedExamId) {
+      return;
+    }
+    setDownloadMessage(null);
+    setDownloadError(null);
+    setDownloadingEmails(true);
+    try {
+      const content = await downloadSubmissionEmails(Number(selectedExamId), token, {
+        search: searchTerm,
+        moodleSynced: filterMoodleUsers ? true : undefined,
+      });
+      const lines = content
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line !== '');
+      if (lines.length === 0) {
+        setDownloadError('No hay correos para descargar con los filtros actuales.');
+        return;
+      }
+      const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `emails_${selectedExamId}.txt`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+      setDownloadMessage(`Descargados ${lines.length} emails.`);
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDownloadingEmails(false);
+    }
+  }
+
   return (
     <section className="mt-8 space-y-6">
-      <label className="block mb-4">
-        <span className="block font-semibold mb-2 text-brand-pink tracking-[0.35em] uppercase text-xs">
-          Selecciona un examen
-        </span>
-        <select
-          value={selectedExamId}
-          onChange={handleSelectExam}
-          className="w-full max-w-sm px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white transition-colors focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-        >
-          <option value="">-- Escoge un examen --</option>
-          {exams.map((exam) => (
-            <option key={exam.id} value={exam.id}>
-              {exam.name} (ID: {exam.id})
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="flex flex-wrap items-end gap-3 mb-4">
+        <label className="flex-1 min-w-[240px]">
+          <span className="block font-semibold mb-2 text-brand-pink tracking-[0.35em] uppercase text-xs">
+            Selecciona un examen
+          </span>
+          <select
+            value={selectedExamId}
+            onChange={handleSelectExam}
+            className="w-full px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white transition-colors focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
+          >
+            <option value="">-- Escoge un examen --</option>
+            {exams.map((exam) => (
+              <option key={exam.id} value={exam.id}>
+                {exam.name} (ID: {exam.id})
+              </option>
+            ))}
+          </select>
+        </label>
+        {selectedExamId && totalSubmissions > 0 && (
+          <button
+            type="button"
+            onClick={handleSyncMoodleUsers}
+            disabled={syncingMoodle}
+            className={`px-4 py-2 rounded border border-brand-blue-soft text-white transition-colors ${
+              syncingMoodle
+                ? 'bg-[#1c2230] opacity-60 cursor-progress'
+                : 'bg-brand-blue hover:bg-[#12b2d4] cursor-pointer'
+            }`}
+          >
+            {syncingMoodle ? 'Sincronizando usuarios Moodle...' : 'Sincronizar usuarios Moodle'}
+          </button>
+        )}
+        {syncMessage && (
+          <p className="text-xs text-brand-blue w-full md:w-auto">{syncMessage}</p>
+        )}
+        {syncError && (
+          <p className="text-xs text-brand-pink w-full md:w-auto">{syncError}</p>
+        )}
+      </div>
 
       <div className="grid gap-4 md:grid-cols-3 mb-4">
         <label className="flex flex-col gap-2">
@@ -429,6 +538,35 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
         </label>
       </div>
 
+      {selectedExamId && totalSubmissions > 0 && (
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <label className="flex items-center gap-2 text-xs font-semibold text-white">
+            <input
+              type="checkbox"
+              checked={filterMoodleUsers}
+              onInput={(event) =>
+                setFilterMoodleUsers((event.currentTarget as HTMLInputElement).checked)
+              }
+              className="h-4 w-4 rounded border border-[#444] bg-[#1f2229] text-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue"
+            />
+            Mostrar solo usuarios con cuenta Moodle
+          </label>
+          <button
+            type="button"
+            onClick={handleDownloadEmails}
+            disabled={downloadingEmails}
+            className={`px-4 py-2 rounded text-white transition-colors ${
+              downloadingEmails
+                ? 'bg-[#1c2230] opacity-60 cursor-progress border border-[#444]'
+                : 'bg-brand-pink hover:bg-[#ff8b6d] border border-brand-pink-soft cursor-pointer'
+            }`}
+          >
+            {downloadingEmails ? 'Generando lista...' : 'Descargar emails (.txt)'}
+          </button>
+          {downloadMessage && <p className="text-xs text-brand-blue w-full md:w-auto">{downloadMessage}</p>}
+          {downloadError && <p className="text-xs text-brand-pink w-full md:w-auto">{downloadError}</p>}
+        </div>
+      )}
 
       {error && (
         <p className="text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mb-4">{error}</p>
@@ -436,7 +574,6 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
       {feedback && (
         <p className="text-green-400 bg-green-400/10 border border-green-500 p-4 rounded-md mb-4">{feedback}</p>
       )}
-
       {selectedExamId && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mb-6">
           <div className="rounded-xl border border-brand-pink-soft bg-brand-pink-soft p-5 shadow-lg">
@@ -558,6 +695,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
               || 'Usuario sin nombre';
             const displayEmail = submission.email ?? user?.email ?? 'Sin email registrado';
             const displayDni = submission.dni || user?.dni || 'Sin DNI';
+            const moodleUserId = user?.moodle_id ?? null;
             const marketingAllowed =
               user?.accepts_marketing ??
               submission.accepts_marketing ??
@@ -601,6 +739,20 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
                       />
                       {marketingAllowed ? 'Acepta comunicaciones de marketing' : 'Marketing no autorizado'}
                     </span>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                      {moodleUserId ? (
+                        <a
+                          href={`https://moodle.opositatcae.es/user/view.php?id=${moodleUserId}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 font-semibold text-brand-blue hover:underline"
+                        >
+                          Ver en moodle
+                        </a>
+                      ) : (
+                        <span className="text-gray-400">Sin usuario Moodle asignado</span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex gap-3 mt-4 md:mt-0 flex-wrap">
                     {!editing ? 

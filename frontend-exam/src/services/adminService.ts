@@ -7,6 +7,7 @@ import type {
   ExamOfficialResult,
   ImportOfficialResultsSummary,
   SubmissionUpdatePayload,
+  SyncMoodleUsersResponse,
 } from '../types/exam';
 
 const API_URL = import.meta.env.PUBLIC_API_URL;
@@ -130,6 +131,7 @@ interface FetchSubmissionsOptions {
   search?: string;
   orderBy?: 'submitted_at' | 'score' | 'name' | 'surname';
   orderDir?: 'asc' | 'desc';
+  moodleSynced?: boolean;
 }
 
 export async function getExamSubmissions(
@@ -153,6 +155,9 @@ export async function getExamSubmissions(
   if (options.orderDir) {
     params.set('order_dir', options.orderDir);
   }
+  if (options.moodleSynced !== undefined) {
+    params.set('moodle_synced', String(options.moodleSynced));
+  }
   const firstLoad = options.firstLoad ?? false;
   params.set('first_load', String(firstLoad));
   const response = await fetch(`${API_URL}/admin/results?${params.toString()}`, {
@@ -167,6 +172,53 @@ export async function getExamSubmissions(
     throw new Error(errorData.detail || 'Error fetching submissions');
   }
 
+  return response.json();
+}
+
+export async function downloadSubmissionEmails(
+  examId: number,
+  token: string,
+  options: FetchSubmissionsOptions = {},
+): Promise<string> {
+  const params = new URLSearchParams({ exam_id: String(examId) });
+  if (options.search) {
+    params.set('search', options.search);
+  }
+  if (options.orderBy) {
+    params.set('order_by', options.orderBy);
+  }
+  if (options.orderDir) {
+    params.set('order_dir', options.orderDir);
+  }
+  if (options.moodleSynced !== undefined) {
+    params.set('moodle_synced', String(options.moodleSynced));
+  }
+  const response = await fetch(`${API_URL}/admin/results/emails?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Error downloading submission emails');
+  }
+
+  return response.text();
+}
+
+export async function syncMoodleUsers(token: string): Promise<SyncMoodleUsersResponse> {
+  const response = await fetch(`${API_URL}/admin/moodle/sync-users`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Error synchronizing Moodle users');
+  }
   return response.json();
 }
 

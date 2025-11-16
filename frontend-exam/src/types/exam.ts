@@ -44,6 +44,7 @@ export type ExamUser = {
   surname: string;
   email?: string | null;
   dni: string;
+  moodle_id?: number | null;
   accepts_marketing?: boolean;
 };
 
@@ -67,6 +68,12 @@ export type AdminSubmissionsResponse = {
   total_submissions: number;
   average_score: number | null;
   stats_included: boolean;
+};
+
+export type SyncMoodleUsersResponse = {
+  checked: number;
+  synced: number;
+  failed: number;
 };
 
 export type ExamSubmissionPayload = {
