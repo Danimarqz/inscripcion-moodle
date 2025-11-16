@@ -215,7 +215,7 @@ export default function ExamPage({
       setAutoCheckDisabled(true);
     } catch (error) {
       const message = (error as Error).message;
-      if (message && message !== 'Submission not found') {
+      if (message && message !== 'submission not found') {
         dispatchExamUi({ type: 'CHECK_ERROR', payload: message });
       } else {
         dispatchExamUi({ type: 'CHECK_ERROR' });
