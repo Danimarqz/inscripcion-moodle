@@ -275,7 +275,10 @@ func (h *AdminHandler) listSubmissions(w http.ResponseWriter, r *http.Request) {
 	limit := parseLimitParam(r.URL.Query().Get("limit"))
 	offset := parseOffsetParam(r.URL.Query().Get("offset"))
 	includeStats := parseBoolParam(r.URL.Query().Get("first_load"), true)
-	result, err := h.service.ListSubmissions(uint(examID), limit, offset, includeStats)
+	search := strings.TrimSpace(r.URL.Query().Get("search"))
+	orderBy := sanitizeOrderBy(r.URL.Query().Get("order_by"))
+	orderDir := sanitizeOrderDir(r.URL.Query().Get("order_dir"))
+	result, err := h.service.ListSubmissions(uint(examID), limit, offset, includeStats, search, orderBy, orderDir)
 	if err != nil {
 		http.Error(w, "failed to load submissions", http.StatusInternalServerError)
 		return
@@ -425,4 +428,27 @@ func parseBoolParam(raw string, def bool) bool {
 		return def
 	}
 	return value
+}
+
+func sanitizeOrderBy(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "score":
+		return "score"
+	case "name":
+		return "name"
+	case "surname":
+		return "surname"
+	case "submitted_at", "time":
+		return "submitted_at"
+	default:
+		return "submitted_at"
+	}
+}
+
+func sanitizeOrderDir(raw string) string {
+	dir := strings.ToLower(strings.TrimSpace(raw))
+	if dir == "asc" {
+		return "asc"
+	}
+	return "desc"
 }

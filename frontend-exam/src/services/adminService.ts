@@ -127,6 +127,9 @@ interface FetchSubmissionsOptions {
   limit?: number;
   offset?: number;
   firstLoad?: boolean;
+  search?: string;
+  orderBy?: 'submitted_at' | 'score' | 'name' | 'surname';
+  orderDir?: 'asc' | 'desc';
 }
 
 export async function getExamSubmissions(
@@ -140,6 +143,15 @@ export async function getExamSubmissions(
   }
   if (options.offset !== undefined) {
     params.set('offset', String(options.offset));
+  }
+  if (options.search) {
+    params.set('search', options.search);
+  }
+  if (options.orderBy) {
+    params.set('order_by', options.orderBy);
+  }
+  if (options.orderDir) {
+    params.set('order_dir', options.orderDir);
   }
   const firstLoad = options.firstLoad ?? false;
   params.set('first_load', String(firstLoad));

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
 
 import type { AdminSubmission, AdminSubmissionsResponse, Exam, QuestionEdit } from '../types/exam';
 import {
@@ -54,6 +54,34 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     ...INITIAL_SUBMISSION_STATS,
   }));
   const [needsStats, setNeedsStats] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [orderBy, setOrderBy] = useState<'submitted_at' | 'score' | 'name' | 'surname'>('submitted_at');
+  const [orderDir, setOrderDir] = useState<'asc' | 'desc'>('desc');
+  const resetFilters = useCallback(() => {
+    setCurrentPage(1);
+    setNeedsStats(true);
+    setSubmissionStats({ ...INITIAL_SUBMISSION_STATS });
+    setSubmissions([]);
+    setQuestions([]);
+    setEditing(null);
+    setFeedback(null);
+    setError(null);
+    setSearchTerm('');
+    setOrderBy('submitted_at');
+    setOrderDir('desc');
+  }, []);
+  const handleSearchInput = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  };
+  const handleOrderByChange = (value: 'submitted_at' | 'score' | 'name' | 'surname') => {
+    setOrderBy(value);
+    setCurrentPage(1);
+  };
+  const handleOrderDirChange = (value: 'asc' | 'desc') => {
+    setOrderDir(value);
+    setCurrentPage(1);
+  };
 
   const selectedExamName = useMemo(() => {
     const numericId = Number(selectedExamId);
@@ -64,11 +92,17 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     examNumericId: number,
     page: number,
     includeStats = false,
+    search = '',
+    orderBy: 'submitted_at' | 'score' | 'name' | 'surname' = 'submitted_at',
+    orderDir: 'asc' | 'desc' = 'desc',
   ): Promise<AdminSubmissionsResponse | null> {
     const response = await getExamSubmissions(examNumericId, token, {
       limit: PAGE_SIZE,
       offset: (page - 1) * PAGE_SIZE,
       firstLoad: includeStats,
+      search,
+      orderBy,
+      orderDir,
     });
     const knownTotal = includeStats && response.stats_included
       ? response.total_submissions
@@ -100,7 +134,14 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
       setFeedback(null);
       setEditing(null);
       try {
-        const pageResponse = await loadSubmissionsPage(examNumericId, currentPage, needsStats);
+        const pageResponse = await loadSubmissionsPage(
+          examNumericId,
+          currentPage,
+          needsStats,
+          searchTerm,
+          orderBy,
+          orderDir,
+        );
         if (!pageResponse) {
           return;
         }
@@ -138,22 +179,15 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     }
 
     loadData(examNumericId);
-  }, [selectedExamId, token, currentPage]);
+  }, [selectedExamId, token, currentPage, searchTerm, orderBy, orderDir]);
 
   useEffect(() => {
-    setCurrentPage(1);
-    setNeedsStats(true);
-    setSubmissionStats({ ...INITIAL_SUBMISSION_STATS });
-    setSubmissions([]);
-    setQuestions([]);
-    setEditing(null);
-    setFeedback(null);
-    setError(null);
-  }, [selectedExamId]);
+    resetFilters();
+  }, [selectedExamId, resetFilters]);
 
   function handleSelectExam(event: Event) {
-    const value = (event.target as HTMLSelectElement).value;
-    setSelectedExamId(value);
+    const target = event.currentTarget as HTMLSelectElement;
+    setSelectedExamId(target.value);
   }
 
   function startEditing(submission: AdminSubmission) {
@@ -184,7 +218,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
       if (selectedExamId) {
         const examNumericId = Number(selectedExamId);
         if (!Number.isNaN(examNumericId)) {
-          await loadSubmissionsPage(examNumericId, currentPage);
+          await loadSubmissionsPage(examNumericId, currentPage, needsStats, searchTerm, orderBy, orderDir);
         }
       }
       setFeedback('Intento eliminado correctamente.');
@@ -271,7 +305,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
 
       const examNumericId = Number(selectedExamId);
       if (selectedExamId && !Number.isNaN(examNumericId)) {
-        await loadSubmissionsPage(examNumericId, currentPage);
+        await loadSubmissionsPage(examNumericId, currentPage, needsStats, searchTerm, orderBy, orderDir);
       }
 
       setEditing(null);
@@ -302,6 +336,51 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
           ))}
         </select>
       </label>
+
+      <div className="grid gap-4 md:grid-cols-3 mb-4">
+        <label className="flex flex-col gap-2">
+          <span className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-blue">Buscar</span>
+          <input
+            type="text"
+            placeholder="Nombre, email o DNI"
+            value={searchTerm}
+            onInput={(event) =>
+              handleSearchInput((event.currentTarget as HTMLInputElement).value)
+            }
+            className="w-full px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
+          />
+        </label>
+        <label className="flex flex-col gap-2">
+          <span className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-blue">Ordenar por</span>
+          <select
+            value={orderBy}
+            onChange={(event) =>
+              handleOrderByChange(
+                event.currentTarget.value as 'submitted_at' | 'score' | 'name' | 'surname',
+              )
+            }
+            className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
+          >
+            <option value="submitted_at">Fecha envío</option>
+            <option value="score">Nota</option>
+            <option value="name">Nombre</option>
+            <option value="surname">Apellido</option>
+          </select>
+        </label>
+        <label className="flex flex-col gap-2">
+          <span className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-blue">Dirección</span>
+          <select
+            value={orderDir}
+            onChange={(event) =>
+              handleOrderDirChange(event.currentTarget.value as 'asc' | 'desc')
+            }
+            className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
+          >
+            <option value="desc">Descendente</option>
+            <option value="asc">Ascendente</option>
+          </select>
+        </label>
+      </div>
 
       {error && (
         <p className="text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mb-4">{error}</p>
@@ -351,7 +430,37 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
       {selectedExamId && !loading && totalSubmissions > 0 && submissions.length === 0 && !error && (
         <p className="text-sm text-brand-blue">Esta pagina no contiene intentos.</p>
       )}
-
+      {selectedExamId && !loading && totalSubmissions > 0 && (
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mt-6">
+          <button
+            type="button"
+            disabled={currentPage <= 1}
+            onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+            className={`px-4 py-2 rounded border border-brand-blue-soft text-brand-blue transition-colors ${
+              currentPage <= 1
+                ? 'opacity-40 cursor-not-allowed'
+                : 'hover:bg-[#1b2635] hover:border-brand-pink-soft'
+            }`}
+          >
+            Anterior
+          </button>
+          <p className="text-sm text-gray-300">
+            Pagina {currentPage} de {totalPages}
+          </p>
+          <button
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+            className={`px-4 py-2 rounded border border-brand-blue-soft text-brand-blue transition-colors ${
+              currentPage >= totalPages
+                ? 'opacity-40 cursor-not-allowed'
+                : 'hover:bg-[#1b2635] hover:border-brand-pink-soft'
+            }`}
+          >
+            Siguiente
+          </button>
+        </div>
+      )}
       {selectedExamId && !loading && submissions.length > 0 && (
         <ul className="list-none p-0 space-y-6">
           {submissions.map((submission) => {
@@ -443,7 +552,10 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
                           type="text"
                           value={editing.name}
                           onInput={(event) =>
-                            updateEditingField('name', (event.target as HTMLInputElement).value)
+                            updateEditingField(
+                              'name',
+                              (event.currentTarget as HTMLInputElement).value,
+                            )
                           }
                           className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
                         />
@@ -454,7 +566,10 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
                           type="text"
                           value={editing.surname}
                           onInput={(event) =>
-                            updateEditingField('surname', (event.target as HTMLInputElement).value)
+                            updateEditingField(
+                              'surname',
+                              (event.currentTarget as HTMLInputElement).value,
+                            )
                           }
                           className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
                         />
@@ -465,7 +580,10 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
                           type="email"
                           value={editing.email}
                           onInput={(event) =>
-                            updateEditingField('email', (event.target as HTMLInputElement).value)
+                            updateEditingField(
+                              'email',
+                              (event.currentTarget as HTMLInputElement).value,
+                            )
                           }
                           className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
                         />
@@ -476,7 +594,10 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
                           type="text"
                           value={editing.dni}
                           onInput={(event) =>
-                            updateEditingField('dni', normalizeDni((event.target as HTMLInputElement).value))
+                            updateEditingField(
+                              'dni',
+                              normalizeDni((event.currentTarget as HTMLInputElement).value),
+                            )
                           }
                           className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
                         />
@@ -498,7 +619,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
                             value={editing.answers[question.id ?? -1] || 'A'}
                             onChange={(event) =>
                               question.id !== undefined &&
-                              updateAnswer(question.id, (event.target as HTMLSelectElement).value)
+                              updateAnswer(question.id, (event.currentTarget as HTMLSelectElement).value)
                             }
                             className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
                           >

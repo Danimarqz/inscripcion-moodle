@@ -167,16 +167,31 @@ func (s *Service) DeleteSubmission(submissionID uint) (examID uint, err error) {
 	return submission.ExamID, nil
 }
 
-func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats bool) (*ListSubmissionsResult, error) {
+func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats bool, search, orderBy, orderDir string) (*ListSubmissionsResult, error) {
 	var subs []models.UserExamSubmission
 	query := s.db.Preload("User").Preload("Answers").
 		Where("exam_id = ?", examID).
 		Order("submitted_at DESC")
+	query = query.Joins("LEFT JOIN exam_user ON exam_user.id = user_exam_submission.user_id")
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
 	if offset > 0 {
 		query = query.Offset(offset)
+	}
+	if sanitized := strings.TrimSpace(search); sanitized != "" {
+		like := fmt.Sprintf("%%%s%%", strings.ToLower(sanitized))
+		query = query.Where(
+			"LOWER(COALESCE(exam_user.name, '')) LIKE ? OR "+
+				"LOWER(COALESCE(exam_user.surname, '')) LIKE ? OR "+
+				"LOWER(COALESCE(exam_user.email, '')) LIKE ? OR "+
+				"LOWER(COALESCE(exam_user.dni, '')) LIKE ?",
+			like, like, like, like,
+		)
+	}
+	orderClause := buildSubmissionOrder(strings.TrimSpace(orderBy), strings.TrimSpace(orderDir))
+	if orderClause != "" {
+		query = query.Order(orderClause)
 	}
 	if err := query.Find(&subs).Error; err != nil {
 		return nil, err
@@ -208,6 +223,46 @@ func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats b
 		result.StatsIncluded = true
 	}
 	return result, nil
+}
+
+func buildSubmissionOrder(orderBy, orderDir string) string {
+	order := strings.ToLower(orderBy)
+	dir := strings.ToUpper(orderDir)
+	if dir != "ASC" && dir != "DESC" {
+		dir = ""
+	}
+
+	field := "user_exam_submission.submitted_at"
+	switch order {
+	case "score":
+		field = "user_exam_submission.score"
+		if dir == "" {
+			dir = "DESC"
+		}
+	case "name":
+		field = "exam_user.name"
+		if dir == "" {
+			dir = "ASC"
+		}
+	case "surname":
+		field = "exam_user.surname"
+		if dir == "" {
+			dir = "ASC"
+		}
+	case "submitted_at", "time":
+		field = "submitted_at"
+		if dir == "" {
+			dir = "DESC"
+		}
+	default:
+		if dir == "" {
+			dir = "DESC"
+		}
+	}
+	if dir == "" {
+		dir = "DESC"
+	}
+	return fmt.Sprintf("%s %s", field, dir)
 }
 
 func (s *Service) ListOfficialResults(examID uint) ([]models.ExamOfficialResult, error) {
