@@ -16,10 +16,12 @@ Este proyecto es una aplicación web completa que consta de dos partes principal
 ### Plataforma de Exámenes (`frontend-exam` y `backend`)
 
 *   **Gestión de Exámenes:** El panel de administración se divide en `/admin/exams`, `/admin/submissions` y `/admin/results` para crear/editar exámenes, revisar intentos y gestionar resultados oficiales importados.
+*   **Panel de intentos mejorado:** El listado de `/admin/results` tiene paginación, permite buscar por nombre/apellidos/email/DNI, ajustar el número de intentos por página, saltar a cualquier página, ordenar por nota o nombre y editar un intento con `PUT /admin/results/{submission_id}` sin recalcular los agregados.
 *   **Importación de resultados oficiales:** Desde `/admin/results` se puede subir un PDF (procesado con Tabula) y vincular automáticamente los registros con usuarios existentes.
 *   **Realización de Exámenes:** Los usuarios pueden acceder a los exámenes activos, responder las preguntas y enviar sus respuestas.
 *   **Resultados y Percentiles:** Al finalizar un examen, el usuario recibe su puntuación, percentil y/o detalle de aciertos según lo definido en los flags `show_score`, `show_percentile` y `show_score_full`. La ficha del examen refleja siempre la combinación activa para evitar pasos adicionales al alumno.
 *   **Autenticación de Administrador:** El panel de administración está protegido y requiere autenticación mediante JWT.
+
 
 ## Estructura del Proyecto
 

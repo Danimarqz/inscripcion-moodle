@@ -684,9 +684,12 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
                       </label>
                     </div>
 
-                    <div className="mt-6 space-y-4">
+                    <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                       {questions.map((question, index) => (
-                        <div key={question.id ?? index} className="flex flex-wrap items-center gap-3">
+                        <div
+                          key={question.id ?? index}
+                          className="flex flex-col gap-4 rounded border border-[#444] bg-[#171a23] p-4"
+                        >
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-brand-pink">Pregunta {index + 1}</span>
                             {question.is_active === false && (
@@ -701,7 +704,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
                               question.id !== undefined &&
                               updateAnswer(question.id, (event.currentTarget as HTMLSelectElement).value)
                             }
-                            className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
+                            className="w-full rounded border border-[#444] bg-[#1f2229] px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
                           >
                             {ANSWER_OPTIONS.map((option) => (
                               <option key={option} value={option}>

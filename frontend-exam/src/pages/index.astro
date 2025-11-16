@@ -1,14 +1,21 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import IndexPage from '../components/IndexPage.tsx';
+import Layout from "../layouts/Layout.astro";
+import IndexPage from "../components/IndexPage.tsx";
 ---
 
 <Layout title="Bienvenid@ al Simulador">
-  <main>      
-    <h1 class="text-5xl font-extrabold leading-tight text-center mb-12 text-transparent bg-gradient-to-r from-brand-pink via-brand-yellow to-brand-blue bg-clip-text drop-shadow-[0_20px_45px_rgba(15,153,188,0.35)]">
-        Bienvenid@ al <span class="text-gradient">Simulador de exámenes de <a href="https://opositatcae.es" class="underline">OpositaTCAE</a></span>
-      </h1>
-      <p class="text-center text-xl mb-8">Elige tu examen:</p>
+  <main>
+    <h1
+      class="text-5xl font-extrabold leading-tight text-center mb-12 bg-gradient-to-r from-brand-pink via-brand-yellow to-brand-blue bg-clip-text drop-shadow-[0_20px_45px_rgba(15,153,188,0.35)]"
+    >
+      Bienvenid@ al <span class="text-gradient"
+        >Simulador de exámenes de <a
+          href="https://opositatcae.es"
+          class="underline">OpositaTCAE</a
+        ></span
+      >
+    </h1>
+    <p class="text-center text-xl mb-8">Elige tu examen:</p>
     <IndexPage client:load />
   </main>
 </Layout>
