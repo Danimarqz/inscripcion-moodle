@@ -1,36 +1,62 @@
-name: Lint Backend
+name: golangci-lint
 
 on:
   pull_request:
     paths:
-      - "backend/**"
-      - "ruff.toml"
-      - ".github/workflows/backend-lint.yml"
+      - backend/**
   push:
     branches:
       - main
-      - develop
+      - master
     paths:
-      - "backend/**"
-      - "ruff.toml"
-      - ".github/workflows/backend-lint.yml"
+      - backend/**
+  workflow_dispatch:
+
+env:
+  GO_VERSION: 1.25.3
+  GOLANGCI_LINT_VERSION: v2.1
 
 jobs:
-  ruff:
+  golangci-lint:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
-          python-version: "3.11"
-
-      - name: Install Ruff
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install ruff
-
-      - name: Run Ruff
-        run: python -m ruff check backend
+          go-version: ${{ env.GO_VERSION }}
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: backend
+          args: ./...
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('backend/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - name: Download dependencies
+        run: go mod download
+        working-directory: backend
+      - name: Run tests with coverage
+        run: go test -coverprofile="coverage.out" -covermode=atomic ./...
+        working-directory: backend
+      - name: Coverage summary
+        run: go tool cover -func="coverage.out"
+        working-directory: backend
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-coverage
+          path: backend/coverage.out

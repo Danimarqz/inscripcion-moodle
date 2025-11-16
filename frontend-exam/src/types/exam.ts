@@ -62,6 +62,13 @@ export type AdminSubmission = {
   accepts_marketing?: boolean | null;
 };
 
+export type AdminSubmissionsResponse = {
+  submissions: AdminSubmission[];
+  total_submissions: number;
+  average_score: number | null;
+  stats_included: boolean;
+};
+
 export type ExamSubmissionPayload = {
   email: string;
   dni: string;
