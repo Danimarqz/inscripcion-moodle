@@ -5,19 +5,23 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
 	"github.com/inscripcion-moodle/go-backend/internal/cache"
+	"github.com/inscripcion-moodle/go-backend/internal/config"
 	"github.com/inscripcion-moodle/go-backend/internal/models"
 	"github.com/inscripcion-moodle/go-backend/internal/services/admin"
 	"github.com/inscripcion-moodle/go-backend/internal/services/auth"
+	"github.com/inscripcion-moodle/go-backend/internal/services/moodle"
 	pdfimport "github.com/inscripcion-moodle/go-backend/internal/services/pdfimport"
 )
 
@@ -26,11 +30,12 @@ type contextKey string
 const adminContextKey contextKey = "admin-user"
 
 type AdminHandler struct {
-	db        *gorm.DB
-	cache     *redis.Client
-	auth      *auth.Service
-	service   *admin.Service
-	pdfImport pdfImportService
+	db           *gorm.DB
+	cache        *redis.Client
+	auth         *auth.Service
+	service      *admin.Service
+	pdfImport    pdfImportService
+	moodleClient *moodle.Client
 }
 
 type pdfImportService interface {
@@ -40,6 +45,7 @@ type pdfImportService interface {
 const (
 	defaultSubmissionsLimit = 100
 	maxSubmissionsLimit     = 500
+	moodleAdminSyncTimeout  = 20 * time.Second
 )
 
 type adminRequest struct {
@@ -51,13 +57,14 @@ type tokenResponse struct {
 	AccessToken string `json:"access_token"`
 }
 
-func NewAdminHandler(db *gorm.DB, cacheClient *redis.Client, authService *auth.Service) *AdminHandler {
+func NewAdminHandler(db *gorm.DB, cacheClient *redis.Client, authService *auth.Service, cfg *config.Config) *AdminHandler {
 	return &AdminHandler{
-		db:        db,
-		cache:     cacheClient,
-		auth:      authService,
-		service:   admin.New(db),
-		pdfImport: pdfimport.New(db),
+		db:           db,
+		cache:        cacheClient,
+		auth:         authService,
+		service:      admin.New(db),
+		pdfImport:    pdfimport.New(db),
+		moodleClient: moodle.New(cfg),
 	}
 }
 
@@ -75,6 +82,7 @@ func (h *AdminHandler) RegisterRoutes(r chi.Router) {
 		r.Get("/results", h.listSubmissions)
 		r.Put("/results/{submission_id}", h.updateSubmission)
 		r.Delete("/results/{submission_id}", h.deleteSubmission)
+		r.Post("/moodle/sync-users", h.syncMoodleUsers)
 		r.Get("/exams/{exam_id}/results/official", h.listOfficialResults)
 		r.Post("/exams/{exam_id}/results/import", h.importOfficialResults)
 	})
@@ -387,6 +395,41 @@ func (h *AdminHandler) listOfficialResults(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, results)
+}
+
+func (h *AdminHandler) syncMoodleUsers(w http.ResponseWriter, r *http.Request) {
+	if h.moodleClient == nil {
+		http.Error(w, "moodle not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	var users []models.ExamUser
+	if err := h.db.Select("id", "email", "dni").Where("moodle_id IS NULL").Find(&users).Error; err != nil {
+		http.Error(w, "failed to load exam users", http.StatusInternalServerError)
+		return
+	}
+
+	checked := len(users)
+	synced := 0
+	failed := 0
+
+	for _, user := range users {
+		ctx, cancel := context.WithTimeout(r.Context(), moodleAdminSyncTimeout)
+		err := moodle.SyncExamUser(ctx, h.db, h.moodleClient, user.Email, user.DNI)
+		cancel()
+		if err != nil {
+			log.Printf("moodle sync for %s (%s) failed: %v", user.Email, user.DNI, err)
+			failed++
+			continue
+		}
+		synced++
+	}
+
+	writeJSON(w, map[string]int{
+		"checked": checked,
+		"synced":  synced,
+		"failed":  failed,
+	})
 }
 
 func (h *AdminHandler) invalidateExamCaches(examID uint) {

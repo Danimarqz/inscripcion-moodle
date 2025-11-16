@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -20,12 +21,14 @@ import (
 	"github.com/inscripcion-moodle/go-backend/internal/config"
 	"github.com/inscripcion-moodle/go-backend/internal/models"
 	examservice "github.com/inscripcion-moodle/go-backend/internal/services/exam"
+	"github.com/inscripcion-moodle/go-backend/internal/services/moodle"
 )
 
 const (
 	examsCacheKey         = "public:exams"
 	questionsCachePrefix  = "public:questions"
 	submissionCachePrefix = "public:check"
+	moodleSyncTimeout     = 15 * time.Second
 )
 
 type QuestionStub struct {
@@ -36,16 +39,18 @@ type QuestionStub struct {
 }
 
 type PublicHandler struct {
-	db       *gorm.DB
-	cache    *redis.Client
-	cacheTTL time.Duration
+	db           *gorm.DB
+	cache        *redis.Client
+	cacheTTL     time.Duration
+	moodleClient *moodle.Client
 }
 
 func NewPublicHandler(db *gorm.DB, cache *redis.Client, cfg *config.Config) *PublicHandler {
 	return &PublicHandler{
-		db:       db,
-		cache:    cache,
-		cacheTTL: cfg.PublicCacheTTL,
+		db:           db,
+		cache:        cache,
+		cacheTTL:     cfg.PublicCacheTTL,
+		moodleClient: moodle.New(cfg),
 	}
 }
 
@@ -84,6 +89,7 @@ func (h *PublicHandler) SubmitExam(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.invalidateCheckCacheForExam(req.ExamID)
+	h.scheduleMoodleSync(req.Email, req.DNI)
 
 	_, _ = h.writeJSON(w, payload)
 }
@@ -239,6 +245,19 @@ func (h *PublicHandler) handleError(w http.ResponseWriter, err error) {
 		status = http.StatusForbidden
 	}
 	h.writeJSONError(w, status, err.Error())
+}
+
+func (h *PublicHandler) scheduleMoodleSync(email, dni string) {
+	if h.moodleClient == nil {
+		return
+	}
+	go func(email, dni string) {
+		ctx, cancel := context.WithTimeout(context.Background(), moodleSyncTimeout)
+		defer cancel()
+		if err := moodle.SyncExamUser(ctx, h.db, h.moodleClient, email, dni); err != nil {
+			log.Printf("moodle sync for %s / %s failed: %v", email, dni, err)
+		}
+	}(email, dni)
 }
 
 func (h *PublicHandler) writeJSONError(w http.ResponseWriter, status int, detail string) {

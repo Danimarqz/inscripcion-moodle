@@ -43,7 +43,7 @@ func New(cfg *config.Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	adminHandler := handlers.NewAdminHandler(db, cache, authService)
+	adminHandler := handlers.NewAdminHandler(db, cache, authService, cfg)
 	router := chi.NewRouter()
 	router.Use(chimiddleware.RequestID)
 	router.Use(chimiddleware.RealIP)

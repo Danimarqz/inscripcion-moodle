@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/inscripcion-moodle/go-backend/internal/services/moodle"
 )
 
 var (
@@ -38,15 +38,7 @@ var (
 	extraCourses = []int{16, 11}
 )
 
-var (
-	errMoodleUserExists = errors.New("existing_user")
-	errMoodleConfig     = errors.New("moodle url/token not configured")
-)
-
 func (s *Service) createMoodleUser(ctx context.Context, data Data) (bool, error) {
-	if s.cfg.MoodleURL == "" || s.cfg.MoodleToken == "" {
-		return false, errMoodleConfig
-	}
 	username := strings.ToLower(strings.TrimSpace(data.Email))
 	payload := url.Values{
 		"users[0][username]":  {username},
@@ -71,7 +63,7 @@ func (s *Service) createMoodleUser(ctx context.Context, data Data) (bool, error)
 	var userID int
 	body, err := s.callMoodle(ctx, "core_user_create_users", payload)
 	if err != nil {
-		if errors.Is(err, errMoodleUserExists) {
+		if errors.Is(err, moodle.ErrUserAlreadyExists) {
 			users, findErr := s.findExistingUser(ctx, data.Email)
 			if findErr != nil {
 				return true, findErr
@@ -181,63 +173,13 @@ func parseUserID(body []byte) (int, error) {
 		return 0, errors.New("moodle response missing user id")
 	}
 	if id, ok := users[0]["id"]; ok {
-		switch value := id.(type) {
-		case float64:
-			return int(value), nil
-		case string:
-			return strconv.Atoi(value)
-		}
+		return moodle.ToInt(id)
 	}
 	return 0, errors.New("invalid moodle id type")
 }
 
 func (s *Service) callMoodle(ctx context.Context, function string, extra url.Values) ([]byte, error) {
-	endpoint := fmt.Sprintf("%s/webservice/rest/server.php", strings.TrimRight(s.cfg.MoodleURL, "/"))
-	payload := url.Values{}
-	payload.Set("wstoken", s.cfg.MoodleToken)
-	payload.Set("wsfunction", function)
-	payload.Set("moodlewsrestformat", "json")
-	for key, vals := range extra {
-		for _, val := range vals {
-			payload.Add(key, val)
-		}
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(payload.Encode()))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("moodle error: %s", strings.TrimSpace(string(body)))
-	}
-
-	var decoded map[string]interface{}
-	if err := json.Unmarshal(body, &decoded); err == nil {
-		if exception, ok := decoded["exception"]; ok && exception != nil {
-			msg := strings.ToLower(fmt.Sprint(decoded["message"]))
-			if strings.Contains(msg, "username already exists") || strings.Contains(msg, "email address already exists") {
-				return nil, errMoodleUserExists
-			}
-			return nil, fmt.Errorf("moodle exception: %v", decoded["message"])
-		}
-	}
-
-	return body, nil
+	return moodle.Call(ctx, s.cfg, s.client, function, extra)
 }
 
 func generatePassword(dni string) string {

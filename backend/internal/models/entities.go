@@ -37,6 +37,7 @@ type ExamUser struct {
 	Surname          string               `gorm:"column:surname" json:"surname"`
 	Email            string               `gorm:"column:email" json:"email"`
 	DNI              string               `gorm:"column:dni" json:"dni"`
+	MoodleID         *int                 `gorm:"column:moodle_id" json:"moodle_id,omitempty"`
 	AcceptsMarketing bool                 `gorm:"column:accepts_marketing" json:"accepts_marketing"`
 	CreatedAt        time.Time            `gorm:"column:created_at" json:"created_at"`
 	Submissions      []UserExamSubmission `gorm:"foreignKey:UserID"`
