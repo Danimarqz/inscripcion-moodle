@@ -544,13 +544,23 @@ func (h *AdminHandler) syncMoodleUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), moodleAdminSyncTimeout)
+	if len(users) == 0 {
+		writeJSON(w, map[string]string{"status": "no users to sync"})
+		return
+	}
+
+	go h.syncMoodleUsersAsync(append([]models.ExamUser(nil), users...))
+
+	writeJSON(w, map[string]string{"status": "sync started"})
+}
+
+func (h *AdminHandler) syncMoodleUsersAsync(users []models.ExamUser) {
+	ctx, cancel := context.WithTimeout(context.Background(), moodleAdminSyncTimeout)
 	defer cancel()
 
 	enrolledUsers, err := h.moodleClient.GetEnrolledUsers(ctx, moodle.MoodleExamCourseID, nil)
 	if err != nil {
 		log.Printf("failed to fetch enrolled users for course %d: %v", moodle.MoodleExamCourseID, err)
-		http.Error(w, "failed to load enrolled users", http.StatusInternalServerError)
 		return
 	}
 
@@ -593,11 +603,7 @@ func (h *AdminHandler) syncMoodleUsers(w http.ResponseWriter, r *http.Request) {
 		synced++
 	}
 
-	writeJSON(w, map[string]int{
-		"checked": checked,
-		"synced":  synced,
-		"failed":  failed,
-	})
+	log.Printf("moodle sync finished: checked=%d synced=%d failed=%d", checked, synced, failed)
 }
 
 func (h *AdminHandler) invalidateExamCaches(examID uint) {
