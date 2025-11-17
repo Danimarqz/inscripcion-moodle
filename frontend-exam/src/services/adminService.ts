@@ -134,6 +134,24 @@ interface FetchSubmissionsOptions {
   moodleSynced?: boolean;
 }
 
+export interface SubmissionEmailAttachmentPayload {
+  filename: string;
+  content: string;
+  content_type: string;
+}
+
+export interface SendSubmissionEmailsPayload {
+  exam_id: number;
+  subject: string;
+  body: string;
+  recipients: string[];
+  search?: string;
+  order_by?: string;
+  order_dir?: string;
+  moodle_synced?: boolean;
+  attachments?: SubmissionEmailAttachmentPayload[];
+ }
+
 export async function getExamSubmissions(
   examId: number,
   token: string,
@@ -175,6 +193,38 @@ export async function getExamSubmissions(
   return response.json();
 }
 
+export async function fetchSubmissionEmailList(
+  examId: number,
+  token: string,
+  options: FetchSubmissionsOptions = {},
+): Promise<string[]> {
+  const params = new URLSearchParams({ exam_id: String(examId) });
+  if (options.search) {
+    params.set('search', options.search);
+  }
+  if (options.orderBy) {
+    params.set('order_by', options.orderBy);
+  }
+  if (options.orderDir) {
+    params.set('order_dir', options.orderDir);
+  }
+  if (options.moodleSynced !== undefined) {
+    params.set('moodle_synced', String(options.moodleSynced));
+  }
+  const response = await fetch(`${API_URL}/admin/results/emails/list?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Error fetching submission emails');
+  }
+  return response.json();
+}
+
+
 export async function downloadSubmissionEmails(
   examId: number,
   token: string,
@@ -206,6 +256,27 @@ export async function downloadSubmissionEmails(
   }
 
   return response.text();
+}
+
+export async function sendSubmissionEmails(
+  payload: SendSubmissionEmailsPayload,
+  token: string,
+): Promise<{ sent: number }> {
+  const response = await fetch(`${API_URL}/admin/results/emails/send`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Error sending emails');
+  }
+
+  return response.json();
 }
 
 export async function syncMoodleUsers(token: string): Promise<SyncMoodleUsersResponse> {

@@ -4,9 +4,13 @@ import type { AdminSubmission, AdminSubmissionsResponse, Exam, QuestionEdit } fr
 import {
   deleteSubmissionAttempt,
   downloadSubmissionEmails,
+  fetchSubmissionEmailList,
   getExamById,
   getExamSubmissions,
+  sendSubmissionEmails,
   syncMoodleUsers,
+  type SubmissionEmailAttachmentPayload,
+  type SendSubmissionEmailsPayload,
   updateSubmissionAttempt,
 } from '../services/adminService';
 import { normalizeDni, validateDniNie } from '../utils/validation';
@@ -15,6 +19,7 @@ import ExamSelector from './submissions/ExamSelector';
 import SubmissionFilters from './submissions/SubmissionFilters';
 import SubmissionFilterActions from './submissions/SubmissionFilterActions';
 import SubmissionStats from './submissions/SubmissionStats';
+import EmailComposer from './submissions/EmailComposer';
 import PaginationSettings from './submissions/PaginationSettings';
 import PaginationControls from './submissions/PaginationControls';
 import SubmissionList from './submissions/SubmissionList';
@@ -56,6 +61,15 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   const [downloadingEmails, setDownloadingEmails] = useState(false);
   const [downloadMessage, setDownloadMessage] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [emailComposerOpen, setEmailComposerOpen] = useState(false);
+  const [emailCandidates, setEmailCandidates] = useState<{ email: string; selected: boolean }[]>([]);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailComposeModalError, setEmailComposeModalError] = useState<string | null>(null);
+  const [emailComposeMessage, setEmailComposeMessage] = useState<string | null>(null);
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [emailAttachments, setEmailAttachments] = useState<File[]>([]);
+  const [emailSending, setEmailSending] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [submissionStats, setSubmissionStats] = useState<SubmissionStats>(() => ({
     ...INITIAL_SUBMISSION_STATS,
@@ -118,6 +132,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     const numericId = Number(selectedExamId);
     return exams.find((exam) => exam.id === numericId)?.name ?? '';
   }, [exams, selectedExamId]);
+  const selectedEmailCount = emailCandidates.filter((candidate) => candidate.selected).length;
 
   async function loadSubmissionsPage(
     examNumericId: number,
@@ -453,6 +468,118 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     }
   }
 
+  const readFileAsBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const commaIndex = result.indexOf(',');
+        resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+
+  const closeEmailComposer = () => {
+    setEmailComposerOpen(false);
+    setEmailComposeModalError(null);
+    setEmailCandidates([]);
+    setEmailAttachments([]);
+  };
+
+  const handleComposeEmails = async () => {
+    if (!selectedExamId) {
+      return;
+    }
+    setEmailComposeModalError(null);
+    setEmailComposeMessage(null);
+    setEmailComposerOpen(true);
+    setEmailLoading(true);
+    setEmailCandidates([]);
+    setEmailAttachments([]);
+    setEmailSubject(selectedExamName ? `Comunicado sobre ${selectedExamName}` : 'Comunicado oficial');
+    setEmailBody('');
+    try {
+      const emails = await fetchSubmissionEmailList(Number(selectedExamId), token, {
+        search: searchTerm,
+        orderBy,
+        orderDir,
+        moodleSynced: filterMoodleUsers ? true : undefined,
+      });
+      setEmailCandidates(emails.map((address) => ({ email: address, selected: true })));
+    } catch (err) {
+      setEmailComposeModalError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
+  const toggleEmailRecipient = (index: number) => {
+    setEmailCandidates((prev) =>
+      prev.map((item, idx) => (idx === index ? { ...item, selected: !item.selected } : item)),
+    );
+  };
+
+  const handleAttachmentChange = (files: FileList | null) => {
+    if (!files) {
+      return;
+    }
+    setEmailAttachments((prev) => [...prev, ...Array.from(files)]);
+  };
+
+  const handleRemoveAttachment = (index: number) => {
+    setEmailAttachments((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleSendEmails = async () => {
+    if (!selectedExamId) {
+      return;
+    }
+    const recipients = emailCandidates.filter((candidate) => candidate.selected).map((item) => item.email);
+    if (recipients.length === 0) {
+      setEmailComposeModalError('Selecciona al menos un destinatario.');
+      return;
+    }
+    const trimmedBody = emailBody.trim();
+    if (!trimmedBody) {
+      setEmailComposeModalError('El cuerpo del email no puede estar vacío.');
+      return;
+    }
+    setEmailComposeModalError(null);
+    setEmailSending(true);
+    try {
+      const attachments = await Promise.all(
+        emailAttachments.map(async (file) => {
+          const content = await readFileAsBase64(file);
+          return {
+            filename: file.name,
+            content_type: file.type || 'application/octet-stream',
+            content,
+          } as SubmissionEmailAttachmentPayload;
+        }),
+      );
+      const payload: SendSubmissionEmailsPayload = {
+        exam_id: Number(selectedExamId),
+        subject:
+          emailSubject || (selectedExamName ? `Comunicado sobre ${selectedExamName}` : 'Comunicado oficial'),
+        body: trimmedBody,
+        recipients,
+        search: searchTerm,
+        order_by: orderBy,
+        order_dir: orderDir,
+        moodle_synced: filterMoodleUsers ? true : undefined,
+        attachments: attachments.length > 0 ? attachments : undefined,
+      };
+      await sendSubmissionEmails(payload, token);
+      setEmailComposeMessage(`Correo enviado a ${recipients.length} destinatarios.`);
+      closeEmailComposer();
+    } catch (err) {
+      setEmailComposeModalError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
   return (
     <section className="mt-8 space-y-6">
       <ExamSelector
@@ -483,6 +610,10 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
           downloadMessage={downloadMessage}
           downloadError={downloadError}
           onDownloadEmails={handleDownloadEmails}
+          onComposeEmails={handleComposeEmails}
+          composingEmails={emailLoading || emailSending}
+          composeMessage={emailComposeMessage}
+          composeError={emailComposeModalError}
         />
       )}
 
@@ -558,6 +689,25 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
           totalPages={totalPages}
           onPrev={handlePrevPage}
           onNext={handleNextPage}
+        />
+      )}
+      {emailComposerOpen && (
+        <EmailComposer
+          loading={emailLoading}
+          sending={emailSending}
+          subject={emailSubject}
+          body={emailBody}
+          attachments={emailAttachments}
+          candidates={emailCandidates}
+          selectedCount={selectedEmailCount}
+          error={emailComposeModalError}
+          onSubjectChange={setEmailSubject}
+          onBodyChange={setEmailBody}
+          onAddAttachments={handleAttachmentChange}
+          onRemoveAttachment={handleRemoveAttachment}
+          onToggleRecipient={toggleEmailRecipient}
+          onClose={closeEmailComposer}
+          onSend={handleSendEmails}
         />
       )}
     </section>
