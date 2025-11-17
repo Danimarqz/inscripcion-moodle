@@ -443,15 +443,48 @@ func (h *AdminHandler) syncMoodleUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx, cancel := context.WithTimeout(r.Context(), moodleAdminSyncTimeout)
+	defer cancel()
+
+	enrolledUsers, err := h.moodleClient.GetEnrolledUsers(ctx, moodle.MoodleExamCourseID, nil)
+	if err != nil {
+		log.Printf("failed to fetch enrolled users for course %d: %v", moodle.MoodleExamCourseID, err)
+		http.Error(w, "failed to load enrolled users", http.StatusInternalServerError)
+		return
+	}
+
+	enrolledByEmail := make(map[string]moodle.EnrolledUser, len(enrolledUsers))
+	for _, enrolled := range enrolledUsers {
+		email := strings.ToLower(strings.TrimSpace(enrolled.Email))
+		if email == "" {
+			continue
+		}
+		enrolledByEmail[email] = enrolled
+	}
+
 	checked := len(users)
 	synced := 0
 	failed := 0
 
 	for _, user := range users {
-		ctx, cancel := context.WithTimeout(r.Context(), moodleAdminSyncTimeout)
-		err := moodle.SyncExamUser(ctx, h.db, h.moodleClient, user.Email, user.DNI)
-		cancel()
-		if err != nil {
+		email := strings.ToLower(strings.TrimSpace(user.Email))
+		if email == "" {
+			log.Printf("moodle sync for %s (%s) skipped: missing email", user.Email, user.DNI)
+			failed++
+			continue
+		}
+
+		enrolled, ok := enrolledByEmail[email]
+		if !ok {
+			log.Printf("moodle sync for %s (%s) skipped: not enrolled in course %d", user.Email, user.DNI, moodle.MoodleExamCourseID)
+			failed++
+			continue
+		}
+
+		if err := h.db.Model(&models.ExamUser{}).
+			Where("id = ?", user.ID).
+			Where("moodle_id IS NULL").
+			Update("moodle_id", enrolled.ID).Error; err != nil {
 			log.Printf("moodle sync for %s (%s) failed: %v", user.Email, user.DNI, err)
 			failed++
 			continue

@@ -11,8 +11,10 @@ import (
 )
 
 var (
-	ErrUserNotManual = errors.New("moodle user is not manually authenticated")
+	ErrUserNotEnrolled = errors.New("moodle user is not enrolled in the required course")
 )
+
+const MoodleExamCourseID = 49
 
 func SyncExamUser(ctx context.Context, db *gorm.DB, client *Client, email, dni string) error {
 	if client == nil {
@@ -44,15 +46,22 @@ func SyncExamUser(ctx context.Context, db *gorm.DB, client *Client, email, dni s
 		return err
 	}
 
-	var moodleID int
+	var (
+		moodleID int
+	)
 	for _, candidate := range users {
-		if strings.EqualFold(candidate.Auth, "manual") {
-			moodleID = candidate.ID
-			break
+		enrolled, err := client.IsUserEnrolledInCourse(ctx, MoodleExamCourseID, candidate.ID)
+		if err != nil {
+			return err
 		}
+		if !enrolled {
+			continue
+		}
+		moodleID = candidate.ID
+		break
 	}
 	if moodleID == 0 {
-		return ErrUserNotManual
+		return ErrUserNotEnrolled
 	}
 
 	return db.Model(&user).Where("moodle_id IS NULL").Update("moodle_id", moodleID).Error

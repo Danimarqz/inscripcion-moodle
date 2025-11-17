@@ -107,6 +107,12 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     const desired = Math.max(1, Math.min(totalPages, Math.floor(pageInput)));
     setCurrentPage(desired);
   };
+  const handleFilterMoodleUsersChange = (value: boolean) => {
+    setFilterMoodleUsers(value);
+    setCurrentPage(1);
+    setNeedsStats(true);
+    setSubmissionStats({ ...INITIAL_SUBMISSION_STATS });
+  };
 
   const selectedExamName = useMemo(() => {
     const numericId = Number(selectedExamId);
@@ -234,12 +240,6 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   useEffect(() => {
     resetFilters();
   }, [selectedExamId, resetFilters]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-    setNeedsStats(true);
-    setSubmissionStats({ ...INITIAL_SUBMISSION_STATS });
-  }, [filterMoodleUsers]);
 
   useEffect(() => {
     setDownloadMessage(null);
@@ -463,7 +463,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
         syncingMoodle={syncingMoodle}
         syncMessage={syncMessage}
         syncError={syncError}
-        canSync={Boolean(selectedExamId && totalSubmissions > 0)}
+        canSync={Boolean(selectedExamId && (totalSubmissions > 0 || filterMoodleUsers))}
       />
 
       <SubmissionFilters
@@ -475,10 +475,10 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
         onOrderDirChange={handleOrderDirChange}
       />
 
-      {selectedExamId && totalSubmissions > 0 && (
+      {selectedExamId && (totalSubmissions > 0 || filterMoodleUsers) && (
         <SubmissionFilterActions
           filterMoodleUsers={filterMoodleUsers}
-          onFilterChange={(value) => setFilterMoodleUsers(value)}
+          onFilterChange={handleFilterMoodleUsersChange}
           downloadingEmails={downloadingEmails}
           downloadMessage={downloadMessage}
           downloadError={downloadError}
