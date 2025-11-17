@@ -1,4 +1,4 @@
-package handlers
+package controllers
 
 import (
 	"bytes"
@@ -35,7 +35,7 @@ type sqlErr struct {
 func (e sqlErr) Error() string { return e.msg }
 
 func TestAdminImportEndpoint(t *testing.T) {
-	handler := &AdminHandler{
+	Controller := &AdminController{
 		pdfImport: &stubPDFImportService{
 			result: &pdfimport.PDFImportResult{
 				ReplaceExisting: true,
@@ -52,7 +52,7 @@ func TestAdminImportEndpoint(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
 
 	rr := httptest.NewRecorder()
-	handler.importOfficialResults(rr, req)
+	Controller.importOfficialResults(rr, req)
 	t.Logf("response: %s", rr.Body.String())
 	require.Equal(t, http.StatusOK, rr.Code)
 	var payload pdfimport.PDFImportResult

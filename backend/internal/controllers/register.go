@@ -1,4 +1,4 @@
-package handlers
+package controllers
 
 import (
 	"encoding/json"
@@ -9,17 +9,17 @@ import (
 	registerservice "github.com/inscripcion-moodle/go-backend/internal/services/register"
 )
 
-type RegisterHandler struct {
+type RegisterController struct {
 	service *registerservice.Service
 }
 
-func NewRegisterHandler(cfg *config.Config) *RegisterHandler {
-	return &RegisterHandler{
+func NewRegisterController(cfg *config.Config) *RegisterController {
+	return &RegisterController{
 		service: registerservice.New(cfg),
 	}
 }
 
-func (h *RegisterHandler) Register(w http.ResponseWriter, r *http.Request) {
+func (h *RegisterController) Register(w http.ResponseWriter, r *http.Request) {
 	var data registerservice.Data
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)

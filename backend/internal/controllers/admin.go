@@ -1,4 +1,4 @@
-package handlers
+package controllers
 
 import (
 	"context"
@@ -32,7 +32,7 @@ type contextKey string
 
 const adminContextKey contextKey = "admin-user"
 
-type AdminHandler struct {
+type AdminController struct {
 	db           *gorm.DB
 	cache        *redis.Client
 	auth         *auth.Service
@@ -61,8 +61,8 @@ type tokenResponse struct {
 	AccessToken string `json:"access_token"`
 }
 
-func NewAdminHandler(db *gorm.DB, cacheClient *redis.Client, authService *auth.Service, cfg *config.Config) *AdminHandler {
-	return &AdminHandler{
+func NewAdminController(db *gorm.DB, cacheClient *redis.Client, authService *auth.Service, cfg *config.Config) *AdminController {
+	return &AdminController{
 		db:           db,
 		cache:        cacheClient,
 		auth:         authService,
@@ -73,7 +73,7 @@ func NewAdminHandler(db *gorm.DB, cacheClient *redis.Client, authService *auth.S
 	}
 }
 
-func (h *AdminHandler) RegisterRoutes(r chi.Router) {
+func (h *AdminController) RegisterRoutes(r chi.Router) {
 	r.Post("/create-admin", h.createAdmin)
 	r.Post("/login", h.login)
 	r.Group(func(r chi.Router) {
@@ -96,7 +96,7 @@ func (h *AdminHandler) RegisterRoutes(r chi.Router) {
 	})
 }
 
-func (h *AdminHandler) createAdmin(w http.ResponseWriter, r *http.Request) {
+func (h *AdminController) createAdmin(w http.ResponseWriter, r *http.Request) {
 	var payload adminRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
@@ -132,7 +132,7 @@ func (h *AdminHandler) createAdmin(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(`{"message":"Administrador creado con exito"}`))
 }
 
-func (h *AdminHandler) login(w http.ResponseWriter, r *http.Request) {
+func (h *AdminController) login(w http.ResponseWriter, r *http.Request) {
 	var payload adminRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
@@ -163,7 +163,7 @@ func (h *AdminHandler) login(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, tokenResponse{AccessToken: token})
 }
 
-func (h *AdminHandler) requireAuth(next http.Handler) http.Handler {
+func (h *AdminController) requireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
@@ -194,7 +194,7 @@ func (h *AdminHandler) requireAuth(next http.Handler) http.Handler {
 	})
 }
 
-func (h *AdminHandler) checkToken(w http.ResponseWriter, r *http.Request) {
+func (h *AdminController) checkToken(w http.ResponseWriter, r *http.Request) {
 	admin := adminFromContext(r.Context())
 	if admin == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -206,7 +206,7 @@ func (h *AdminHandler) checkToken(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *AdminHandler) listExams(w http.ResponseWriter, r *http.Request) {
+func (h *AdminController) listExams(w http.ResponseWriter, r *http.Request) {
 	exams, err := h.service.ListExams()
 	if err != nil {
 		http.Error(w, "failed to list exams", http.StatusInternalServerError)
@@ -215,7 +215,7 @@ func (h *AdminHandler) listExams(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, exams)
 }
 
-func (h *AdminHandler) createExam(w http.ResponseWriter, r *http.Request) {
+func (h *AdminController) createExam(w http.ResponseWriter, r *http.Request) {
 	var req admin.CreateExamRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
@@ -230,7 +230,7 @@ func (h *AdminHandler) createExam(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, exam)
 }
 
-func (h *AdminHandler) updateExam(w http.ResponseWriter, r *http.Request) {
+func (h *AdminController) updateExam(w http.ResponseWriter, r *http.Request) {
 	examID, err := strconv.ParseUint(chi.URLParam(r, "exam_id"), 10, 64)
 	if err != nil {
 		http.Error(w, "invalid exam id", http.StatusBadRequest)
@@ -250,7 +250,7 @@ func (h *AdminHandler) updateExam(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, exam)
 }
 
-func (h *AdminHandler) deleteExam(w http.ResponseWriter, r *http.Request) {
+func (h *AdminController) deleteExam(w http.ResponseWriter, r *http.Request) {
 	examID, err := strconv.ParseUint(chi.URLParam(r, "exam_id"), 10, 64)
 	if err != nil {
 		http.Error(w, "invalid exam id", http.StatusBadRequest)
@@ -264,7 +264,7 @@ func (h *AdminHandler) deleteExam(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]string{"detail": "Examen eliminado correctamente"})
 }
 
-func (h *AdminHandler) getExam(w http.ResponseWriter, r *http.Request) {
+func (h *AdminController) getExam(w http.ResponseWriter, r *http.Request) {
 	examID, err := strconv.ParseUint(chi.URLParam(r, "exam_id"), 10, 64)
 	if err != nil {
 		http.Error(w, "invalid exam id", http.StatusBadRequest)
@@ -278,7 +278,7 @@ func (h *AdminHandler) getExam(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, exam)
 }
 
-func (h *AdminHandler) listSubmissions(w http.ResponseWriter, r *http.Request) {
+func (h *AdminController) listSubmissions(w http.ResponseWriter, r *http.Request) {
 	examIDStr := r.URL.Query().Get("exam_id")
 	if examIDStr == "" {
 		http.Error(w, "exam_id required", http.StatusBadRequest)
@@ -304,7 +304,7 @@ func (h *AdminHandler) listSubmissions(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, result)
 }
 
-func (h *AdminHandler) downloadSubmissionEmails(w http.ResponseWriter, r *http.Request) {
+func (h *AdminController) downloadSubmissionEmails(w http.ResponseWriter, r *http.Request) {
 	examID, search, orderBy, orderDir, moodleSynced, err := parseSubmissionEmailFilters(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -325,7 +325,7 @@ func (h *AdminHandler) downloadSubmissionEmails(w http.ResponseWriter, r *http.R
 	}
 }
 
-func (h *AdminHandler) listSubmissionEmailsJSON(w http.ResponseWriter, r *http.Request) {
+func (h *AdminController) listSubmissionEmailsJSON(w http.ResponseWriter, r *http.Request) {
 	examID, search, orderBy, orderDir, moodleSynced, err := parseSubmissionEmailFilters(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -341,7 +341,7 @@ func (h *AdminHandler) listSubmissionEmailsJSON(w http.ResponseWriter, r *http.R
 	writeJSON(w, emails)
 }
 
-func (h *AdminHandler) sendSubmissionEmails(w http.ResponseWriter, r *http.Request) {
+func (h *AdminController) sendSubmissionEmails(w http.ResponseWriter, r *http.Request) {
 	var payload sendSubmissionEmailsRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -430,7 +430,7 @@ func (h *AdminHandler) sendSubmissionEmails(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, map[string]int{"sent": len(validRecipients)})
 }
 
-func (h *AdminHandler) updateSubmission(w http.ResponseWriter, r *http.Request) {
+func (h *AdminController) updateSubmission(w http.ResponseWriter, r *http.Request) {
 	submissionIDStr := chi.URLParam(r, "submission_id")
 	submissionID, err := strconv.ParseUint(submissionIDStr, 10, 64)
 	if err != nil {
@@ -454,7 +454,7 @@ func (h *AdminHandler) updateSubmission(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, updated)
 }
 
-func (h *AdminHandler) deleteSubmission(w http.ResponseWriter, r *http.Request) {
+func (h *AdminController) deleteSubmission(w http.ResponseWriter, r *http.Request) {
 	submissionID, err := strconv.ParseUint(chi.URLParam(r, "submission_id"), 10, 64)
 	if err != nil {
 		http.Error(w, "invalid submission id", http.StatusBadRequest)
@@ -473,7 +473,7 @@ func (h *AdminHandler) deleteSubmission(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, map[string]string{"detail": "Intento eliminado correctamente"})
 }
 
-func (h *AdminHandler) importOfficialResults(w http.ResponseWriter, r *http.Request) {
+func (h *AdminController) importOfficialResults(w http.ResponseWriter, r *http.Request) {
 	examID, err := strconv.ParseUint(chi.URLParam(r, "exam_id"), 10, 64)
 	if err != nil {
 		http.Error(w, "invalid exam id", http.StatusBadRequest)
@@ -518,7 +518,7 @@ func (h *AdminHandler) importOfficialResults(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, report)
 }
 
-func (h *AdminHandler) listOfficialResults(w http.ResponseWriter, r *http.Request) {
+func (h *AdminController) listOfficialResults(w http.ResponseWriter, r *http.Request) {
 	examID, err := strconv.ParseUint(chi.URLParam(r, "exam_id"), 10, 64)
 	if err != nil {
 		http.Error(w, "invalid exam id", http.StatusBadRequest)
@@ -532,7 +532,7 @@ func (h *AdminHandler) listOfficialResults(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, results)
 }
 
-func (h *AdminHandler) syncMoodleUsers(w http.ResponseWriter, r *http.Request) {
+func (h *AdminController) syncMoodleUsers(w http.ResponseWriter, r *http.Request) {
 	if h.moodleClient == nil {
 		http.Error(w, "moodle not configured", http.StatusServiceUnavailable)
 		return
@@ -554,7 +554,7 @@ func (h *AdminHandler) syncMoodleUsers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]string{"status": "sync started"})
 }
 
-func (h *AdminHandler) syncMoodleUsersAsync(users []models.ExamUser) {
+func (h *AdminController) syncMoodleUsersAsync(users []models.ExamUser) {
 	ctx, cancel := context.WithTimeout(context.Background(), moodleAdminSyncTimeout)
 	defer cancel()
 
@@ -606,7 +606,7 @@ func (h *AdminHandler) syncMoodleUsersAsync(users []models.ExamUser) {
 	log.Printf("moodle sync finished: checked=%d synced=%d failed=%d", checked, synced, failed)
 }
 
-func (h *AdminHandler) invalidateExamCaches(examID uint) {
+func (h *AdminController) invalidateExamCaches(examID uint) {
 	if h.cache == nil {
 		return
 	}
@@ -615,7 +615,7 @@ func (h *AdminHandler) invalidateExamCaches(examID uint) {
 	cache.InvalidateCheckCache(h.cache, examID)
 }
 
-func (h *AdminHandler) handleAdminError(w http.ResponseWriter, err error) {
+func (h *AdminController) handleAdminError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, admin.ErrExamNameConflict), errors.Is(err, admin.ErrQuestionNotFound):
 		http.Error(w, err.Error(), http.StatusBadRequest)

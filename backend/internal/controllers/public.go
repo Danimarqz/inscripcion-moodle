@@ -1,4 +1,4 @@
-package handlers
+package controllers
 
 import (
 	"context"
@@ -38,15 +38,15 @@ type QuestionStub struct {
 	IsCancelled bool `json:"is_cancelled"`
 }
 
-type PublicHandler struct {
+type PublicController struct {
 	db           *gorm.DB
 	cache        *redis.Client
 	cacheTTL     time.Duration
 	moodleClient *moodle.Client
 }
 
-func NewPublicHandler(db *gorm.DB, cache *redis.Client, cfg *config.Config) *PublicHandler {
-	return &PublicHandler{
+func NewPublicController(db *gorm.DB, cache *redis.Client, cfg *config.Config) *PublicController {
+	return &PublicController{
 		db:           db,
 		cache:        cache,
 		cacheTTL:     cfg.PublicCacheTTL,
@@ -54,7 +54,7 @@ func NewPublicHandler(db *gorm.DB, cache *redis.Client, cfg *config.Config) *Pub
 	}
 }
 
-func (h *PublicHandler) GetExams(w http.ResponseWriter, r *http.Request) {
+func (h *PublicController) GetExams(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if cached, ok := h.readCache(ctx, examsCacheKey); ok {
 		w.Header().Set("Content-Type", "application/json")
@@ -75,7 +75,7 @@ func (h *PublicHandler) GetExams(w http.ResponseWriter, r *http.Request) {
 	h.setCache(ctx, examsCacheKey, payload, 0)
 }
 
-func (h *PublicHandler) SubmitExam(w http.ResponseWriter, r *http.Request) {
+func (h *PublicController) SubmitExam(w http.ResponseWriter, r *http.Request) {
 	var req examservice.SubmitExamRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
@@ -94,7 +94,7 @@ func (h *PublicHandler) SubmitExam(w http.ResponseWriter, r *http.Request) {
 	_, _ = h.writeJSON(w, payload)
 }
 
-func (h *PublicHandler) GetQuestionStubs(w http.ResponseWriter, r *http.Request) {
+func (h *PublicController) GetQuestionStubs(w http.ResponseWriter, r *http.Request) {
 	examIDParam := chi.URLParam(r, "exam_id")
 	examID, err := strconv.ParseUint(examIDParam, 10, 64)
 	if err != nil {
@@ -150,7 +150,7 @@ func (h *PublicHandler) GetQuestionStubs(w http.ResponseWriter, r *http.Request)
 	h.setCache(ctx, key, payload, 0)
 }
 
-func (h *PublicHandler) CheckSubmission(w http.ResponseWriter, r *http.Request) {
+func (h *PublicController) CheckSubmission(w http.ResponseWriter, r *http.Request) {
 	var req examservice.SubmissionCheckRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
@@ -178,7 +178,7 @@ func (h *PublicHandler) CheckSubmission(w http.ResponseWriter, r *http.Request) 
 	h.setCache(ctx, cacheKey, data, h.cacheTTL)
 }
 
-func (h *PublicHandler) writeJSON(w http.ResponseWriter, data any) ([]byte, error) {
+func (h *PublicController) writeJSON(w http.ResponseWriter, data any) ([]byte, error) {
 	payload, err := json.Marshal(data)
 	if err != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
@@ -191,11 +191,11 @@ func (h *PublicHandler) writeJSON(w http.ResponseWriter, data any) ([]byte, erro
 	return payload, nil
 }
 
-func (h *PublicHandler) questionsCacheKey(examID uint) string {
+func (h *PublicController) questionsCacheKey(examID uint) string {
 	return fmt.Sprintf("%s:%d", questionsCachePrefix, examID)
 }
 
-func (h *PublicHandler) submissionCacheKey(examID uint, email, dni string) string {
+func (h *PublicController) submissionCacheKey(examID uint, email, dni string) string {
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
 	normalizedDNI := strings.ToUpper(strings.TrimSpace(dni))
 	fingerprint := fmt.Sprintf("%d:%s:%s", examID, normalizedEmail, normalizedDNI)
@@ -203,7 +203,7 @@ func (h *PublicHandler) submissionCacheKey(examID uint, email, dni string) strin
 	return fmt.Sprintf("%s:%d:%s", submissionCachePrefix, examID, hex.EncodeToString(sum[:]))
 }
 
-func (h *PublicHandler) readCache(ctx context.Context, key string) ([]byte, bool) {
+func (h *PublicController) readCache(ctx context.Context, key string) ([]byte, bool) {
 	if h.cache == nil {
 		return nil, false
 	}
@@ -217,14 +217,14 @@ func (h *PublicHandler) readCache(ctx context.Context, key string) ([]byte, bool
 	return nil, false
 }
 
-func (h *PublicHandler) setCache(ctx context.Context, key string, payload []byte, ttl time.Duration) {
+func (h *PublicController) setCache(ctx context.Context, key string, payload []byte, ttl time.Duration) {
 	if h.cache == nil || ttl < 0 {
 		return
 	}
 	_ = h.cache.Set(ctx, key, payload, ttl).Err()
 }
 
-func (h *PublicHandler) invalidateCheckCacheForExam(examID uint) {
+func (h *PublicController) invalidateCheckCacheForExam(examID uint) {
 	if h.cache == nil {
 		return
 	}
@@ -236,7 +236,7 @@ func (h *PublicHandler) invalidateCheckCacheForExam(examID uint) {
 	}
 }
 
-func (h *PublicHandler) handleError(w http.ResponseWriter, err error) {
+func (h *PublicController) handleError(w http.ResponseWriter, err error) {
 	status := http.StatusBadRequest
 	switch {
 	case errors.Is(err, examservice.ErrSubmissionNotFound), errors.Is(err, examservice.ErrExamNotFound):
@@ -247,7 +247,7 @@ func (h *PublicHandler) handleError(w http.ResponseWriter, err error) {
 	h.writeJSONError(w, status, err.Error())
 }
 
-func (h *PublicHandler) scheduleMoodleSync(email, dni string) {
+func (h *PublicController) scheduleMoodleSync(email, dni string) {
 	if h.moodleClient == nil {
 		return
 	}
@@ -260,7 +260,7 @@ func (h *PublicHandler) scheduleMoodleSync(email, dni string) {
 	}(email, dni)
 }
 
-func (h *PublicHandler) writeJSONError(w http.ResponseWriter, status int, detail string) {
+func (h *PublicController) writeJSONError(w http.ResponseWriter, status int, detail string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{"detail": detail})
