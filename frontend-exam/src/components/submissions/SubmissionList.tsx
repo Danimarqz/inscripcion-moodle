@@ -50,7 +50,8 @@ export default function SubmissionList({
           : 'bg-brand-pink-soft text-brand-pink border border-brand-pink-soft';
 
         const isEditingThisSubmission = editing?.submissionId === submission.id;
-        return (
+
+        return (
           <li
             key={submission.id}
             className="bg-[#1f2229] border border-brand-blue-soft p-6 rounded-2xl shadow-lg transition-all duration-300 hover:border-brand-pink-soft"
