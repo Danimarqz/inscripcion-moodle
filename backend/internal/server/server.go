@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/inscripcion-moodle/go-backend/internal/config"
-	"github.com/inscripcion-moodle/go-backend/internal/handlers"
+	handlers "github.com/inscripcion-moodle/go-backend/internal/controllers"
 	"github.com/inscripcion-moodle/go-backend/internal/middleware"
 	"github.com/inscripcion-moodle/go-backend/internal/services/auth"
 	"github.com/inscripcion-moodle/go-backend/internal/storage"
