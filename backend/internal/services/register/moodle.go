@@ -75,11 +75,10 @@ func (s *Service) createMoodleUser(ctx context.Context, data Data) (bool, error)
 			return true, s.enrolUserInCourses(ctx, userID, resolveCourses(data.Course))
 		}
 		return false, err
-	} else {
-		userID, err = parseUserID(body)
-		if err != nil {
-			return false, err
-		}
+	} 
+	userID, err = parseUserID(body)
+	if err != nil {
+		return false, err
 	}
 
 	return false, s.enrolUserInCourses(ctx, userID, resolveCourses(data.Course))

@@ -30,6 +30,9 @@ func (s *Service) Register(ctx context.Context, data Data) (*Result, error) {
 		pdfBytes     []byte
 		moodleFailed bool
 	)
+	// aumentar tiempo de ejecución para llamdas a moodle
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
 	group, ctx := errgroup.WithContext(ctx)
 
 	group.Go(func() error {
