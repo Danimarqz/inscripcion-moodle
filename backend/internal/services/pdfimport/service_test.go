@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	sqlite "github.com/glebarez/sqlite"
 	"github.com/inscripcion-moodle/go-backend/internal/models"
 	"github.com/jung-kurt/gofpdf"
 	"github.com/stretchr/testify/require"
@@ -29,17 +30,21 @@ func (s *stubExamRepository) Find(_ context.Context, id uint) (*models.Exam, err
 func TestImportOfficialResultsPDF(t *testing.T) {
 	exam := &models.Exam{ID: 123, Name: "Oficial", IsActive: true}
 
-	pdfPath := writeSimplePDF(t, "Resultados oficiales")
+	pdfPath := writeSimplePDF(t, "###4910## ABAD ALVAREZ NEREA")
 	defer func() {
 		_ = os.Remove(pdfPath)
 	}()
 
-	svc := &Service{repo: &stubExamRepository{exam: exam}}
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&models.ExamOfficialResult{}))
+
+	svc := &Service{repo: &stubExamRepository{exam: exam}, db: db}
 	result, err := svc.ImportOfficialResultsPDF(context.Background(), exam.ID, pdfPath, true)
 	require.NoError(t, err)
 	require.Equal(t, exam.ID, result.ExamID)
 	require.True(t, result.PageCount >= 1, "expected at least one page")
-	require.Contains(t, result.TextPreview, "Resultados oficiales")
+	require.Equal(t, 1, result.ImportedResults)
 }
 
 func writeSimplePDF(t *testing.T, text string) string {

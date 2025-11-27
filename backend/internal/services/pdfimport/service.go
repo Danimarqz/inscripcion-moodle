@@ -1,12 +1,10 @@
 package pdfimport
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
@@ -14,15 +12,18 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/inscripcion-moodle/go-backend/internal/models"
+	lpdf "github.com/ledongthuc/pdf"
 )
 
 type Service struct {
 	repo ExamRepository
+	db   *gorm.DB
 }
 
 func New(db *gorm.DB) *Service {
 	return &Service{
 		repo: &gormExamRepository{db: db},
+		db:   db,
 	}
 }
 
@@ -46,7 +47,10 @@ type PDFImportResult struct {
 	ExamID          uint   `json:"exam_id"`
 	PageCount       int    `json:"page_count"`
 	ReplaceExisting bool   `json:"replace_existing"`
-	TextPreview     string `json:"text_preview,omitempty"`
+	TotalRows       int    `json:"total_rows"`
+	ImportedResults int    `json:"imported_results"`
+	CreatedUsers    int    `json:"created_users"`
+	UpdatedUsers    int    `json:"updated_users"`
 }
 
 func (s *Service) ImportOfficialResultsPDF(ctx context.Context, examID uint, pdfPath string, replaceExisting bool) (*PDFImportResult, error) {
@@ -68,23 +72,12 @@ func (s *Service) ImportOfficialResultsPDF(ctx context.Context, examID uint, pdf
 		return nil, fmt.Errorf("read pdf context: %w", err)
 	}
 
-	outDir, err := os.MkdirTemp("", "pdfcpu-import-")
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		_ = os.RemoveAll(outDir)
-	}()
-
-	if err := api.ExtractContentFile(pdfPath, outDir, nil, conf); err != nil {
-		return &PDFImportResult{
-			ExamID:          examID,
-			PageCount:       ctxFile.PageCount,
-			ReplaceExisting: replaceExisting,
-		}, nil
+	if s.db == nil {
+		return nil, fmt.Errorf("pdf import not configured with database")
 	}
 
-	files, err := collectExtractedText(outDir)
+	linesText, _ := extractImportantLines(pdfPath)
+	totalRows, imported, err := s.storeOfficialResults(ctx, examID, linesText, replaceExisting)
 	if err != nil {
 		return nil, err
 	}
@@ -93,44 +86,175 @@ func (s *Service) ImportOfficialResultsPDF(ctx context.Context, examID uint, pdf
 		ExamID:          examID,
 		PageCount:       ctxFile.PageCount,
 		ReplaceExisting: replaceExisting,
-		TextPreview:     joinTextSnippets(files, 800),
+		TotalRows:       totalRows,
+		ImportedResults: imported,
+		CreatedUsers:    0,
+		UpdatedUsers:    0,
 	}, nil
 }
 
-func collectExtractedText(dir string) ([]string, error) {
-	files, err := filepath.Glob(filepath.Join(dir, "*_Content_page_*.txt"))
+func extractImportantLines(pdfPath string) (string, error) {
+	f, reader, err := lpdf.Open(pdfPath)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	sort.Strings(files)
-	if len(files) == 0 {
-		return nil, nil
+	defer func() {
+		_ = f.Close()
+	}()
+
+	textReader, err := reader.GetPlainText()
+	if err != nil {
+		return "", err
 	}
-	return files, nil
+
+	scanner := bufio.NewScanner(textReader)
+	// Increase the buffer to tolerate long lines.
+	const maxLine = 5 * 1024 * 1024
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, maxLine)
+
+	var entries []string
+	var entry strings.Builder
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		if strings.HasPrefix(line, "###") {
+			// Save current entry before starting a new one.
+			if entry.Len() > 0 {
+				entries = append(entries, entry.String())
+				entry.Reset()
+			}
+			entry.WriteString(line)
+			continue
+		}
+
+		// Skip obvious page headers.
+		headerLine := strings.HasPrefix(line, "ANEXO") ||
+			strings.Contains(line, "LISTADOS") ||
+			strings.Contains(line, "ASPIRANTES") ||
+			len(line) > 120
+		if headerLine {
+			continue
+		}
+
+		if entry.Len() > 0 && line != "" {
+			entry.WriteString(" ")
+			entry.WriteString(line)
+		}
+	}
+
+	if entry.Len() > 0 {
+		entries = append(entries, entry.String())
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+
+	if len(entries) == 0 {
+		return "", nil
+	}
+
+	return strings.Join(entries, "\n"), nil
 }
 
-func joinTextSnippets(files []string, limit int) string {
-	if len(files) == 0 {
-		return ""
-	}
-	var builder strings.Builder
-	for _, path := range files {
-		data, err := os.ReadFile(path)
-		if err != nil {
+func parseLines(linesText string) []string {
+	raw := strings.Split(linesText, "\n")
+	var out []string
+	for _, l := range raw {
+		l = strings.TrimSpace(l)
+		if l == "" {
 			continue
 		}
-		text := strings.TrimSpace(string(data))
-		if text == "" {
-			continue
-		}
-		if builder.Len() > 0 {
-			builder.WriteString("\n---\n")
-		}
-		if builder.Len()+len(text) > limit {
-			builder.WriteString(text[:limit-builder.Len()])
-			break
-		}
-		builder.WriteString(text)
+		out = append(out, l)
 	}
-	return builder.String()
+	return out
+}
+
+func parseOfficialResultLine(examID uint, line string) (models.ExamOfficialResult, bool) {
+	trimmed := strings.TrimSpace(line)
+	parts := strings.Fields(trimmed)
+	if len(parts) < 2 {
+		return models.ExamOfficialResult{}, false
+	}
+
+	dniMasked := parts[0]
+	nameParts := parts[1:]
+
+	var apellido1 string
+	var apellido2 *string
+	var nombre string
+
+	switch len(nameParts) {
+	case 1:
+		apellido1 = ""
+		nombre = nameParts[0]
+	case 2:
+		apellido1 = nameParts[0]
+		nombre = nameParts[1]
+	default:
+		apellido1 = nameParts[0]
+		apellido2Val := nameParts[1]
+		apellido2 = &apellido2Val
+		nameTokens := nameParts[2:]
+		if len(nameTokens) > 3 {
+			nameTokens = nameTokens[:3]
+		}
+		nombre = strings.Join(nameTokens, " ")
+	}
+
+	return models.ExamOfficialResult{
+		ExamID:    examID,
+		DniMasked: dniMasked,
+		Apellido1: apellido1,
+		Apellido2: apellido2,
+		Nombre:    nombre,
+	}, true
+}
+
+func (s *Service) storeOfficialResults(ctx context.Context, examID uint, linesText string, replaceExisting bool) (totalRows int, imported int, err error) {
+	lines := parseLines(linesText)
+	totalRows = len(lines)
+	if totalRows == 0 {
+		return 0, 0, nil
+	}
+
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if replaceExisting {
+			if err := tx.Where("exam_id = ?", examID).Delete(&models.ExamOfficialResult{}).Error; err != nil {
+				return err
+			}
+		}
+
+		batchSize := 500
+		batch := make([]models.ExamOfficialResult, 0, batchSize)
+
+		flush := func() error {
+			if len(batch) == 0 {
+				return nil
+			}
+			if err := tx.Create(&batch).Error; err != nil {
+				return err
+			}
+			imported += len(batch)
+			batch = batch[:0]
+			return nil
+		}
+
+		for _, line := range lines {
+			if res, ok := parseOfficialResultLine(examID, line); ok {
+				batch = append(batch, res)
+				if len(batch) >= batchSize {
+					if err := flush(); err != nil {
+						return err
+					}
+				}
+			}
+		}
+
+		return flush()
+	})
+
+	return totalRows, imported, err
 }
