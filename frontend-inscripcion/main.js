@@ -72,31 +72,31 @@ document.addEventListener('DOMContentLoaded', function () {
     e.preventDefault();
     if (!validateForm()) return;
 
-    setLoading(true);
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
     data.signature = signaturePad.toDataURL();
     console.log('Data to send: ', data)
-    try {
-      const res = await fetch('/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
 
-      const result = await res.json();
-      if (res.ok) {
-        showModal('Éxito', 'Formulario enviado correctamente.');
-        form.reset();
-        signaturePad.clear();
-      } else {
-        showModal('Error', result.detail || 'Error al enviar el formulario.');
-      }
-    } catch (err) {
-      showModal('Error', 'Error de red o inesperado.');
-    } finally {
-      setLoading(false);
-    }
+    // Mostrar el mensaje inmediatamente sin esperar a la respuesta.
+    showModal('Éxito', 'Su inscripción se está gestionando.');
+    form.reset();
+    signaturePad.clear();
+
+    // Enviar en segundo plano; solo se loguean errores.
+    fetch('/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+      .then(async res => {
+        if (!res.ok) {
+          const result = await res.json().catch(() => ({}));
+          console.error('Error al enviar la inscripción:', result.detail || res.statusText);
+        }
+      })
+      .catch(err => {
+        console.error('Error de red o inesperado al enviar la inscripción:', err);
+      });
   }
 
   /**
@@ -298,12 +298,8 @@ document.addEventListener('DOMContentLoaded', function () {
    * @param {boolean} isLoading - `true` para mostrar el spinner, `false` para ocultarlo.
    */
   function setLoading(isLoading) {
-    if (isLoading) {
-      submitBtn.disabled = true;
-      spinner.style.display = 'inline-block';
-    } else {
-      submitBtn.disabled = false;
-      spinner.style.display = 'none';
-    }
+    // Se elimina el estado de carga para no mostrar spinners durante el envío.
+    submitBtn.disabled = false;
+    spinner.style.display = 'none';
   }
 });
