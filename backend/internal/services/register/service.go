@@ -55,7 +55,11 @@ func (s *Service) Register(ctx context.Context, data Data) (*Result, error) {
 	})
 
 	group.Go(func() error {
-		return postRegistrationToGSheet(ctx, s.client, s.cfg.GSheetAPI, data)
+		if err := postRegistrationToGSheet(ctx, s.client, s.cfg.GSheetAPI, data); err != nil {
+			log.Printf("register: gsheet error: %v", err)
+			return err
+		}
+		return nil
 	})
 
 	if err := group.Wait(); err != nil {
@@ -63,7 +67,7 @@ func (s *Service) Register(ctx context.Context, data Data) (*Result, error) {
 	}
 
 	if err := sendEmails(s.cfg, data.Email, pdfBytes, data.Name, data.Surname, moodleFailed); err != nil {
-		return nil, err
+		log.Printf("register: email send error: %v", err)
 	}
 
 	message := "Inscripción completada correctamente"

@@ -40,6 +40,7 @@ var (
 
 func (s *Service) createMoodleUser(ctx context.Context, data Data) (bool, error) {
 	username := strings.ToLower(strings.TrimSpace(data.Email))
+	courseKey := strings.TrimSpace(strings.ToLower(data.Course))
 	payload := url.Values{
 		"users[0][username]":  {username},
 		"users[0][firstname]": {data.Name},
@@ -55,7 +56,7 @@ func (s *Service) createMoodleUser(ctx context.Context, data Data) (bool, error)
 		{"dni", data.DNI},
 		{"conocer", data.Discover},
 	}
-	for i, field := range append(custom, courseCustomField(data.Course)...) {
+	for i, field := range append(custom, courseCustomField(courseKey)...) {
 		payload.Set(fmt.Sprintf("users[0][customfields][%d][type]", i), field.key)
 		payload.Set(fmt.Sprintf("users[0][customfields][%d][value]", i), field.value)
 	}
@@ -87,14 +88,13 @@ func (s *Service) createMoodleUser(ctx context.Context, data Data) (bool, error)
 func courseCustomField(course string) []struct {
 	key, value string
 } {
-	if course == "" {
+	if course == "" || !isValidCourseKey(course) {
 		return nil
 	}
-	key := strings.TrimSpace(strings.ToLower(course))
 	return []struct {
 		key, value string
 	}{
-		{key, "true"},
+		{course, "true"},
 	}
 }
 
@@ -114,6 +114,11 @@ func resolveCourses(course string) []int {
 		unique = append(unique, id)
 	}
 	return unique
+}
+
+func isValidCourseKey(course string) bool {
+	_, ok := validCourses[course]
+	return ok
 }
 
 func (s *Service) enrolUserInCourses(ctx context.Context, userID int, courseIDs []int) error {
