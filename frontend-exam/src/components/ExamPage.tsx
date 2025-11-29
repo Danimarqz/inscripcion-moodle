@@ -9,14 +9,17 @@ import type {
   ExamSubmissionPayload,
   Question,
 } from '../types/exam';
-import { checkSubmission, submitExam } from '../services/examService';
+import { checkOfficialResult, checkSubmission, submitExam } from '../services/examService';
 import { useExamQuestions } from '../hooks/useExamQuestions';
 import { useExamUi } from '../hooks/useExamUi';
 import { isValidEmail, normalizeDni, roundToTwoDecimals, validateDniNie } from '../utils/validation';
-import { ANSWER_OPTIONS } from '../constants/answerOptions';
-import QuestionCardFrame from './questions/QuestionCardFrame';
-import QuestionSection from './questions/QuestionSection';
+import QuestionList from './questions/QuestionList';
+import QuickResultCheck from './submissions/QuickResultCheck';
 import SubmissionSummary from './submissions/SubmissionSummary';
+import EligibilityModal from './modals/EligibilityModal';
+import SubmissionIdentityFields from './submissions/SubmissionIdentityFields';
+import QuestionCardFrame from './questions/QuestionCardFrame';
+import { ANSWER_OPTIONS } from '../constants/answerOptions';
 
 interface ExamPageProps {
   examId: number;
@@ -90,6 +93,10 @@ export default function ExamPage({
   const [formError, setFormError] = useState<string | null>(null);
   const [autoCheckDisabled, setAutoCheckDisabled] = useState(false);
   const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
+  const [eligibilityAllowed, setEligibilityAllowed] = useState(false);
+  const [eligibilityChecking, setEligibilityChecking] = useState(false);
+  const [eligibilityError, setEligibilityError] = useState<string | null>(null);
+  const [showEligibilityModal, setShowEligibilityModal] = useState(false);
 
   const [examUiState, dispatchExamUi] = useExamUi();
   const {
@@ -115,7 +122,61 @@ export default function ExamPage({
     setAutoCheckDisabled(false);
     setAcceptsMarketing(false);
     setUserAnswers({});
+    setEligibilityAllowed(false);
+    setEligibilityError(null);
+    setShowEligibilityModal(false);
   }, [examId, dispatchExamUi]);
+
+  useEffect(() => {
+    setEligibilityAllowed(false);
+    setEligibilityError(null);
+    setShowEligibilityModal(false);
+
+    const trimmedName = studentName.trim();
+    const trimmedSurname = studentSurname.trim();
+    const normalizedDni = normalizeDni(dni);
+
+    if (!trimmedName || !trimmedSurname) {
+      setEligibilityChecking(false);
+      return;
+    }
+    if (!validateDniNie(normalizedDni)) {
+      setEligibilityChecking(false);
+      return;
+    }
+
+    let cancelled = false;
+    setEligibilityChecking(true);
+    const timer = window.setTimeout(() => {
+      void checkOfficialResult({
+        exam_id: examId,
+        name: trimmedName,
+        surname: trimmedSurname,
+        dni: normalizedDni,
+      })
+        .then((res) => {
+          if (cancelled) return;
+          setEligibilityAllowed(res.match);
+          if (!res.match) {
+            setShowEligibilityModal(true);
+          }
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setEligibilityError(err instanceof Error ? err.message : 'No se pudo comprobar el acceso');
+        })
+        .finally(() => {
+          if (cancelled) return;
+          setEligibilityChecking(false);
+        });
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      setEligibilityChecking(false);
+    };
+  }, [studentName, studentSurname, dni, examId]);
 
   const questionEntries = useMemo(
     () => questions.map((question, index) => ({ index, question })),
@@ -249,6 +310,11 @@ export default function ExamPage({
       setFormError('Los apellidos son obligatorios.');
       return;
     }
+    if (!eligibilityAllowed) {
+      setFormError('Debemos verificar que participaste en el examen oficial antes de continuar.');
+      setShowEligibilityModal(true);
+      return;
+    }
 
     const form = event.currentTarget as HTMLFormElement;
     const formData = new FormData(form);
@@ -285,6 +351,7 @@ export default function ExamPage({
       exam_id: examId,
       answers,
       accepts_marketing: acceptsMarketing,
+      eligibility_confirmed: eligibilityAllowed,
     };
 
     try {
@@ -304,8 +371,22 @@ export default function ExamPage({
       setUserAnswers({});
     } catch (error) {
       const message = (error as Error).message || 'Error al enviar el examen';
+      const lower = message.toLowerCase();
+      const isEligibilityIssue =
+        lower.includes('examen oficial') ||
+        lower.includes('verificado') ||
+        lower.includes('resultado') ||
+        lower.includes('registrar tus resultados');
+
+      if (isEligibilityIssue) {
+        setShowEligibilityModal(true);
+        setEligibilityAllowed(false);
+        setFormError(null);
+      } else {
+        setFormError(message);
+      }
+
       dispatchExamUi({ type: 'SUBMIT_ERROR', payload: message });
-      setFormError(message);
     }
   };
 
@@ -440,6 +521,7 @@ export default function ExamPage({
 
   return (
     <main>
+      <EligibilityModal open={showEligibilityModal} onClose={() => setShowEligibilityModal(false)} />
       <a
         href="/"
         className="inline-block mb-6 px-4 py-2 font-bold text-brand-pink border border-brand-pink rounded-md no-underline transition-colors duration-300 ease-in-out hover:text-brand-yellow hover:border-brand-yellow"
@@ -451,52 +533,14 @@ export default function ExamPage({
       </h1>
 
       {allowResultPreview && (
-        <section className="mb-10 rounded-2xl border border-brand-blue-soft bg-brand-blue-soft p-6 shadow-[0_10px_30px_rgba(15,153,188,0.2)]">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.4em] text-brand-yellow">Consulta rápida</p>
-              <h2 className="text-2xl font-bold text-brand-pink">Consultar mi nota</h2>
-              <p className="text-sm text-brand-blue text-opacity-80 mt-1">
-                Introduce el mismo email y DNI/NIE con el que enviaste el intento para ver tu resultado.
-              </p>
-            </div>
-          </div>
-          <form
-            className="flex flex-col gap-4 md:flex-row md:items-end"
-            onSubmit={handleManualCheck}
-            noValidate
-          >
-            <label className="flex-1 text-sm font-semibold text-brand-pink">
-              Email
-              <input
-                type="email"
-                value={email}
-                onInput={(event) => setEmail((event.target as HTMLInputElement).value)}
-                className="mt-1 w-full rounded border border-[#5a4a7a] bg-[#1d1f27] px-3 py-2 text-white focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/40"
-                placeholder="tu@email.com"
-                required
-              />
-            </label>
-            <label className="flex-1 text-sm font-semibold text-brand-pink">
-              DNI / NIE
-              <input
-                type="text"
-                value={dni}
-                onInput={(event) => setDni(normalizeDni((event.target as HTMLInputElement).value))}
-                className="mt-1 w-full rounded border border-[#5a4a7a] bg-[#1d1f27] px-3 py-2 text-white uppercase focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/40"
-                placeholder="00000000A"
-                required
-              />
-            </label>
-            <button
-              type="submit"
-              className="btn-brand w-full md:w-auto px-6"
-              disabled={checking}
-            >
-              {checking ? 'Consultando...' : 'Consultar mi nota'}
-            </button>
-          </form>
-        </section>
+        <QuickResultCheck
+          email={email}
+          dni={dni}
+          checking={checking}
+          onEmailChange={setEmail}
+          onDniChange={setDni}
+          onSubmit={handleManualCheck}
+        />
       )}
       {allowResultPreview && resultsSummary}
       {validatedTribunal && (
@@ -505,59 +549,18 @@ export default function ExamPage({
                 </p>
               )}
       <form id="exam-form" onSubmit={handleSubmit} noValidate>
-        <div className="mb-6">
-          <label htmlFor="name" className="block font-bold text-brand-pink mb-2">Nombre:</label>
-          <input
-            type="text"
-            id="name"
-            name="name"
-            required
-            value={studentName}
-            onInput={(event) => setStudentName((event.target as HTMLInputElement).value)}
-            className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/50"
-          />
-        </div>
-
-        <div className="mb-6">
-          <label htmlFor="surname" className="block font-bold text-brand-pink mb-2">Apellidos:</label>
-          <input
-            type="text"
-            id="surname"
-            name="surname"
-            required
-            value={studentSurname}
-            onInput={(event) => setStudentSurname((event.target as HTMLInputElement).value)}
-            className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/50"
-          />
-        </div>
-
-        <div className="mb-6">
-          <label htmlFor="email" className="block font-bold text-brand-pink mb-2">Email:</label>
-          <input
-            type="email"
-            id="email"
-            name="email"
-            required
-            value={email}
-            onInput={(event) => setEmail((event.target as HTMLInputElement).value)}
-            onBlur={handleCheckSubmissionBlur}
-            className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/50"
-          />
-        </div>
-
-        <div className="mb-6">
-          <label htmlFor="dni" className="block font-bold text-brand-pink mb-2">DNI/NIE:</label>
-          <input
-            type="text"
-            id="dni"
-            name="dni"
-            required
-            value={dni}
-            onInput={(event) => setDni(normalizeDni((event.target as HTMLInputElement).value))}
-            onBlur={handleCheckSubmissionBlur}
-            className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/50"
-          />
-        </div>
+        <SubmissionIdentityFields
+          studentName={studentName}
+          studentSurname={studentSurname}
+          email={email}
+          dni={dni}
+          onNameChange={setStudentName}
+          onSurnameChange={setStudentSurname}
+          onEmailChange={setEmail}
+          onDniChange={setDni}
+          onBlurCheck={handleCheckSubmissionBlur}
+          eligibilityError={eligibilityError}
+        />
 
         {checking && (
           <p className="text-center text-brand-blue bg-brand-blue/10 border border-brand-blue/50 p-4 rounded-md mt-6">
@@ -573,34 +576,13 @@ export default function ExamPage({
 
         {!hasPreviousSubmission && (
           <>
-            <QuestionSection
-              title="Preguntas activas"
-              entries={activeEntries}
-              description={
-                <p className="text-sm text-gray-400 mt-1">
-                  Responde todas las preguntas activas; puntuan en la nota final.
-                </p>
-              }
-              renderEntry={(entry, index) => renderQuestionCard(entry, index + 1, false)}
-              showCount={false}
-              titleTag="h2"
-              titleClassName="text-2xl font-semibold text-brand-pink"
-              sectionClassName="mt-8"
+            <QuestionList
+              activeEntries={activeEntries}
+              reserveEntries={reserveEntries}
+              userAnswers={userAnswers}
+              onSetAnswer={setAnswerForQuestion}
+              onClearAnswer={clearAnswerForQuestion}
             />
-
-            {reserveEntries.length > 0 && (
-              <QuestionSection
-                title="Preguntas de reserva"
-                entries={reserveEntries}
-                renderEntry={(entry, index) =>
-                  renderQuestionCard(entry, activeEntries.length + index + 1, true)
-                }
-                showCount={false}
-                titleTag="h2"
-                titleClassName="text-2xl font-semibold text-brand-pink"
-                sectionClassName="mt-8"
-              />
-            )}
 
             <div className="mt-8 space-top-3 text-sm">
               <label htmlFor="accepts_marketing" className="flex items-start gap-3 text-gray-200">
@@ -637,9 +619,10 @@ export default function ExamPage({
         {!hasPreviousSubmission && (
           <button
             type="submit"
-            className="btn-brand w-full text-lg mt-4"
+            className="btn-brand w-full text-lg mt-4 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+            disabled={!eligibilityAllowed || eligibilityChecking}
           >
-            Entregar Examen
+            {eligibilityChecking ? 'Comprobando...' : 'Entregar Examen'}
           </button>
         )}
         {formError && (

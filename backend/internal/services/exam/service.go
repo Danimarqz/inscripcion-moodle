@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode"
 
+	"golang.org/x/text/unicode/norm"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 
@@ -21,19 +23,60 @@ var (
 		"C": {},
 		"D": {},
 	}
-	ErrDNINotValid        = errors.New("dni o nie invalido")
-	ErrAlreadySubmitted   = errors.New("ya has enviado este examen")
-	ErrExamNotFound       = errors.New("examen no encontrado")
-	ErrExamNoQuestions    = errors.New("el examen no tiene preguntas configuradas")
-	ErrExamNoActive       = errors.New("el examen no tiene preguntas activas no anuladas configuradas")
-	ErrInvalidAnswer      = errors.New("opcion de respuesta no valida")
-	ErrSubmissionNotFound = errors.New("submission not found")
-	ErrExamNotActive      = errors.New("exam is not active or responses not visible")
-	ErrResultsNotViewable = errors.New("los resultados no están disponibles para este examen")
+	ErrDNINotValid           = errors.New("dni o nie invalido")
+	ErrAlreadySubmitted      = errors.New("ya has enviado este examen")
+	ErrExamNotFound          = errors.New("examen no encontrado")
+	ErrExamNoQuestions       = errors.New("el examen no tiene preguntas configuradas")
+	ErrExamNoActive          = errors.New("el examen no tiene preguntas activas no anuladas configuradas")
+	ErrInvalidAnswer         = errors.New("opcion de respuesta no valida")
+	ErrSubmissionNotFound    = errors.New("submission not found")
+	ErrExamNotActive         = errors.New("exam is not active or responses not visible")
+	ErrResultsNotViewable    = errors.New("los resultados no estan disponibles para este examen")
+	ErrOfficialResultMissing = errors.New("Este apartado es solo para personas que realizaron el examen oficial. Si no puedes registrar tus resultados y si te presentaste, contacta con nosotros: info.opositatcae@gmail.com")
 )
 
 func NormalizeDNI(value string) string {
 	return strings.ToUpper(strings.TrimSpace(value))
+}
+
+func normalizeName(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	// Remove accents and normalize spacing, uppercase result for strict compares.
+	decomposed := norm.NFD.String(trimmed)
+	var b strings.Builder
+	for _, r := range decomposed {
+		if unicode.Is(unicode.Mn, r) {
+			continue
+		}
+		if unicode.IsSpace(r) {
+			b.WriteRune(' ')
+			continue
+		}
+		b.WriteRune(unicode.ToUpper(r))
+	}
+	return strings.Join(strings.Fields(b.String()), " ")
+}
+
+func extractDigits(value string) string {
+	var b strings.Builder
+	for _, r := range value {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func middleFourDigits(value string) string {
+	digits := extractDigits(value)
+	if len(digits) < 4 {
+		return ""
+	}
+	start := (len(digits) - 4) / 2
+	return digits[start : start+4]
 }
 
 func ValidateDNINIE(value string) bool {
@@ -90,16 +133,31 @@ func ProcessExamSubmission(db *gorm.DB, req SubmitExamRequest) (*SubmissionPaylo
 func processSubmission(tx *gorm.DB, req SubmitExamRequest) (*SubmissionPayload, error) {
 	normalizedEmail := strings.ToLower(strings.TrimSpace(req.Email))
 	normalizedDNI := NormalizeDNI(req.DNI)
+	trimmedName := strings.TrimSpace(req.Name)
+	trimmedSurname := strings.TrimSpace(req.Surname)
 	if !ValidateDNINIE(normalizedDNI) {
 		return nil, ErrDNINotValid
+	}
+
+	match, err := CheckOfficialResultMatch(tx, OfficialResultMatchRequest{
+		ExamID:  req.ExamID,
+		Name:    trimmedName,
+		Surname: trimmedSurname,
+		DNI:     normalizedDNI,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if !match {
+		return nil, ErrOfficialResultMissing
 	}
 
 	var candidate models.ExamUser
 	if err := tx.Where("dni = ?", normalizedDNI).First(&candidate).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			candidate = models.ExamUser{
-				Name:             strings.TrimSpace(req.Name),
-				Surname:          strings.TrimSpace(req.Surname),
+				Name:             trimmedName,
+				Surname:          trimmedSurname,
 				Email:            normalizedEmail,
 				DNI:              normalizedDNI,
 				AcceptsMarketing: req.AcceptsMarketing,
@@ -111,8 +169,8 @@ func processSubmission(tx *gorm.DB, req SubmitExamRequest) (*SubmissionPayload, 
 			return nil, err
 		}
 	} else {
-		candidate.Name = strings.TrimSpace(req.Name)
-		candidate.Surname = strings.TrimSpace(req.Surname)
+		candidate.Name = trimmedName
+		candidate.Surname = trimmedSurname
 		candidate.Email = normalizedEmail
 		candidate.AcceptsMarketing = req.AcceptsMarketing
 		if err := tx.Save(&candidate).Error; err != nil {
@@ -250,6 +308,51 @@ func BuildSubmissionCheckResponse(db *gorm.DB, req SubmissionCheckRequest) (*Sub
 	}
 
 	return payload, nil
+}
+
+func CheckOfficialResultMatch(db *gorm.DB, req OfficialResultMatchRequest) (bool, error) {
+	if req.ExamID == 0 {
+		return false, ErrExamNotFound
+	}
+
+	name := normalizeName(req.Name)
+	surname := normalizeName(req.Surname)
+	if name == "" || surname == "" {
+		return false, nil
+	}
+
+	centerDigits := middleFourDigits(req.DNI)
+	if centerDigits == "" {
+		return false, nil
+	}
+
+	var results []models.ExamOfficialResult
+	if err := db.Where("exam_id = ?", req.ExamID).Find(&results).Error; err != nil {
+		return false, err
+	}
+
+	for _, res := range results {
+		resName := normalizeName(res.Nombre)
+		surnameParts := []string{res.Apellido1}
+		if res.Apellido2 != nil {
+			surnameParts = append(surnameParts, *res.Apellido2)
+		}
+		resSurname := normalizeName(strings.TrimSpace(strings.Join(surnameParts, " ")))
+		if resName == "" || resSurname == "" {
+			continue
+		}
+		if resName != name {
+			continue
+		}
+		if resSurname != surname {
+			continue
+		}
+		if middleFourDigits(res.DniMasked) == centerDigits {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func CalculateScoreBreakdown(questions []models.Question, answers map[uint]string) (ScoreBreakdown, error) {

@@ -178,6 +178,26 @@ func (h *PublicController) CheckSubmission(w http.ResponseWriter, r *http.Reques
 	h.setCache(ctx, cacheKey, data, h.cacheTTL)
 }
 
+func (h *PublicController) CheckOfficialResultMatch(w http.ResponseWriter, r *http.Request) {
+	var req examservice.OfficialResultMatchRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	match, err := examservice.CheckOfficialResultMatch(h.db, req)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, examservice.ErrExamNotFound) {
+			status = http.StatusNotFound
+		}
+		http.Error(w, "failed to verify official result", status)
+		return
+	}
+
+	_, _ = h.writeJSON(w, examservice.OfficialResultMatchResponse{Match: match})
+}
+
 func (h *PublicController) writeJSON(w http.ResponseWriter, data any) ([]byte, error) {
 	payload, err := json.Marshal(data)
 	if err != nil {
@@ -242,6 +262,8 @@ func (h *PublicController) handleError(w http.ResponseWriter, err error) {
 	case errors.Is(err, examservice.ErrSubmissionNotFound), errors.Is(err, examservice.ErrExamNotFound):
 		status = http.StatusNotFound
 	case errors.Is(err, examservice.ErrExamNotActive), errors.Is(err, examservice.ErrResultsNotViewable):
+		status = http.StatusForbidden
+	case errors.Is(err, examservice.ErrOfficialResultMissing):
 		status = http.StatusForbidden
 	}
 	h.writeJSONError(w, status, err.Error())

@@ -84,6 +84,7 @@ export type ExamSubmissionPayload = {
   exam_id: number;
   answers: Answer[];
   accepts_marketing: boolean;
+  eligibility_confirmed?: boolean;
 }
 
 export type SubmissionUpdatePayload = {
@@ -97,6 +98,17 @@ export type SubmissionUpdatePayload = {
 export type ExamQuestionsResponse = {
   exam_name: string;
   questions: Question[];
+};
+
+export type OfficialResultCheckPayload = {
+  exam_id: number;
+  name: string;
+  surname: string;
+  dni: string;
+};
+
+export type OfficialResultCheckResponse = {
+  match: boolean;
 };
 
 export type QuestionCreate = {

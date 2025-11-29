@@ -74,7 +74,7 @@ export async function createExam(examData: ExamCreateWithQuestions, token: strin
 }
 
 export async function editExam(examId: number, examData: ExamEdit, token: string): Promise<Exam> {
-  const response = await fetch(`${API_URL}/admin/exams/${examId}/edit`, {
+  const response = await fetch(`${API_URL}/admin/exams/${examId}`, {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -152,7 +152,7 @@ export interface SendSubmissionEmailsPayload {
   order_dir?: string;
   moodle_synced?: boolean;
   attachments?: SubmissionEmailAttachmentPayload[];
- }
+}
 
 export async function getExamSubmissions(
   examId: number,

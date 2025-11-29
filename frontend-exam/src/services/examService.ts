@@ -5,6 +5,8 @@ import type {
   ExamQuestionsResponse,
   ExamSubmissionPayload,
   Question,
+  OfficialResultCheckPayload,
+  OfficialResultCheckResponse,
   UserSubmissionCheck,
 } from '../types/exam';
 
@@ -27,6 +29,10 @@ export async function getQuestions(examId: number): Promise<Question[]> {
 }
 
 export async function submitExam(payload: ExamSubmissionPayload): Promise<ExamOut> {
+  if (!payload.eligibility_confirmed) {
+    throw new Error('No se ha verificado que perteneces al examen oficial.');
+  }
+
   const response = await fetch(`${API_URL}/submit-exam`, {
     method: 'POST',
     headers: {
@@ -58,4 +64,24 @@ export async function checkSubmission(payload: UserSubmissionCheck): Promise<Exa
   }
 
   return data;
+}
+
+export async function checkOfficialResult(
+  payload: OfficialResultCheckPayload,
+): Promise<OfficialResultCheckResponse> {
+  const response = await fetch(`${API_URL}/check-official-result`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    const message = typeof data?.detail === 'string' ? data.detail : 'No se pudo comprobar el acceso al examen';
+    throw new Error(message);
+  }
+
+  return data as OfficialResultCheckResponse;
 }
