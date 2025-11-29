@@ -5,6 +5,8 @@ import type {
   ExamCreateWithQuestions,
   ExamEdit,
   ExamOfficialResult,
+  AdminOfficialResultsResponse,
+  CreateOfficialResultPayload,
   ImportOfficialResultsSummary,
   SubmissionUpdatePayload,
   SyncMoodleUsersResponse,
@@ -293,8 +295,34 @@ export async function syncMoodleUsers(token: string): Promise<SyncMoodleUsersRes
   return response.json();
 }
 
-export async function getOfficialResults(examId: number, token: string): Promise<ExamOfficialResult[]> {
-  const response = await fetch(`${API_URL}/admin/exams/${examId}/results/official`, {
+interface FetchOfficialResultsOptions {
+  limit?: number;
+  offset?: number;
+  orderBy?: 'dni' | 'nombre' | 'apellidos' | 'usuario' | 'creado';
+  orderDir?: 'asc' | 'desc';
+}
+
+export async function getOfficialResults(
+  examId: number,
+  token: string,
+  options: FetchOfficialResultsOptions = {},
+): Promise<AdminOfficialResultsResponse> {
+  const params = new URLSearchParams();
+  if (options.limit !== undefined) {
+    params.set('limit', String(options.limit));
+  }
+  if (options.offset !== undefined) {
+    params.set('offset', String(options.offset));
+  }
+  if (options.orderBy) {
+    params.set('order_by', options.orderBy);
+  }
+  if (options.orderDir) {
+    params.set('order_dir', options.orderDir);
+  }
+
+  const query = params.toString();
+  const response = await fetch(`${API_URL}/admin/exams/${examId}/results/official${query ? `?${query}` : ''}`, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -332,6 +360,28 @@ export async function importOfficialResults(
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(errorData.detail || 'Error importing official results');
+  }
+
+  return response.json();
+}
+
+export async function createOfficialResult(
+  examId: number,
+  payload: CreateOfficialResultPayload,
+  token: string,
+): Promise<ExamOfficialResult> {
+  const response = await fetch(`${API_URL}/admin/exams/${examId}/results/official`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Error creating official result');
   }
 
   return response.json();

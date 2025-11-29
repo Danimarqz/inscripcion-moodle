@@ -12,9 +12,11 @@ import (
 )
 
 var (
-	ErrExamNameConflict = errors.New("ya existe un examen con ese nombre")
-	ErrActiveQuestions  = errors.New("el examen debe tener al menos una pregunta activa no anulada")
-	ErrQuestionNotFound = errors.New("la pregunta no pertenece al examen")
+	ErrExamNameConflict      = errors.New("ya existe un examen con ese nombre")
+	ErrActiveQuestions       = errors.New("el examen debe tener al menos una pregunta activa no anulada")
+	ErrQuestionNotFound      = errors.New("la pregunta no pertenece al examen")
+	ErrOfficialResultExists  = errors.New("ya existe un resultado oficial con ese DNI para este examen")
+	ErrInvalidOfficialResult = errors.New("datos de resultado oficial invalidos")
 )
 
 type Service struct {
@@ -389,15 +391,139 @@ func buildSubmissionOrder(orderBy, orderDir string) string {
 	return fmt.Sprintf("%s %s", field, dir)
 }
 
-func (s *Service) ListOfficialResults(examID uint) ([]models.ExamOfficialResult, error) {
-	var results []models.ExamOfficialResult
-	if err := s.db.Preload("User").
-		Where("exam_id = ?", examID).
-		Order("apellido_1 ASC, apellido_2 ASC, nombre ASC").
-		Find(&results).Error; err != nil {
+func buildOfficialResultsOrder(orderBy, orderDir string) string {
+	order := strings.ToLower(strings.TrimSpace(orderBy))
+	dir := strings.ToUpper(strings.TrimSpace(orderDir))
+	if dir != "ASC" && dir != "DESC" {
+		dir = ""
+	}
+
+	switch order {
+	case "dni":
+		if dir == "" {
+			dir = "ASC"
+		}
+		return fmt.Sprintf("exam_official_result.dni_masked %s", dir)
+	case "nombre":
+		if dir == "" {
+			dir = "ASC"
+		}
+		return fmt.Sprintf("exam_official_result.nombre %s", dir)
+	case "apellidos":
+		if dir == "" {
+			dir = "ASC"
+		}
+		return fmt.Sprintf("exam_official_result.apellido_1 %s, exam_official_result.apellido_2 %s", dir, dir)
+	case "usuario":
+		if dir == "" {
+			dir = "ASC"
+		}
+		return fmt.Sprintf("exam_user.name %s, exam_user.surname %s", dir, dir)
+	case "creado", "created_at":
+		if dir == "" {
+			dir = "DESC"
+		}
+		return fmt.Sprintf("exam_official_result.created_at %s", dir)
+	default:
+		if dir == "" {
+			dir = "DESC"
+		}
+		return fmt.Sprintf("exam_official_result.created_at %s", dir)
+	}
+}
+
+func (s *Service) ListOfficialResults(examID uint, limit, offset int, orderBy, orderDir string) (*OfficialResultsList, error) {
+	var (
+		results []models.ExamOfficialResult
+		total   int64
+	)
+
+	query := s.db.Model(&models.ExamOfficialResult{}).
+		Where("exam_id = ?", examID)
+
+	if strings.EqualFold(orderBy, "usuario") {
+		query = query.Joins("LEFT JOIN exam_user ON exam_user.id = exam_official_result.user_id")
+	}
+
+	if err := query.Count(&total).Error; err != nil {
 		return nil, err
 	}
-	return results, nil
+
+	orderClause := buildOfficialResultsOrder(orderBy, orderDir)
+	if orderClause != "" {
+		query = query.Order(orderClause)
+	}
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	if offset > 0 {
+		query = query.Offset(offset)
+	}
+
+	if err := query.Preload("User").Find(&results).Error; err != nil {
+		return nil, err
+	}
+
+	return &OfficialResultsList{
+		Results: results,
+		Total:   total,
+	}, nil
+}
+
+func (s *Service) CreateOfficialResult(examID uint, req CreateOfficialResultRequest) (*models.ExamOfficialResult, error) {
+	dni := strings.ToUpper(strings.TrimSpace(req.DNI))
+	apellido1 := strings.ToUpper(strings.TrimSpace(req.Apellido1))
+	nombre := strings.ToUpper(strings.TrimSpace(req.Nombre))
+
+	if dni == "" || apellido1 == "" || nombre == "" {
+		return nil, fmt.Errorf("%w: DNI, apellido 1 y nombre son obligatorios", ErrInvalidOfficialResult)
+	}
+
+	apellido2Raw := strings.ToUpper(strings.TrimSpace(req.Apellido2))
+	var apellido2 *string
+	if apellido2Raw != "" {
+		apellido2 = &apellido2Raw
+	}
+
+	if err := s.db.First(&models.Exam{}, examID).Error; err != nil {
+		return nil, err
+	}
+
+	var existing models.ExamOfficialResult
+	err := s.db.
+		Where("exam_id = ? AND dni_masked = ?", examID, dni).
+		First(&existing).Error
+	if err == nil {
+		return nil, ErrOfficialResultExists
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	newResult := models.ExamOfficialResult{
+		ExamID:    examID,
+		DniMasked: dni,
+		Apellido1: apellido1,
+		Apellido2: apellido2,
+		Nombre:    nombre,
+	}
+
+	var user models.ExamUser
+	if err := s.db.Where("UPPER(dni) = ?", dni).First(&user).Error; err == nil {
+		newResult.UserID = &user.ID
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	if err := s.db.Create(&newResult).Error; err != nil {
+		return nil, err
+	}
+
+	if err := s.db.Preload("User").First(&newResult, newResult.ID).Error; err != nil {
+		return nil, err
+	}
+
+	return &newResult, nil
 }
 
 func activeQuestions(questions []models.Question) []models.Question {

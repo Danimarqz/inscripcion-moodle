@@ -161,6 +161,18 @@ export type ExamOfficialResult = {
   created_at: string;
 };
 
+export type CreateOfficialResultPayload = {
+  dni: string;
+  apellido_1: string;
+  apellido_2?: string | null;
+  nombre: string;
+};
+
+export type AdminOfficialResultsResponse = {
+  results: ExamOfficialResult[];
+  total: number;
+};
+
 export type ImportOfficialResultsSummary = {
   exam_id: number;
   total_rows: number;

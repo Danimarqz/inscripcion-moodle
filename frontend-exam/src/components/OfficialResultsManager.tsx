@@ -5,8 +5,10 @@ import type {
   ExamOfficialResult,
   ImportOfficialResultsSummary,
   SortableHeaderProps,
+  CreateOfficialResultPayload,
 } from '../types/exam';
 import {
+  createOfficialResult,
   getOfficialResults,
   importOfficialResults,
 } from '../services/adminService';
@@ -20,10 +22,18 @@ interface OfficialResultsManagerProps {
 export default function OfficialResultsManager({ exams, token }: OfficialResultsManagerProps) {
   const [selectedExamId, setSelectedExamId] = useState<string>('');
   const [results, setResults] = useState<ExamOfficialResult[]>([]);
+  const [totalResults, setTotalResults] = useState<number>(0);
   const { loading: resultsLoading, error: resultsError, run, setError: setResultsError } = useAsyncTask();
   const [feedback, setFeedback] = useState<string | null>(null);
   const [importing, setImporting] = useState<boolean>(false);
   const [summary, setSummary] = useState<ImportOfficialResultsSummary | null>(null);
+  const [manualResult, setManualResult] = useState<{ dni: string; apellido1: string; apellido2: string; nombre: string }>({
+    dni: '',
+    apellido1: '',
+    apellido2: '',
+    nombre: '',
+  });
+  const [creating, setCreating] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<'dni' | 'nombre' | 'apellidos' | 'usuario' | 'creado'>('apellidos');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [pageSize, setPageSize] = useState<number>(100);
@@ -38,20 +48,34 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
 
   useEffect(() => {
     setCurrentPage(1);
+    setManualResult({ dni: '', apellido1: '', apellido2: '', nombre: '' });
+    setSummary(null);
+    setTotalResults(0);
   }, [selectedExamId]);
 
   useEffect(() => {
-    async function load(examNumericId: number) {
+    async function load(examNumericId: number, page: number) {
       await run(async () => {
         setFeedback(null);
-        const data = await getOfficialResults(examNumericId, token);
-        setResults(data);
-        setCurrentPage(1);
+        const offset = Math.max(0, (page - 1) * pageSize);
+        const data = await getOfficialResults(examNumericId, token, {
+          limit: pageSize,
+          offset,
+          orderBy: sortBy,
+          orderDir: sortDirection,
+        });
+        setResults(data.results);
+        setTotalResults(data.total);
+        const totalPages = Math.max(1, Math.ceil(Math.max(data.total, 1) / pageSize));
+        if (page > totalPages) {
+          setCurrentPage(totalPages);
+        }
       });
     }
 
     if (!selectedExamId) {
       setResults([]);
+      setTotalResults(0);
       setSummary(null);
       setFeedback(null);
       setResultsError(null);
@@ -61,14 +85,16 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
     const examNumericId = Number(selectedExamId);
     if (Number.isNaN(examNumericId)) {
       setResults([]);
+      setTotalResults(0);
       setResultsError('Identificador de examen invalido.');
       return;
     }
 
-    void load(examNumericId).catch(() => {
+    void load(examNumericId, currentPage).catch(() => {
       setResults([]);
+      setTotalResults(0);
     });
-  }, [run, selectedExamId, token]);
+  }, [run, selectedExamId, token, sortBy, sortDirection, pageSize, currentPage]);
 
   function handleSelectExam(event: Event) {
     const value = (event.target as HTMLSelectElement).value;
@@ -104,10 +130,17 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
         `Importacion completada: ${importSummary.imported_results}/${importSummary.total_rows} filas registradas.`,
       );
       const refreshed = await run(
-        () => getOfficialResults(examNumericId, token),
+        () =>
+          getOfficialResults(examNumericId, token, {
+            limit: pageSize,
+            offset: 0,
+            orderBy: sortBy,
+            orderDir: sortDirection,
+          }),
         { suppressLoading: true },
       );
-      setResults(refreshed);
+      setResults(refreshed.results);
+      setTotalResults(refreshed.total);
       setCurrentPage(1);
     } catch (err) {
       setSummary(null);
@@ -118,6 +151,62 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+    }
+  }
+
+  async function handleCreateResult(event: Event) {
+    event.preventDefault();
+    if (!selectedExamId) {
+      setResultsError('Selecciona un examen antes de anadir un registro.');
+      return;
+    }
+
+    const examNumericId = Number(selectedExamId);
+    if (Number.isNaN(examNumericId)) {
+      setResultsError('Identificador de examen invalido.');
+      return;
+    }
+
+    const dni = manualResult.dni.trim();
+    const apellido1 = manualResult.apellido1.trim();
+    const apellido2 = manualResult.apellido2.trim();
+    const nombre = manualResult.nombre.trim();
+
+    if (!dni || !apellido1 || !nombre) {
+      setResultsError('DNI, apellido 1 y nombre son obligatorios.');
+      return;
+    }
+
+    const payload: CreateOfficialResultPayload = {
+      dni,
+      apellido_1: apellido1,
+      nombre,
+      ...(apellido2 ? { apellido_2: apellido2 } : {}),
+    };
+
+    setCreating(true);
+    setResultsError(null);
+    setFeedback(null);
+
+    try {
+      await createOfficialResult(examNumericId, payload, token);
+      setSummary(null);
+      setFeedback('Registro agregado correctamente.');
+      setManualResult({ dni: '', apellido1: '', apellido2: '', nombre: '' });
+      setCurrentPage(1);
+      const refreshed = await getOfficialResults(examNumericId, token, {
+        limit: pageSize,
+        offset: 0,
+        orderBy: sortBy,
+        orderDir: sortDirection,
+      });
+      setResults(refreshed.results);
+      setTotalResults(refreshed.total);
+    } catch (err) {
+      setFeedback(null);
+      setResultsError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCreating(false);
     }
   }
 
@@ -132,8 +221,8 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
   };
 
   const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(results.length / pageSize)),
-    [results.length, pageSize],
+    () => Math.max(1, Math.ceil(Math.max(totalResults, 1) / pageSize)),
+    [totalResults, pageSize],
   );
 
   useEffect(() => {
@@ -141,18 +230,6 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
-
-  const paginatedRows = useMemo(
-    () =>
-      getPaginatedResults(
-        results,
-        sortBy,
-        sortDirection,
-        pageSize,
-        currentPage,
-      ),
-    [results, sortBy, sortDirection, pageSize, currentPage],
-  );
 
   return (
     <section className="mt-8 space-y-6">
@@ -185,6 +262,75 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
         <p className="text-xs text-brand-blue mb-4">
           Resumen: {summary.imported_results}/{summary.total_rows} filas guardadas, usuarios actualizados: {summary.updated_users}.
         </p>
+      )}
+
+      {selectedExamId && (
+        <form
+          className="grid gap-3 md:grid-cols-[repeat(5,minmax(0,1fr))] items-end bg-[#14161d] border border-brand-blue-soft rounded-2xl p-4 shadow-xl"
+          onSubmit={handleCreateResult}
+        >
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-brand-pink font-semibold uppercase tracking-[0.25em]">DNI</label>
+            <input
+              type="text"
+              value={manualResult.dni}
+              onInput={(event) =>
+                setManualResult((prev) => ({ ...prev, dni: (event.target as HTMLInputElement).value }))
+              }
+              className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
+              placeholder="00000000A"
+              disabled={!selectedExamId || creating}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-brand-pink font-semibold uppercase tracking-[0.25em]">Apellido 1</label>
+            <input
+              type="text"
+              value={manualResult.apellido1}
+              onInput={(event) =>
+                setManualResult((prev) => ({ ...prev, apellido1: (event.target as HTMLInputElement).value }))
+              }
+              className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
+              placeholder="Primer apellido"
+              disabled={!selectedExamId || creating}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-brand-pink font-semibold uppercase tracking-[0.25em]">Apellido 2 (opcional)</label>
+            <input
+              type="text"
+              value={manualResult.apellido2}
+              onInput={(event) =>
+                setManualResult((prev) => ({ ...prev, apellido2: (event.target as HTMLInputElement).value }))
+              }
+              className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
+              placeholder="Segundo apellido"
+              disabled={!selectedExamId || creating}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-brand-pink font-semibold uppercase tracking-[0.25em]">Nombre</label>
+            <input
+              type="text"
+              value={manualResult.nombre}
+              onInput={(event) =>
+                setManualResult((prev) => ({ ...prev, nombre: (event.target as HTMLInputElement).value }))
+              }
+              className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
+              placeholder="Nombre"
+              disabled={!selectedExamId || creating}
+            />
+          </div>
+          <div className="flex md:justify-end">
+            <button
+              type="submit"
+              className="w-full md:w-auto py-2 px-5 rounded font-semibold bg-brand-pink text-white shadow-[0_10px_30px_rgba(237,87,150,0.25)] hover:bg-[#f3529f] transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled={!selectedExamId || creating}
+            >
+              {creating ? 'Anadiendo...' : 'Anadir registro'}
+            </button>
+          </div>
+        </form>
       )}
 
       <form className="flex flex-col gap-3 md:flex-row md:items-center mb-6" onSubmit={handleImport}>
@@ -224,7 +370,7 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
           </h3>
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
             <div className="text-sm text-brand-blue font-semibold">
-              Total registros: {results.length}
+              Total registros: {totalResults}
             </div>
             <div className="flex items-center gap-3">
               <label className="text-xs text-brand-yellow flex items-center gap-2">
@@ -288,22 +434,30 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
                 </tr>
               </thead>
               <tbody>
-                {paginatedRows.map(({ result, surname, associatedUser }) => (
-                  <tr key={result.id} className="odd:bg-[#1b1e25] border-b border-brand-blue-soft last:border-b-0">
-                    <td className="px-3 py-2 font-mono text-xs text-brand-blue">{result.dni_masked}</td>
-                    <td className="px-3 py-2 text-white font-semibold">{result.nombre}</td>
-                    <td className="px-3 py-2 text-white">{surname}</td>
-                    <td className="px-3 py-2 text-brand-pink">{associatedUser}</td>
-                    <td className="px-3 py-2 text-xs text-brand-yellow">
-                      {new Date(result.created_at).toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
+                {results.map((result) => {
+                  const surname = [result.apellido_1, result.apellido_2].filter(Boolean).join(' ');
+                  const user = result.user;
+                  const associatedUser = user
+                    ? `${user.name} ${user.surname} (${user.dni}${user.email ? ` - ${user.email}` : ''})`
+                    : 'Sin usuario enlazado';
+
+                  return (
+                    <tr key={result.id} className="odd:bg-[#1b1e25] border-b border-brand-blue-soft last:border-b-0">
+                      <td className="px-3 py-2 font-mono text-xs text-brand-blue">{result.dni_masked}</td>
+                      <td className="px-3 py-2 text-white font-semibold">{result.nombre}</td>
+                      <td className="px-3 py-2 text-white">{surname}</td>
+                      <td className="px-3 py-2 text-brand-pink">{associatedUser}</td>
+                      <td className="px-3 py-2 text-xs text-brand-yellow">
+                        {new Date(result.created_at).toLocaleString()}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
           <PaginationControls
-            totalItems={results.length}
+            totalItems={totalResults}
             pageSize={pageSize}
             currentPage={currentPage}
             onPageChange={setCurrentPage}
@@ -338,57 +492,6 @@ function SortableHeader({ label, sortKey, activeKey, direction, onSort }: Sortab
   );
 }
 
-function getPaginatedResults(
-  results: ExamOfficialResult[],
-  sortBy: 'dni' | 'nombre' | 'apellidos' | 'usuario' | 'creado',
-  sortDirection: 'asc' | 'desc',
-  pageSize: number,
-  currentPage: number,
-) {
-  const collator = new Intl.Collator('es', { sensitivity: 'base' });
-
-  const withDerived = results.map((result) => {
-    const surname = [result.apellido_1, result.apellido_2].filter(Boolean).join(' ');
-    const user = result.user;
-    const associatedUser = user
-      ? `${user.name} ${user.surname} (${user.dni}${user.email ? ` · ${user.email}` : ''})`
-      : 'Sin usuario enlazado';
-
-    return { result, surname, associatedUser };
-  });
-
-  withDerived.sort((a, b) => {
-    let comparison = 0;
-
-    switch (sortBy) {
-      case 'dni':
-        comparison = collator.compare(a.result.dni_masked, b.result.dni_masked);
-        break;
-      case 'nombre':
-        comparison = collator.compare(a.result.nombre, b.result.nombre);
-        break;
-      case 'apellidos':
-        comparison = collator.compare(a.surname, b.surname);
-        break;
-      case 'usuario':
-        comparison = collator.compare(a.associatedUser, b.associatedUser);
-        break;
-      case 'creado':
-        comparison = new Date(a.result.created_at).getTime() - new Date(b.result.created_at).getTime();
-        break;
-      default:
-        comparison = 0;
-    }
-
-    return sortDirection === 'asc' ? comparison : -comparison;
-  });
-
-  const totalPages = Math.max(1, Math.ceil(withDerived.length / pageSize));
-  const safePage = Math.min(Math.max(currentPage, 1), totalPages);
-  const start = (safePage - 1) * pageSize;
-  return withDerived.slice(start, start + pageSize);
-}
-
 interface PaginationControlsProps {
   totalItems: number;
   pageSize: number;
@@ -408,7 +511,7 @@ function PaginationControls({ totalItems, pageSize, currentPage, onPageChange }:
   return (
     <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between mt-4 text-xs text-brand-blue">
       <div className="font-semibold">
-        Mostrando {startItem}-{endItem} de {totalItems} registros · Página {currentPage} de {totalPages}
+        Mostrando {startItem}-{endItem} de {totalItems} registros - Página {currentPage} de {totalPages}
       </div>
       <div className="flex items-center gap-2">
         <button

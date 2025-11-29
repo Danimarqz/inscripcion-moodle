@@ -92,6 +92,7 @@ func (h *AdminController) RegisterRoutes(r chi.Router) {
 		r.Post("/results/emails/send", h.sendSubmissionEmails)
 		r.Post("/moodle/sync-users", h.syncMoodleUsers)
 		r.Get("/exams/{exam_id}/results/official", h.listOfficialResults)
+		r.Post("/exams/{exam_id}/results/official", h.createOfficialResult)
 		r.Post("/exams/{exam_id}/results/import", h.importOfficialResults)
 	})
 }
@@ -473,6 +474,37 @@ func (h *AdminController) deleteSubmission(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, map[string]string{"detail": "Intento eliminado correctamente"})
 }
 
+func (h *AdminController) createOfficialResult(w http.ResponseWriter, r *http.Request) {
+	examID, err := strconv.ParseUint(chi.URLParam(r, "exam_id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid exam id", http.StatusBadRequest)
+		return
+	}
+
+	var payload admin.CreateOfficialResultRequest
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	result, err := h.service.CreateOfficialResult(uint(examID), payload)
+	if err != nil {
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			http.Error(w, "exam not found", http.StatusNotFound)
+		case errors.Is(err, admin.ErrInvalidOfficialResult):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		case errors.Is(err, admin.ErrOfficialResultExists):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		default:
+			http.Error(w, "failed to create official result", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	writeJSON(w, result)
+}
+
 func (h *AdminController) importOfficialResults(w http.ResponseWriter, r *http.Request) {
 	examID, err := strconv.ParseUint(chi.URLParam(r, "exam_id"), 10, 64)
 	if err != nil {
@@ -524,7 +556,11 @@ func (h *AdminController) listOfficialResults(w http.ResponseWriter, r *http.Req
 		http.Error(w, "invalid exam id", http.StatusBadRequest)
 		return
 	}
-	results, err := h.service.ListOfficialResults(uint(examID))
+	limit := parseLimitParam(r.URL.Query().Get("limit"))
+	offset := parseOffsetParam(r.URL.Query().Get("offset"))
+	orderBy := sanitizeOfficialResultsOrderBy(r.URL.Query().Get("order_by"))
+	orderDir := sanitizeOrderDir(r.URL.Query().Get("order_dir"))
+	results, err := h.service.ListOfficialResults(uint(examID), limit, offset, orderBy, orderDir)
 	if err != nil {
 		http.Error(w, "failed to load official results", http.StatusInternalServerError)
 		return
@@ -704,6 +740,23 @@ func sanitizeOrderDir(raw string) string {
 		return "asc"
 	}
 	return "desc"
+}
+
+func sanitizeOfficialResultsOrderBy(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "dni":
+		return "dni"
+	case "nombre":
+		return "nombre"
+	case "apellidos":
+		return "apellidos"
+	case "usuario":
+		return "usuario"
+	case "creado", "created_at":
+		return "creado"
+	default:
+		return "apellidos"
+	}
 }
 
 type sendSubmissionEmailsRequest struct {

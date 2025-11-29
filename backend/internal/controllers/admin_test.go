@@ -40,7 +40,6 @@ func TestAdminImportEndpoint(t *testing.T) {
 			result: &pdfimport.PDFImportResult{
 				ReplaceExisting: true,
 				PageCount:       2,
-				TextPreview:     "datos",
 			},
 		},
 	}
@@ -58,7 +57,6 @@ func TestAdminImportEndpoint(t *testing.T) {
 	var payload pdfimport.PDFImportResult
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&payload))
 	require.Equal(t, uint(1), payload.ExamID)
-	require.Equal(t, "datos", payload.TextPreview)
 }
 
 func buildMultipartPDF(t *testing.T) ([]byte, string) {
