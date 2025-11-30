@@ -9,11 +9,13 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/inscripcion-moodle/go-backend/internal/config"
+	"github.com/inscripcion-moodle/go-backend/internal/services/moodle"
 )
 
 type Service struct {
-	cfg    *config.Config
-	client *http.Client
+	cfg          *config.Config
+	client       *http.Client
+	moodleClient *moodle.Client
 }
 
 func New(cfg *config.Config) *Service {
@@ -22,6 +24,7 @@ func New(cfg *config.Config) *Service {
 		client: &http.Client{
 			Timeout: 15 * time.Second,
 		},
+		moodleClient: moodle.New(cfg),
 	}
 }
 

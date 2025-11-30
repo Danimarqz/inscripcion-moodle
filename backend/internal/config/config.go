@@ -36,6 +36,13 @@ type Config struct {
 	AdminEmail        string
 	MoodleURL         string
 	MoodleToken       string
+	MoodleDBURL       string
+	MoodleDBUser      string
+	MoodleDBPassword  string
+	MoodleDBHost      string
+	MoodleDBPort      string
+	MoodleDBName      string
+	MoodleDBPrefix    string
 	GSheetAPI         string
 }
 
@@ -82,6 +89,12 @@ func Load() (*Config, error) {
 		AdminEmail:        parseEnvString("ADMIN_EMAIL", os.Getenv("SMTP_USER")),
 		MoodleURL:         os.Getenv("MOODLE_URL"),
 		MoodleToken:       os.Getenv("MOODLE_TOKEN"),
+		MoodleDBUser:      os.Getenv("MOODLE_DB_USER"),
+		MoodleDBPassword:  os.Getenv("MOODLE_DB_PASSWORD"),
+		MoodleDBHost:      parseEnvString("MOODLE_DB_HOST", "localhost"),
+		MoodleDBPort:      parseEnvString("MOODLE_DB_PORT", "3306"),
+		MoodleDBName:      os.Getenv("MOODLE_DB_NAME"),
+		MoodleDBPrefix:    parseEnvString("MOODLE_DB_PREFIX", "mdl_"),
 		GSheetAPI:         os.Getenv("API_GSHEET"),
 	}, nil
 }

@@ -76,7 +76,7 @@ func (s *Service) createMoodleUser(ctx context.Context, data Data) (bool, error)
 			return true, s.enrolUserInCourses(ctx, userID, resolveCourses(data.Course))
 		}
 		return false, err
-	} 
+	}
 	userID, err = parseUserID(body)
 	if err != nil {
 		return false, err
@@ -141,26 +141,21 @@ func (s *Service) enrolUserInCourse(ctx context.Context, userID, courseID int) e
 }
 
 func (s *Service) findExistingUser(ctx context.Context, email string) ([]map[string]int, error) {
-	payload := url.Values{
-		"field":     {"email"},
-		"values[0]": {strings.TrimSpace(email)},
+	if s.moodleClient == nil {
+		return nil, moodle.ErrNotConfigured
 	}
-	body, err := s.callMoodle(ctx, "core_user_get_users_by_field", payload)
+
+	users, err := s.moodleClient.FindUsersByField(ctx, "email", email)
 	if err != nil {
-		return nil, err
-	}
-	var users []map[string]interface{}
-	if err := json.Unmarshal(body, &users); err != nil {
+		if errors.Is(err, moodle.ErrUserNotFound) {
+			return nil, errors.New("usuario no encontrado")
+		}
 		return nil, err
 	}
 
 	result := make([]map[string]int, 0, len(users))
-	for _, raw := range users {
-		if id, ok := raw["id"]; ok {
-			if parsed, ok := id.(float64); ok {
-				result = append(result, map[string]int{"id": int(parsed)})
-			}
-		}
+	for _, user := range users {
+		result = append(result, map[string]int{"id": user.ID})
 	}
 	if len(result) == 0 {
 		return nil, errors.New("usuario no encontrado")
