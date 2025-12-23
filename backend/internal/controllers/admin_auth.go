@@ -58,7 +58,8 @@ func (h *AdminController) login(w http.ResponseWriter, r *http.Request) {
 	var admin models.AdminUser
 	if err := h.db.Where("username = ?", payload.Username).First(&admin).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			http.Error(w, "credenciales invalidas", http.StatusUnauthorized)
+			w.WriteHeader(http.StatusUnauthorized)
+			writeJSON(w, genericError{Message: "credenciales invalidas"})
 			return
 		}
 		http.Error(w, "failed to lookup admin", http.StatusInternalServerError)
@@ -66,7 +67,8 @@ func (h *AdminController) login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !h.auth.VerifyPassword(admin.PasswordHash, payload.Password) {
-		http.Error(w, "credenciales invalidas", http.StatusUnauthorized)
+		w.WriteHeader(http.StatusUnauthorized)
+		writeJSON(w, genericError{Message: "credenciales invalidas"})
 		return
 	}
 

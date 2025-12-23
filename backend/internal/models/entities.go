@@ -100,3 +100,10 @@ type ExamOfficialResult struct {
 func (ExamOfficialResult) TableName() string {
 	return "exam_official_result"
 }
+
+type ExcelImportResult struct {
+	ExamID          uint `json:"exam_id"`
+	ReplaceExisting bool `json:"replace_existing"`
+	TotalRows       int  `json:"total_rows"`
+	ImportedResults int  `json:"imported_results"`
+}

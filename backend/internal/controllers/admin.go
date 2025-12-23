@@ -9,10 +9,11 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/inscripcion-moodle/go-backend/internal/config"
+	"github.com/inscripcion-moodle/go-backend/internal/models"
 	"github.com/inscripcion-moodle/go-backend/internal/services/admin"
 	"github.com/inscripcion-moodle/go-backend/internal/services/auth"
+	excelimport "github.com/inscripcion-moodle/go-backend/internal/services/excelimport"
 	"github.com/inscripcion-moodle/go-backend/internal/services/moodle"
-	pdfimport "github.com/inscripcion-moodle/go-backend/internal/services/pdfimport"
 )
 
 type contextKey string
@@ -29,13 +30,13 @@ type AdminController struct {
 	cache        *redis.Client
 	auth         *auth.Service
 	service      *admin.Service
-	pdfImport    pdfImportService
+	excelImport    excelImportService
 	moodleClient *moodle.Client
 	cfg          *config.Config
 }
 
-type pdfImportService interface {
-	ImportOfficialResultsPDF(context.Context, uint, string, bool) (*pdfimport.PDFImportResult, error)
+type excelImportService interface {
+	ImportOfficialResultsExcel(context.Context, uint, string, bool) (*models.ExcelImportResult, error)
 }
 
 type adminRequest struct {
@@ -47,13 +48,18 @@ type tokenResponse struct {
 	AccessToken string `json:"access_token"`
 }
 
+type genericError struct {
+	Message string `json:"message"`
+}
+
+
 func NewAdminController(db *gorm.DB, cacheClient *redis.Client, authService *auth.Service, cfg *config.Config) *AdminController {
 	return &AdminController{
 		db:           db,
 		cache:        cacheClient,
 		auth:         authService,
 		service:      admin.New(db),
-		pdfImport:    pdfimport.New(db),
+		excelImport:    excelimport.New(db),
 		moodleClient: moodle.New(cfg),
 		cfg:          cfg,
 	}

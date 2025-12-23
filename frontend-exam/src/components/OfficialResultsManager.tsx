@@ -116,7 +116,7 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
 
     const file = fileInputRef.current?.files?.[0];
     if (!file) {
-      setResultsError('Selecciona un archivo PDF para importar.');
+      setResultsError('Selecciona un archivo Excel para importar.');
       return;
     }
 
@@ -335,11 +335,11 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
 
       <form className="flex flex-col gap-3 md:flex-row md:items-center mb-6" onSubmit={handleImport}>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-brand-pink font-semibold">Importar PDF de resultados</span>
+          <span className="text-brand-pink font-semibold">Importar Excel de resultados</span>
           <input
             ref={fileInputRef}
             type="file"
-            accept="application/pdf"
+            accept=".xlsx, .xls, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
             className="px-3 py-2 rounded border border-dashed border-brand-pink-soft bg-[#1f2229] text-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-pink"
             disabled={!selectedExamId || importing}
           />
@@ -349,7 +349,7 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
           className="py-2 px-5 rounded mt-5 md:mt-6 md:ml-5 font-semibold bg-brand-blue text-white shadow-[0_10px_30px_rgba(15,153,188,0.25)] hover:bg-[#12b2d4] transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           disabled={!selectedExamId || importing}
         >
-          {importing ? 'Importando...' : 'Importar PDF'}
+          {importing ? 'Importando...' : 'Importar Excel'}
         </button>
       </form>
 
@@ -397,7 +397,7 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
               <thead className="bg-[#1f2229] text-brand-yellow uppercase text-xs tracking-[0.3em]">
                 <tr>
                   <SortableHeader
-                    label="DNI PDF"
+                    label="DNI Excel"
                     sortKey="dni"
                     activeKey={sortBy}
                     direction={sortDirection}

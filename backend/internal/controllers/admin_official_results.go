@@ -57,14 +57,14 @@ func (h *AdminController) importOfficialResults(w http.ResponseWriter, r *http.R
 	}
 	file, _, err := r.FormFile("file")
 	if err != nil {
-		http.Error(w, "missing pdf file", http.StatusBadRequest)
+		http.Error(w, "missing excel file", http.StatusBadRequest)
 		return
 	}
 	defer func() {
 		_ = file.Close()
 	}()
 
-	tmp, err := os.CreateTemp("", "official_results_*.pdf")
+	tmp, err := os.CreateTemp("", "official_results_*.xlsx")
 	if err != nil {
 		http.Error(w, "failed to create temp file", http.StatusInternalServerError)
 		return
@@ -77,12 +77,12 @@ func (h *AdminController) importOfficialResults(w http.ResponseWriter, r *http.R
 	}()
 
 	if _, err := io.Copy(tmp, file); err != nil {
-		http.Error(w, "failed to store pdf", http.StatusInternalServerError)
+		http.Error(w, "failed to store excel file", http.StatusInternalServerError)
 		return
 	}
 
 	replace := parseBoolParam(r.URL.Query().Get("replace_existing"), true)
-	report, err := h.pdfImport.ImportOfficialResultsPDF(r.Context(), uint(examID), tmp.Name(), replace)
+	report, err := h.excelImport.ImportOfficialResultsExcel(r.Context(), uint(examID), tmp.Name(), replace)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
