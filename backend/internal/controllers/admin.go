@@ -12,6 +12,7 @@ import (
 	"github.com/inscripcion-moodle/go-backend/internal/cache"
 	"github.com/inscripcion-moodle/go-backend/internal/config"
 	"github.com/inscripcion-moodle/go-backend/internal/models"
+	"github.com/inscripcion-moodle/go-backend/internal/repository"
 	"github.com/inscripcion-moodle/go-backend/internal/services/admin"
 	"github.com/inscripcion-moodle/go-backend/internal/services/auth"
 	excelimport "github.com/inscripcion-moodle/go-backend/internal/services/excelimport"
@@ -56,12 +57,16 @@ type genericError struct {
 
 
 func NewAdminController(db *gorm.DB, cacheClient *redis.Client, authService *auth.Service, cfg *config.Config) *AdminController {
+	examRepo := repository.NewExamRepository()
+	subRepo := repository.NewSubmissionRepository()
+	officialRepo := repository.NewOfficialResultRepository()
+	
 	return &AdminController{
 		db:           db,
 		cache:        cache.New(cacheClient),
 		auth:         authService,
-		service:      admin.New(db),
-		excelImport:    excelimport.New(db),
+		service:      admin.New(db, examRepo, subRepo, officialRepo),
+		excelImport:  excelimport.New(db),
 		moodleClient: moodle.New(cfg),
 		cfg:          cfg,
 	}
