@@ -35,8 +35,8 @@ type ExamUser struct {
 	ID               uint                 `gorm:"column:id;primaryKey" json:"id"`
 	Name             string               `gorm:"column:name" json:"name"`
 	Surname          string               `gorm:"column:surname" json:"surname"`
-	Email            string               `gorm:"column:email" json:"email"`
-	DNI              string               `gorm:"column:dni" json:"dni"`
+	Email            string               `gorm:"column:email;index:idx_exam_user_email" json:"email"`
+	DNI              string               `gorm:"column:dni;index:idx_exam_user_dni" json:"dni"`
 	MoodleID         *int                 `gorm:"column:moodle_id" json:"moodle_id,omitempty"`
 	AcceptsMarketing bool                 `gorm:"column:accepts_marketing" json:"accepts_marketing"`
 	CreatedAt        time.Time            `gorm:"column:created_at" json:"created_at"`
@@ -49,7 +49,7 @@ func (ExamUser) TableName() string {
 
 type UserExamSubmission struct {
 	ID          uint         `gorm:"column:id;primaryKey" json:"id"`
-	UserID      uint         `gorm:"column:user_id" json:"user_id"`
+	UserID      uint         `gorm:"column:user_id;index:idx_user_exam_submission_user_id" json:"user_id"`
 	ExamID      uint         `gorm:"column:exam_id;index:idx_user_exam_submission_exam_id" json:"exam_id"`
 	Score       *float64     `gorm:"column:score" json:"score"`
 	Percentile  *float64     `gorm:"column:percentile" json:"percentile"`
@@ -86,9 +86,9 @@ func (AdminUser) TableName() string {
 
 type ExamOfficialResult struct {
 	ID        uint      `gorm:"column:id;primaryKey" json:"id"`
-	ExamID    uint      `gorm:"column:exam_id" json:"exam_id"`
+	ExamID    uint      `gorm:"column:exam_id;index:idx_official_result_exam_dni" json:"exam_id"`
 	UserID    *uint     `gorm:"column:user_id" json:"user_id,omitempty"`
-	DniMasked string    `gorm:"column:dni_masked" json:"dni_masked"`
+	DniMasked string    `gorm:"column:dni_masked;index:idx_official_result_exam_dni" json:"dni_masked"`
 	Apellido1 string    `gorm:"column:apellido_1" json:"apellido_1"`
 	Apellido2 *string   `gorm:"column:apellido_2" json:"apellido_2,omitempty"`
 	Nombre    string    `gorm:"column:nombre" json:"nombre"`

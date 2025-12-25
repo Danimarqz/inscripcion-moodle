@@ -21,7 +21,6 @@ import (
 	"github.com/inscripcion-moodle/go-backend/internal/config"
 	"github.com/inscripcion-moodle/go-backend/internal/constants"
 	"github.com/inscripcion-moodle/go-backend/internal/models"
-	"github.com/inscripcion-moodle/go-backend/internal/repository"
 	examservice "github.com/inscripcion-moodle/go-backend/internal/services/exam"
 	"github.com/inscripcion-moodle/go-backend/internal/services/moodle"
 )
@@ -45,14 +44,16 @@ type PublicController struct {
 	cache        *cache.Cache
 	cacheTTL     time.Duration
 	moodleClient *moodle.Client
+	service      *examservice.Service
 }
 
-func NewPublicController(db *gorm.DB, rds *redis.Client, cfg *config.Config) *PublicController {
+func NewPublicController(db *gorm.DB, rds *redis.Client, cfg *config.Config, service *examservice.Service) *PublicController {
 	return &PublicController{
 		db:           db,
 		cache:        cache.New(rds),
 		cacheTTL:     cfg.PublicCacheTTL,
 		moodleClient: moodle.New(cfg),
+		service:      service,
 	}
 }
 
@@ -87,8 +88,7 @@ func (h *PublicController) SubmitExam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	examService := examservice.NewService(h.db, repository.NewExamRepository())
-	payload, err := examService.ProcessExamSubmission(req)
+	payload, err := h.service.ProcessExamSubmission(req)
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -112,12 +112,8 @@ func (h *PublicController) GetQuestionStubs(w http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	key := h.questionsCacheKey(uint(examID))
 
-	// Service is instantiated here as it's lightweight.
-	// For a larger application, it might be part of the controller's dependencies.
-	examService := examservice.NewService(h.db, repository.NewExamRepository())
-
 	payload, err := h.cache.GetOrSet(ctx, key, 0, func() ([]byte, error) {
-		stubs, err := examService.GetQuestionStubs(ctx, uint(examID))
+		stubs, err := h.service.GetQuestionStubs(ctx, uint(examID))
 		if err != nil {
 			return nil, err
 		}

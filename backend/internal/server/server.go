@@ -16,7 +16,9 @@ import (
 	"github.com/inscripcion-moodle/go-backend/internal/config"
 	controllers "github.com/inscripcion-moodle/go-backend/internal/controllers"
 	"github.com/inscripcion-moodle/go-backend/internal/middleware"
+	"github.com/inscripcion-moodle/go-backend/internal/repository"
 	"github.com/inscripcion-moodle/go-backend/internal/services/auth"
+	examservice "github.com/inscripcion-moodle/go-backend/internal/services/exam"
 	"github.com/inscripcion-moodle/go-backend/internal/storage"
 )
 
@@ -37,7 +39,10 @@ func New(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 
-	publicController := controllers.NewPublicController(db, cache, cfg)
+	examRepo := repository.NewExamRepository()
+	examService := examservice.NewService(db, examRepo)
+
+	publicController := controllers.NewPublicController(db, cache, cfg, examService)
 	registerController := controllers.NewRegisterController(cfg)
 	authService, err := auth.New(cfg)
 	if err != nil {
