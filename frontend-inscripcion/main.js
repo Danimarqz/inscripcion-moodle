@@ -62,8 +62,6 @@ document.addEventListener('DOMContentLoaded', function () {
     signaturePad.clear();
   }
 
-
-
   /**
    * Gestiona el envío del formulario.
    * @param {Event} e - El evento de envío.
@@ -75,28 +73,46 @@ document.addEventListener('DOMContentLoaded', function () {
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
     data.signature = signaturePad.toDataURL();
-    console.log('Data to send: ', data)
+    console.log('Sending data:', data);
 
-    // Mostrar el mensaje inmediatamente sin esperar a la respuesta.
-    showModal('Éxito', 'Su inscripción se está gestionando.');
-    form.reset();
-    signaturePad.clear();
+    // 1. Mostrar estado de carga
+    setLoading(true);
 
-    // Enviar en segundo plano; solo se loguean errores.
-    fetch('/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-      .then(async res => {
-        if (!res.ok) {
-          const result = await res.json().catch(() => ({}));
-          console.error('Error al enviar la inscripción:', result.detail || res.statusText);
-        }
-      })
-      .catch(err => {
-        console.error('Error de red o inesperado al enviar la inscripción:', err);
+    try {
+      // 2. Enviar la petición y ESPERAR respuesta
+      const res = await fetch('/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
       });
+
+      if (res.ok) {
+        // 3. ÉXITO: Solo borrar si todo fue bien
+        showModal('Éxito', 'Su inscripción se ha enviado correctamente. Recibirá un correo de confirmación.');
+        form.reset();
+        signaturePad.clear();
+        // Restablecer fecha actual
+        if (document.getElementById('requestdate')) {
+          const today = new Date();
+          const yyyy = today.getFullYear();
+          const mm = String(today.getMonth() + 1).padStart(2, '0');
+          const dd = String(today.getDate()).padStart(2, '0');
+          document.getElementById('requestdate').value = `${dd}-${mm}-${yyyy}`;
+        }
+      } else {
+        // 4. ERROR API: Mostrar mensaje pero NO borrar datos
+        const result = await res.json().catch(() => ({}));
+        console.error('API Error:', result);
+        showModal('Error', 'Hubo un problema al enviar la inscripción: ' + (result.detail || res.statusText));
+      }
+    } catch (err) {
+      // 5. ERROR RED: Mostrar mensaje y NO borrar datos
+      console.error('Network Error:', err);
+      showModal('Error', 'Error de conexión. Por favor, compruebe su internet e inténtelo de nuevo.');
+    } finally {
+      // 6. Restaurar botón
+      setLoading(false);
+    }
   }
 
   /**
@@ -298,8 +314,12 @@ document.addEventListener('DOMContentLoaded', function () {
    * @param {boolean} isLoading - `true` para mostrar el spinner, `false` para ocultarlo.
    */
   function setLoading(isLoading) {
-    // Se elimina el estado de carga para no mostrar spinners durante el envío.
-    submitBtn.disabled = false;
-    spinner.style.display = 'none';
+    if (isLoading) {
+      submitBtn.disabled = true;
+      spinner.style.display = 'inline-block';
+    } else {
+      submitBtn.disabled = false;
+      spinner.style.display = 'none';
+    }
   }
 });
