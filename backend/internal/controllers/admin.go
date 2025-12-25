@@ -60,12 +60,13 @@ func NewAdminController(db *gorm.DB, cacheClient *redis.Client, authService *aut
 	examRepo := repository.NewExamRepository()
 	subRepo := repository.NewSubmissionRepository()
 	officialRepo := repository.NewOfficialResultRepository()
+	questionRepo := repository.NewQuestionRepository()
 	
 	return &AdminController{
 		db:           db,
 		cache:        cache.New(cacheClient),
 		auth:         authService,
-		service:      admin.New(db, examRepo, subRepo, officialRepo),
+		service:      admin.New(db, examRepo, subRepo, officialRepo, questionRepo),
 		excelImport:  excelimport.New(db),
 		moodleClient: moodle.New(cfg),
 		cfg:          cfg,

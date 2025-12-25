@@ -53,9 +53,18 @@ func (m *MockExamRepository) CountByName(ctx context.Context, db *gorm.DB, name 
 	return args.Get(0).(int64), args.Error(1)
 }
 
+type MockQuestionRepository struct {
+	mock.Mock
+}
+
+func (m *MockQuestionRepository) DeleteByExamID(ctx context.Context, db *gorm.DB, examID uint) error {
+	args := m.Called(ctx, db, examID)
+	return args.Error(0)
+}
+
 func TestService_ListExams(t *testing.T) {
 	mockRepo := new(MockExamRepository)
-	service := New(nil, mockRepo, nil, nil) // passing nil for db and other repos
+	service := New(nil, mockRepo, nil, nil, nil) // passing nil for questionRepo
 
 	expectedExams := []models.Exam{{Name: "Test Exam"}}
 	
@@ -70,7 +79,7 @@ func TestService_ListExams(t *testing.T) {
 
 func TestService_GetExam(t *testing.T) {
 	mockRepo := new(MockExamRepository)
-	service := New(nil, mockRepo, nil, nil)
+	service := New(nil, mockRepo, nil, nil, nil)
 
 	expectedExam := &models.Exam{Name: "Test Exam"}
 	
@@ -84,7 +93,7 @@ func TestService_GetExam(t *testing.T) {
 
 func TestService_GetExam_NotFound(t *testing.T) {
 	mockRepo := new(MockExamRepository)
-	service := New(nil, mockRepo, nil, nil)
+	service := New(nil, mockRepo, nil, nil, nil)
 
 	mockRepo.On("FindExamByID", mock.Anything, mock.Anything, uint(99)).Return(nil, gorm.ErrRecordNotFound)
 

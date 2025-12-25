@@ -26,14 +26,16 @@ type Service struct {
 	examRepo       repository.ExamRepository
 	submissionRepo repository.SubmissionRepository
 	officialRepo   repository.OfficialResultRepository
+	questionRepo   repository.QuestionRepository
 }
 
-func New(db *gorm.DB, examRepo repository.ExamRepository, subRepo repository.SubmissionRepository, offRepo repository.OfficialResultRepository) *Service {
+func New(db *gorm.DB, examRepo repository.ExamRepository, subRepo repository.SubmissionRepository, offRepo repository.OfficialResultRepository, questionRepo repository.QuestionRepository) *Service {
 	return &Service{
 		db:             db,
 		examRepo:       examRepo,
 		submissionRepo: subRepo,
 		officialRepo:   offRepo,
+		questionRepo:   questionRepo,
 	}
 }
 
@@ -177,7 +179,7 @@ func (s *Service) DeleteExam(examID uint) error {
 		if err := s.submissionRepo.DeleteByExamID(ctx, tx, examID); err != nil {
 			return err
 		}
-		if err := tx.Where("exam_id = ?", examID).Delete(&models.Question{}).Error; err != nil {
+		if err := s.questionRepo.DeleteByExamID(ctx, tx, examID); err != nil {
 			return err
 		}
 		if err := s.officialRepo.DeleteByExamID(ctx, tx, examID); err != nil {
@@ -512,45 +514,7 @@ func activeQuestions(questions []models.Question) []models.Question {
 	return out
 }
 
-func buildQuestionModels(inputs []QuestionInput, existing []models.Question) ([]models.Question, error) {
-	var base []int
-	for _, q := range existing {
-		if q.Name > 0 {
-			base = append(base, q.Name)
-		}
-	}
-	nameGen := newQuestionNameGenerator(base)
-	questions := make([]models.Question, 0, len(inputs))
 
-	for _, input := range inputs {
-		isActive := true
-		isCancelled := false
-		if input.IsActive != nil {
-			isActive = *input.IsActive
-		}
-		if input.IsCancelled != nil {
-			isCancelled = *input.IsCancelled
-		}
-
-		normalizedOption := strings.ToUpper(strings.TrimSpace(input.CorrectOption))
-		if normalizedOption == "" {
-			return nil, errors.New("opcion de respuesta no valida")
-		}
-
-		model := models.Question{
-			ID:            0,
-			Name:          nameGen.Next(input.Name),
-			IsActive:      isActive,
-			IsCancelled:   isCancelled,
-			CorrectOption: normalizedOption,
-		}
-		if input.ID != nil {
-			model.ID = *input.ID
-		}
-		questions = append(questions, model)
-	}
-	return questions, nil
-}
 
 type questionNameGenerator struct {
 	used map[int]struct{}
