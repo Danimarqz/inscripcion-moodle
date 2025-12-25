@@ -1,5 +1,5 @@
 import type { JSX } from 'preact';
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
 
 import type {
   Answer,
@@ -139,15 +139,15 @@ export default function ExamPage({
   const activeEntries = questionEntries.filter(({ question }) => question.is_active !== false);
   const reserveEntries = questionEntries.filter(({ question }) => question.is_active === false);
 
-  function setAnswerForQuestion(questionId: number, option: string) {
+  const setAnswerForQuestion = useCallback((questionId: number, option: string) => {
     const normalizedOption = option.toUpperCase();
     setUserAnswers((prev) => ({
       ...prev,
       [questionId]: normalizedOption,
     }));
-  }
+  }, []);
 
-  function clearAnswerForQuestion(questionId: number) {
+  const clearAnswerForQuestion = useCallback((questionId: number) => {
     setUserAnswers((prev) => {
       if (!(questionId in prev)) {
         return prev;
@@ -156,7 +156,7 @@ export default function ExamPage({
       delete next[questionId];
       return next;
     });
-  }
+  }, []);
 
 
 
