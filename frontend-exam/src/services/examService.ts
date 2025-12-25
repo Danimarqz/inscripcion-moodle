@@ -1,31 +1,20 @@
 import type {
-  Answer,
   Exam,
   ExamOut,
-  ExamQuestionsResponse,
   ExamSubmissionPayload,
   Question,
   OfficialResultCheckPayload,
   OfficialResultCheckResponse,
   UserSubmissionCheck,
 } from '../types/exam';
-
-const API_URL = import.meta.env.PUBLIC_API_URL;
+import { request } from './api';
 
 export async function getExams(): Promise<Exam[]> {
-  const response = await fetch(`${API_URL}/exams`);
-  if (!response.ok) {
-    throw new Error('Error fetching exams');
-  }
-  return await response.json();
+  return request<Exam[]>('/exams', { method: 'GET' });
 }
 
 export async function getQuestions(examId: number): Promise<Question[]> {
-  const response = await fetch(`${API_URL}/exams/${examId}/questions`);
-  if (!response.ok) {
-    throw new Error('Error fetching questions');
-  }
-  return (await response.json()) as Question[];
+  return request<Question[]>(`/exams/${examId}/questions`, { method: 'GET' });
 }
 
 export async function submitExam(payload: ExamSubmissionPayload): Promise<ExamOut> {
@@ -33,55 +22,24 @@ export async function submitExam(payload: ExamSubmissionPayload): Promise<ExamOu
     throw new Error('No se ha verificado que perteneces al examen oficial.');
   }
 
-  const response = await fetch(`${API_URL}/submit-exam`, {
+  return request<ExamOut>('/submit-exam', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     body: JSON.stringify(payload),
   });
-
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data.detail || 'Error submitting exam');
-  }
-  return data;
 }
 
 export async function checkSubmission(payload: UserSubmissionCheck): Promise<ExamOut> {
-  const response = await fetch(`${API_URL}/check_submission`, {
+  return request<ExamOut>('/check_submission', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     body: JSON.stringify(payload),
   });
-
-  const data = await response.json();
-  if (!response.ok) {
-    const message = typeof data?.detail === 'string' ? data.detail : 'Error al consultar resultados';
-    throw new Error(message);
-  }
-
-  return data;
 }
 
 export async function checkOfficialResult(
   payload: OfficialResultCheckPayload,
 ): Promise<OfficialResultCheckResponse> {
-  const response = await fetch(`${API_URL}/check-official-result`, {
+  return request<OfficialResultCheckResponse>('/check-official-result', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     body: JSON.stringify(payload),
   });
-
-  const data = await response.json();
-  if (!response.ok) {
-    const message = typeof data?.detail === 'string' ? data.detail : 'No se pudo comprobar el acceso al examen';
-    throw new Error(message);
-  }
-
-  return data as OfficialResultCheckResponse;
 }

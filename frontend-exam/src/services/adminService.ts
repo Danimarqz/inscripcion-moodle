@@ -1,3 +1,4 @@
+
 import type {
   AdminSubmission,
   AdminSubmissionsResponse,
@@ -11,8 +12,7 @@ import type {
   SubmissionUpdatePayload,
   SyncMoodleUsersResponse,
 } from '../types/exam';
-
-const API_URL = import.meta.env.PUBLIC_API_URL;
+import { request } from './api';
 
 interface AdminLoginPayload {
   username: string;
@@ -25,105 +25,56 @@ interface TokenResponse {
 }
 
 export async function adminLogin(payload: AdminLoginPayload): Promise<TokenResponse> {
-  const response = await fetch(`${API_URL}/admin/login`, {
+  return request<TokenResponse>('/admin/login', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     body: JSON.stringify(payload),
   });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.detail || 'Error de autenticacion');
-  }
-
-  return response.json();
 }
 
 export async function getAdminExams(token: string): Promise<Exam[]> {
-  const response = await fetch(`${API_URL}/admin/exams`, {
+  return request<Exam[]>('/admin/exams', {
     method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    token,
   });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.detail || 'Error fetching exams');
-  }
-
-  return response.json();
 }
 
 export async function createExam(examData: ExamCreateWithQuestions, token: string): Promise<Exam> {
-  const response = await fetch(`${API_URL}/admin/exams`, {
+  return request<Exam>('/admin/exams', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+    token,
     body: JSON.stringify(examData),
   });
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.detail || 'Error creating exam');
-  }
-  return response.json();
 }
 
 export async function editExam(examId: number, examData: ExamEdit, token: string): Promise<Exam> {
-  const response = await fetch(`${API_URL}/admin/exams/${examId}`, {
+  return request<Exam>(`/admin/exams/${examId}`, {
     method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+    token,
     body: JSON.stringify(examData),
   });
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.detail || 'Error editing exam');
-  }
-  return response.json();
 }
 
 export async function deleteExam(examId: number, token: string): Promise<void> {
-  const response = await fetch(`${API_URL}/admin/exams/${examId}/delete`, {
+  return request<void>(`/admin/exams/${examId}/delete`, {
     method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    token,
   });
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.detail || 'Error deleting exam');
-  }
 }
 
 export async function validateAdminToken(token: string): Promise<boolean> {
-  const response = await fetch(`${API_URL}/admin/check-token`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  return response.ok;
+  try {
+    await request('/admin/check-token', { method: 'GET', token });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function getExamById(examId: number, token: string): Promise<ExamEdit> {
-  const response = await fetch(`${API_URL}/admin/exams/${examId}`, {
+  return request<ExamEdit>(`/admin/exams/${examId}`, {
     method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    token,
   });
-  if (!response.ok) {
-    throw new Error('Error fetching exams');
-  }
-  return await response.json();
 }
 
 interface FetchSubmissionsOptions {
@@ -154,45 +105,28 @@ export interface SendSubmissionEmailsPayload {
   attachments?: SubmissionEmailAttachmentPayload[];
 }
 
+function buildParams(examId: number, options: FetchSubmissionsOptions): URLSearchParams {
+  const params = new URLSearchParams({ exam_id: String(examId) });
+  if (options.limit !== undefined) params.set('limit', String(options.limit));
+  if (options.offset !== undefined) params.set('offset', String(options.offset));
+  if (options.search) params.set('search', options.search);
+  if (options.orderBy) params.set('order_by', options.orderBy);
+  if (options.orderDir) params.set('order_dir', options.orderDir);
+  if (options.moodleSynced !== undefined) params.set('moodle_synced', String(options.moodleSynced));
+  return params;
+}
+
 export async function getExamSubmissions(
   examId: number,
   token: string,
   options: FetchSubmissionsOptions = {},
 ): Promise<AdminSubmissionsResponse> {
-  const params = new URLSearchParams({ exam_id: String(examId) });
-  if (options.limit !== undefined) {
-    params.set('limit', String(options.limit));
-  }
-  if (options.offset !== undefined) {
-    params.set('offset', String(options.offset));
-  }
-  if (options.search) {
-    params.set('search', options.search);
-  }
-  if (options.orderBy) {
-    params.set('order_by', options.orderBy);
-  }
-  if (options.orderDir) {
-    params.set('order_dir', options.orderDir);
-  }
-  if (options.moodleSynced !== undefined) {
-    params.set('moodle_synced', String(options.moodleSynced));
-  }
-  const firstLoad = options.firstLoad ?? false;
-  params.set('first_load', String(firstLoad));
-  const response = await fetch(`${API_URL}/admin/results?${params.toString()}`, {
+  const params = buildParams(examId, options);
+  params.set('first_load', String(options.firstLoad ?? false));
+  return request<AdminSubmissionsResponse>(`/admin/results?${params.toString()}`, {
     method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    token,
   });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.detail || 'Error fetching submissions');
-  }
-
-  return response.json();
 }
 
 export async function fetchSubmissionEmailList(
@@ -200,63 +134,25 @@ export async function fetchSubmissionEmailList(
   token: string,
   options: FetchSubmissionsOptions = {},
 ): Promise<string[]> {
-  const params = new URLSearchParams({ exam_id: String(examId) });
-  if (options.search) {
-    params.set('search', options.search);
-  }
-  if (options.orderBy) {
-    params.set('order_by', options.orderBy);
-  }
-  if (options.orderDir) {
-    params.set('order_dir', options.orderDir);
-  }
-  if (options.moodleSynced !== undefined) {
-    params.set('moodle_synced', String(options.moodleSynced));
-  }
-  const response = await fetch(`${API_URL}/admin/results/emails/list?${params.toString()}`, {
+  const params = buildParams(examId, options);
+  return request<string[]>(`/admin/results/emails/list?${params.toString()}`, {
     method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    token,
   });
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || 'Error fetching submission emails');
-  }
-  return response.json();
 }
-
 
 export async function downloadSubmissionEmails(
   examId: number,
   token: string,
   options: FetchSubmissionsOptions = {},
 ): Promise<string> {
-  const params = new URLSearchParams({ exam_id: String(examId) });
-  if (options.search) {
-    params.set('search', options.search);
-  }
-  if (options.orderBy) {
-    params.set('order_by', options.orderBy);
-  }
-  if (options.orderDir) {
-    params.set('order_dir', options.orderDir);
-  }
-  if (options.moodleSynced !== undefined) {
-    params.set('moodle_synced', String(options.moodleSynced));
-  }
+  // Use text() response manually if request helper assumes json
+  const params = buildParams(examId, options);
+  const API_URL = import.meta.env.PUBLIC_API_URL;
   const response = await fetch(`${API_URL}/admin/results/emails?${params.toString()}`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { Authorization: `Bearer ${token}` },
   });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || 'Error downloading submission emails');
-  }
-
+  if (!response.ok) throw new Error('Error downloading submission emails');
   return response.text();
 }
 
@@ -264,35 +160,18 @@ export async function sendSubmissionEmails(
   payload: SendSubmissionEmailsPayload,
   token: string,
 ): Promise<{ sent: number }> {
-  const response = await fetch(`${API_URL}/admin/results/emails/send`, {
+  return request<{ sent: number }>('/admin/results/emails/send', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+    token,
     body: JSON.stringify(payload),
   });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || 'Error sending emails');
-  }
-
-  return response.json();
 }
 
 export async function syncMoodleUsers(token: string): Promise<SyncMoodleUsersResponse> {
-  const response = await fetch(`${API_URL}/admin/moodle/sync-users`, {
+  return request<SyncMoodleUsersResponse>('/admin/moodle/sync-users', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    token,
   });
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || 'Error synchronizing Moodle users');
-  }
-  return response.json();
 }
 
 interface FetchOfficialResultsOptions {
@@ -308,33 +187,16 @@ export async function getOfficialResults(
   options: FetchOfficialResultsOptions = {},
 ): Promise<AdminOfficialResultsResponse> {
   const params = new URLSearchParams();
-  if (options.limit !== undefined) {
-    params.set('limit', String(options.limit));
-  }
-  if (options.offset !== undefined) {
-    params.set('offset', String(options.offset));
-  }
-  if (options.orderBy) {
-    params.set('order_by', options.orderBy);
-  }
-  if (options.orderDir) {
-    params.set('order_dir', options.orderDir);
-  }
+  if (options.limit !== undefined) params.set('limit', String(options.limit));
+  if (options.offset !== undefined) params.set('offset', String(options.offset));
+  if (options.orderBy) params.set('order_by', options.orderBy);
+  if (options.orderDir) params.set('order_dir', options.orderDir);
 
   const query = params.toString();
-  const response = await fetch(`${API_URL}/admin/exams/${examId}/results/official${query ? `?${query}` : ''}`, {
+  return request<AdminOfficialResultsResponse>(`/admin/exams/${examId}/results/official${query ? `?${query}` : ''}`, {
     method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    token,
   });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.detail || 'Error fetching official results');
-  }
-
-  return response.json();
 }
 
 export async function importOfficialResults(
@@ -346,13 +208,13 @@ export async function importOfficialResults(
   const formData = new FormData();
   formData.append('file', file);
 
+  // FormData handling is special, fetch handles content-type boundary
+  const API_URL = import.meta.env.PUBLIC_API_URL;
   const response = await fetch(
     `${API_URL}/admin/exams/${examId}/results/import?replace_existing=${replaceExisting}`,
     {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Authorization: `Bearer ${token}` },
       body: formData,
     },
   );
@@ -370,21 +232,11 @@ export async function createOfficialResult(
   payload: CreateOfficialResultPayload,
   token: string,
 ): Promise<ExamOfficialResult> {
-  const response = await fetch(`${API_URL}/admin/exams/${examId}/results/official`, {
+  return request<ExamOfficialResult>(`/admin/exams/${examId}/results/official`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+    token,
     body: JSON.stringify(payload),
   });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || 'Error creating official result');
-  }
-
-  return response.json();
 }
 
 export async function updateSubmissionAttempt(
@@ -392,33 +244,16 @@ export async function updateSubmissionAttempt(
   payload: SubmissionUpdatePayload,
   token: string,
 ): Promise<AdminSubmission> {
-  const response = await fetch(`${API_URL}/admin/results/${submissionId}`, {
+  return request<AdminSubmission>(`/admin/results/${submissionId}`, {
     method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+    token,
     body: JSON.stringify(payload),
   });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.detail || 'Error updating submission');
-  }
-
-  return response.json();
 }
 
 export async function deleteSubmissionAttempt(submissionId: number, token: string): Promise<void> {
-  const response = await fetch(`${API_URL}/admin/results/${submissionId}`, {
+  return request<void>(`/admin/results/${submissionId}`, {
     method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    token,
   });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.detail || 'Error deleting submission');
-  }
 }

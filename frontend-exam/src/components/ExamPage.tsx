@@ -7,19 +7,18 @@ import type {
   ExamOut,
   ExamResultPayload,
   ExamSubmissionPayload,
-  Question,
 } from '../types/exam';
 import { checkOfficialResult, checkSubmission, submitExam } from '../services/examService';
 import { useExamQuestions } from '../hooks/useExamQuestions';
 import { useExamUi } from '../hooks/useExamUi';
-import { isValidEmail, normalizeDni, roundToTwoDecimals, validateDniNie } from '../utils/validation';
+import { isValidEmail, normalizeDni, validateDniNie } from '../utils/validation';
+import { buildResultPayload } from '../utils/examLogic';
 import QuestionList from './questions/QuestionList';
 import QuickResultCheck from './submissions/QuickResultCheck';
 import SubmissionSummary from './submissions/SubmissionSummary';
 import EligibilityModal from './modals/EligibilityModal';
 import SubmissionIdentityFields from './submissions/SubmissionIdentityFields';
-import QuestionCardFrame from './questions/QuestionCardFrame';
-import { ANSWER_OPTIONS } from '../constants/answerOptions';
+
 
 interface ExamPageProps {
   examId: number;
@@ -30,52 +29,7 @@ interface ExamPageProps {
   validatedTribunal?: boolean;
 }
 
-type ComposeMessageParams = {
-  baseMessage?: string | null;
-  showScore: boolean;
-  showPercentile: boolean;
-  showScoreFull: boolean;
-  score: number | null;
-  percentile: number | null;
-  position: number | null;
-  totalSubmissions: number | null;
-  correctAnswers: number | null;
-  totalQuestions: number | null;
-};
 
-function composeResultMessage({
-  baseMessage,
-  showScore,
-  showPercentile,
-  showScoreFull,
-  score,
-  percentile,
-  position,
-  totalSubmissions,
-  correctAnswers,
-  totalQuestions,
-}: ComposeMessageParams): string {
-  const parts: string[] = [];
-  if (baseMessage) {
-    parts.push(baseMessage.trim());
-  }
-  if (showScore && score !== null) {
-    parts.push(`Tu puntuación es ${score}`);
-  }
-  if (showScoreFull && correctAnswers !== null && totalQuestions !== null) {
-    parts.push(`Has acertado ${correctAnswers} de ${totalQuestions} preguntas`);
-  }
-  if (showPercentile && percentile !== null) {
-    let percentileMessage = `Tienes el percentil ${percentile}`;
-    if (position !== null && totalSubmissions !== null) {
-      percentileMessage += `, estás en la posición ${position} de ${totalSubmissions}`;
-    }
-    parts.push(percentileMessage);
-  }
-
-  const result = parts.filter(Boolean).join('. ').trim();
-  return result || 'Tu entrega ha sido registrada correctamente';
-}
 
 export default function ExamPage({
   examId,
@@ -204,59 +158,14 @@ export default function ExamPage({
     });
   }
 
-  function buildResultPayload(result: ExamOut, context: 'check' | 'submit'): ExamResultPayload {
-    const baseMessage =
-      result.message ??
-      (context === 'check'
-        ? 'Ya has entregado este examen anteriormente'
-        : 'Tu entrega ha sido registrada correctamente');
 
-    const nextScore =
-      showScore && typeof result.score === 'number' ? roundToTwoDecimals(result.score) : null;
-    const nextPercentile =
-      showPercentile && typeof result.percentile === 'number'
-        ? roundToTwoDecimals(result.percentile)
-        : null;
-    const rawPosition = typeof result.position === 'number' ? result.position : null;
-    const rawTotalSubmissions =
-      typeof result.total_submissions === 'number' ? result.total_submissions : null;
-    const rawCorrectAnswers =
-      typeof result.correct_answers === 'number' ? result.correct_answers : null;
-    const rawTotalQuestions =
-      typeof result.total_questions === 'number' ? result.total_questions : null;
-    const review =
-      Array.isArray(result.answers_review) && result.answers_review.length > 0
-        ? (result.answers_review as AnswerReview[])
-        : null;
 
-    const nextPosition = showPercentile ? rawPosition : null;
-    const nextTotalSubmissions = showPercentile ? rawTotalSubmissions : null;
-    const nextCorrectAnswers = showScoreFull ? rawCorrectAnswers : null;
-    const nextTotalQuestions = showScoreFull ? rawTotalQuestions : null;
-
-    const message = composeResultMessage({
-      baseMessage,
+  function getResultPayload(result: ExamOut, context: 'check' | 'submit'): ExamResultPayload {
+    return buildResultPayload(result, context, {
       showScore,
       showPercentile,
       showScoreFull,
-      score: nextScore,
-      percentile: nextPercentile,
-      position: nextPosition,
-      totalSubmissions: nextTotalSubmissions,
-      correctAnswers: nextCorrectAnswers,
-      totalQuestions: nextTotalQuestions,
     });
-
-    return {
-      score: nextScore,
-      percentile: nextPercentile,
-      position: nextPosition,
-      totalSubmissions: nextTotalSubmissions,
-      correctAnswers: nextCorrectAnswers,
-      totalQuestions: nextTotalQuestions,
-      message,
-      answersReview: review,
-    };
   }
 
   async function checkUserSubmission(force = false) {
@@ -273,7 +182,7 @@ export default function ExamPage({
 
     try {
       const data: ExamOut = await checkSubmission({ email: normalizedEmail, dni: normalizedDni, exam_id: examId });
-      const payload = buildResultPayload(data, 'check');
+      const payload = getResultPayload(data, 'check');
       dispatchExamUi({ type: 'CHECK_SUCCESS', payload });
       setAutoCheckDisabled(true);
     } catch (error) {
@@ -356,7 +265,7 @@ export default function ExamPage({
 
     try {
       const result = await submitExam(payload);
-      const payloadResult = buildResultPayload(result, 'submit');
+      const payloadResult = getResultPayload(result, 'submit');
 
       dispatchExamUi({
         type: 'SUBMIT_SUCCESS',
@@ -390,95 +299,7 @@ export default function ExamPage({
     }
   };
 
-  function renderQuestionCard(
-    entry: { index: number; question: Question },
-    position: number,
-    isReserve: boolean,
-  ) {
-    const { question, index: originalIndex } = entry;
-    const questionId = question.id;
-    if (typeof questionId !== 'number') {
-      return null;
-    }
-    const isCancelled = question.is_cancelled === true;
-    const displayName = question.name ?? position;
-    const label = `${isReserve ? 'Reserva' : 'Pregunta'} ${displayName}`;
-    const key = `${questionId}-${isReserve ? 'reserve' : 'active'}-${originalIndex}`;
-    const badgeConfig = isCancelled
-      ? {
-          text: 'Anulada',
-          className: 'bg-red-500/20 text-red-300 border border-red-500/50',
-        }
-      : {
-          text: isReserve ? 'Reserva' : 'Activa',
-          className: isReserve
-            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
-            : 'bg-green-500/20 text-green-300 border border-green-500/50',
-        };
-    const selectedOption = userAnswers[questionId] ?? null;
 
-    const meta = isCancelled ? (
-      <p className="text-sm text-red-300 mb-4">
-        Esta pregunta se ha marcado como anulada y no cuenta para la nota final.
-      </p>
-    ) : null;
-
-    return (
-      <QuestionCardFrame
-        key={key}
-        label={label}
-        badgeText={badgeConfig.text}
-        badgeClassName={badgeConfig.className}
-        meta={meta}
-      >
-        <ul className="list-none p-0 m-0 flex flex-wrap gap-3">
-          {ANSWER_OPTIONS.map((optionChar) => {
-            const isSelected = selectedOption === optionChar;
-            return (
-              <li key={`${questionId}-${optionChar}`}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (isCancelled) return;
-                    if (isSelected) {
-                      clearAnswerForQuestion(questionId);
-                    } else {
-                      setAnswerForQuestion(questionId, optionChar);
-                    }
-                  }}
-                  disabled={isCancelled}
-                  aria-pressed={isSelected}
-                  className={`w-16 text-center px-4 py-2 text-lg font-semibold rounded-md border transition-all duration-200 ${
-                    isCancelled
-                      ? 'border-gray-600 text-gray-600 cursor-not-allowed'
-                      : isSelected
-                        ? 'border-brand-yellow bg-brand-yellow text-dark-200 shadow-lg cursor-pointer'
-                        : 'border-[#555] text-gray-200 hover:border-brand-blue hover:text-brand-yellow cursor-pointer'
-                  }`}
-                >
-                  {optionChar}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <p className="text-xs text-gray-500">
-            Usa los botones para marcar tu opción; si pulsas de nuevo o en &ldquo;Borrar respuesta&rdquo; la pregunta
-            queda en blanco.
-          </p>
-          <button
-            type="button"
-            onClick={() => clearAnswerForQuestion(questionId)}
-            disabled={!selectedOption}
-            className="text-xs font-semibold px-3 py-1 rounded border border-brand-blue-soft text-brand-blue hover:bg-brand-blue-soft disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-          >
-            Borrar respuesta
-          </button>
-        </div>
-      </QuestionCardFrame>
-    );
-  }
 
   if (loading) {
     return (
