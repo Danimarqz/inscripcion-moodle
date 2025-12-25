@@ -14,8 +14,6 @@ var (
 	ErrUserNotEnrolled = errors.New("moodle user is not enrolled in the required course")
 )
 
-const MoodleExamCourseID = 49
-
 func SyncExamUser(ctx context.Context, db *gorm.DB, client *Client, email, dni string) error {
 	if client == nil {
 		return ErrNotConfigured
@@ -50,7 +48,7 @@ func SyncExamUser(ctx context.Context, db *gorm.DB, client *Client, email, dni s
 		moodleID int
 	)
 	for _, candidate := range users {
-		enrolled, err := client.IsUserEnrolledInCourse(ctx, MoodleExamCourseID, candidate.ID)
+		enrolled, err := client.IsUserEnrolledInCourse(ctx, client.moodleExamCourseID, candidate.ID)
 		if err != nil {
 			return err
 		}

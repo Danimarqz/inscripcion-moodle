@@ -36,9 +36,9 @@ func (h *AdminController) syncMoodleUsersAsync(users []models.ExamUser) {
 	ctx, cancel := context.WithTimeout(context.Background(), moodleAdminSyncTimeout)
 	defer cancel()
 
-	enrolledUsers, err := h.moodleClient.GetEnrolledUsers(ctx, moodle.MoodleExamCourseID, nil)
+	enrolledUsers, err := h.moodleClient.GetEnrolledUsers(ctx, h.cfg.MoodleExamCourseID, nil)
 	if err != nil {
-		log.Printf("failed to fetch enrolled users for course %d: %v", moodle.MoodleExamCourseID, err)
+		log.Printf("failed to fetch enrolled users for course %d: %v", h.cfg.MoodleExamCourseID, err)
 		return
 	}
 
@@ -65,7 +65,7 @@ func (h *AdminController) syncMoodleUsersAsync(users []models.ExamUser) {
 
 		enrolled, ok := enrolledByEmail[email]
 		if !ok {
-			log.Printf("moodle sync for %s (%s) skipped: not enrolled in course %d", user.Email, user.DNI, moodle.MoodleExamCourseID)
+			log.Printf("moodle sync for %s (%s) skipped: not enrolled in course %d", user.Email, user.DNI, h.cfg.MoodleExamCourseID)
 			failed++
 			continue
 		}

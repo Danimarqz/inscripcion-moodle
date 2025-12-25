@@ -3,9 +3,7 @@ package controllers
 import (
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
-	"os"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
@@ -64,25 +62,8 @@ func (h *AdminController) importOfficialResults(w http.ResponseWriter, r *http.R
 		_ = file.Close()
 	}()
 
-	tmp, err := os.CreateTemp("", "official_results_*.xlsx")
-	if err != nil {
-		http.Error(w, "failed to create temp file", http.StatusInternalServerError)
-		return
-	}
-	defer func() {
-		_ = os.Remove(tmp.Name())
-	}()
-	defer func() {
-		_ = tmp.Close()
-	}()
-
-	if _, err := io.Copy(tmp, file); err != nil {
-		http.Error(w, "failed to store excel file", http.StatusInternalServerError)
-		return
-	}
-
 	replace := parseBoolParam(r.URL.Query().Get("replace_existing"), true)
-	report, err := h.excelImport.ImportOfficialResultsExcel(r.Context(), uint(examID), tmp.Name(), replace)
+	report, err := h.excelImport.ImportOfficialResultsExcel(r.Context(), uint(examID), file, replace)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

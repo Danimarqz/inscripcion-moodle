@@ -29,6 +29,9 @@ type Config struct {
 	SecretKey         string
 	TokenAlgorithm    string
 	TokenTTLMinutes   int
+	ServerReadTimeout  time.Duration
+	ServerWriteTimeout time.Duration
+	ServerIdleTimeout  time.Duration
 	SMTPUser          string
 	SMTPPass          string
 	SMTPServer        string
@@ -44,6 +47,7 @@ type Config struct {
 	MoodleDBName      string
 	MoodleDBPrefix    string
 	GSheetAPI         string
+	MoodleExamCourseID int
 }
 
 func Load() (*Config, error) {
@@ -96,6 +100,7 @@ func Load() (*Config, error) {
 		MoodleDBName:      os.Getenv("MOODLE_DB_NAME"),
 		MoodleDBPrefix:    parseEnvString("MOODLE_DB_PREFIX", "mdl_"),
 		GSheetAPI:         os.Getenv("API_GSHEET"),
+		MoodleExamCourseID: parseEnvInt("MOODLE_EXAM_COURSE_ID", 49),
 	}, nil
 }
 

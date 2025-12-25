@@ -2,12 +2,14 @@ package controllers
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
+	"github.com/inscripcion-moodle/go-backend/internal/cache"
 	"github.com/inscripcion-moodle/go-backend/internal/config"
 	"github.com/inscripcion-moodle/go-backend/internal/models"
 	"github.com/inscripcion-moodle/go-backend/internal/services/admin"
@@ -27,7 +29,7 @@ const (
 
 type AdminController struct {
 	db           *gorm.DB
-	cache        *redis.Client
+	cache        *cache.Cache
 	auth         *auth.Service
 	service      *admin.Service
 	excelImport    excelImportService
@@ -36,7 +38,7 @@ type AdminController struct {
 }
 
 type excelImportService interface {
-	ImportOfficialResultsExcel(context.Context, uint, string, bool) (*models.ExcelImportResult, error)
+	ImportOfficialResultsExcel(context.Context, uint, io.Reader, bool) (*models.ExcelImportResult, error)
 }
 
 type adminRequest struct {
@@ -56,7 +58,7 @@ type genericError struct {
 func NewAdminController(db *gorm.DB, cacheClient *redis.Client, authService *auth.Service, cfg *config.Config) *AdminController {
 	return &AdminController{
 		db:           db,
-		cache:        cacheClient,
+		cache:        cache.New(cacheClient),
 		auth:         authService,
 		service:      admin.New(db),
 		excelImport:    excelimport.New(db),

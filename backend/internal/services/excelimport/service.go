@@ -3,6 +3,8 @@ package excelimport
 import (
 	"context"
 	"fmt"
+	"io"
+
 	"regexp"
 	"strings"
 
@@ -14,6 +16,7 @@ import (
 
 var isHeaderRegex = regexp.MustCompile(`^[a-zA-Z\s]+$`)
 var cleanNameRegex = regexp.MustCompile(`[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]`)
+var multipleSpacesRegex = regexp.MustCompile(`\s+`)
 
 type Service struct {
 	repo ExamRepository
@@ -43,36 +46,29 @@ func (r *gormExamRepository) Find(ctx context.Context, id uint) (*models.Exam, e
 	return &exam, nil
 }
 
-func (s *Service) ImportOfficialResultsExcel(ctx context.Context, examID uint, excelPath string, replaceExisting bool) (*models.ExcelImportResult, error) {
+func (s *Service) ImportOfficialResultsExcel(ctx context.Context, examID uint, r io.Reader, replaceExisting bool) (*models.ExcelImportResult, error) {
 	if _, err := s.repo.Find(ctx, examID); err != nil {
 		return nil, fmt.Errorf("exam %d not found: %w", examID, err)
 	}
 
-	f, err := excelize.OpenFile(excelPath)
+	f, err := excelize.OpenReader(r)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open excel file: %w", err)
+		return nil, fmt.Errorf("failed to open excel reader: %w", err)
 	}
 	defer f.Close()
 
 	// Assuming the data is on the first sheet
 	sheetName := f.GetSheetName(0)
-	rows, err := f.GetRows(sheetName)
+	rows, err := f.Rows(sheetName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get rows from sheet: %w", err)
+		return nil, fmt.Errorf("failed to get rows iterator: %w", err)
 	}
 
 	if s.db == nil {
 		return nil, fmt.Errorf("excel import not configured with database")
 	}
 
-	var dataRows [][]string
-	if len(rows) > 0 && hasHeader(rows[0]) {
-		dataRows = rows[1:]
-	} else {
-		dataRows = rows
-	}
-
-	totalRows, imported, err := s.storeOfficialResults(ctx, examID, dataRows, replaceExisting)
+	totalRows, imported, err := s.storeOfficialResults(ctx, examID, rows, replaceExisting)
 	if err != nil {
 		return nil, err
 	}
@@ -85,23 +81,7 @@ func (s *Service) ImportOfficialResultsExcel(ctx context.Context, examID uint, e
 	}, nil
 }
 
-func hasHeader(row []string) bool {
-	if len(row) == 0 {
-		return false
-	}
-	firstCell := strings.TrimSpace(row[0])
-	if firstCell == "" {
-		return false
-	}
-	return isHeaderRegex.MatchString(firstCell)
-}
-
-func (s *Service) storeOfficialResults(ctx context.Context, examID uint, rows [][]string, replaceExisting bool) (totalRows int, imported int, err error) {
-	totalRows = len(rows)
-	if totalRows == 0 {
-		return 0, 0, nil
-	}
-
+func (s *Service) storeOfficialResults(ctx context.Context, examID uint, rows *excelize.Rows, replaceExisting bool) (totalRows int, imported int, err error) {
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if replaceExisting {
 			if err := tx.Where("exam_id = ?", examID).Delete(&models.ExamOfficialResult{}).Error; err != nil {
@@ -125,7 +105,40 @@ func (s *Service) storeOfficialResults(ctx context.Context, examID uint, rows []
 			return nil
 		}
 
-		for _, row := range rows {
+		// Handle first row (header detection)
+		if rows.Next() {
+			firstRow, err := rows.Columns()
+			if err != nil {
+				return err
+			}
+			
+			isHeader := false
+			if len(firstRow) > 0 {
+				firstCell := strings.TrimSpace(firstRow[0])
+				// Check if it looks like a header (text only)
+				if firstCell != "" && isHeaderRegex.MatchString(firstCell) {
+					isHeader = true
+				}
+			}
+
+			if !isHeader {
+				totalRows++
+				if res, ok := parseOfficialResultRow(examID, firstRow); ok {
+					batch = append(batch, res)
+				}
+			}
+		}
+
+		for rows.Next() {
+			row, err := rows.Columns()
+			if err != nil {
+				return err
+			}
+			if len(row) == 0 {
+				continue
+			}
+			totalRows++ // We count data rows
+
 			if res, ok := parseOfficialResultRow(examID, row); ok {
 				batch = append(batch, res)
 				if len(batch) >= batchSize {
@@ -142,19 +155,21 @@ func (s *Service) storeOfficialResults(ctx context.Context, examID uint, rows []
 	return totalRows, imported, err
 }
 
+func cleanNameField(s string) string {
+	cleaned := cleanNameRegex.ReplaceAllString(s, "")
+	cleaned = multipleSpacesRegex.ReplaceAllString(cleaned, " ")
+	return strings.TrimSpace(cleaned)
+}
+
 func parseOfficialResultRow(examID uint, row []string) (models.ExamOfficialResult, bool) {
 	if len(row) < 4 {
 		return models.ExamOfficialResult{}, false
 	}
 
 	dni := strings.TrimSpace(row[0])
-	apellido1 := strings.TrimSpace(row[1])
-	apellido2 := strings.TrimSpace(row[2])
-	nombre := strings.TrimSpace(row[3])
-
-	nombre = strings.TrimSpace(cleanNameRegex.ReplaceAllString(nombre, ""))
-	apellido1 = strings.TrimSpace(cleanNameRegex.ReplaceAllString(apellido1, ""))
-	apellido2 = strings.TrimSpace(cleanNameRegex.ReplaceAllString(apellido2, ""))
+	apellido1 := cleanNameField(row[1])
+	apellido2 := cleanNameField(row[2])
+	nombre := cleanNameField(row[3])
 
 	if dni == "" || apellido1 == "" || nombre == "" {
 		return models.ExamOfficialResult{}, false

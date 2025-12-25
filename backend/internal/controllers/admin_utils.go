@@ -3,11 +3,11 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/inscripcion-moodle/go-backend/internal/cache"
 	"github.com/inscripcion-moodle/go-backend/internal/models"
 )
 
@@ -112,7 +112,17 @@ func (h *AdminController) invalidateExamCaches(examID uint) {
 	if h.cache == nil {
 		return
 	}
-	cache.InvalidateExams(h.cache)
-	cache.InvalidateQuestions(h.cache, examID)
-	cache.InvalidateCheckCache(h.cache, examID)
+	ctx := context.Background()
+	_ = h.cache.Del(ctx, examsCacheKey)
+	_ = h.cache.Del(ctx, fmt.Sprintf("%s:%d", questionsCachePrefix, examID))
+
+	// Invalidate check cache
+	setKey := fmt.Sprintf("%s:%d:set", submissionCachePrefix, examID)
+	keys, err := h.cache.SMembers(ctx, setKey)
+	if err == nil {
+		for _, key := range keys {
+			_ = h.cache.Del(ctx, key)
+		}
+		_ = h.cache.Del(ctx, setKey)
+	}
 }

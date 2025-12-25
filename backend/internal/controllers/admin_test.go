@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -20,7 +21,7 @@ type stubExcelImportService struct {
 	err    error
 }
 
-func (s *stubExcelImportService) ImportOfficialResultsExcel(_ context.Context, examID uint, _ string, replaceExisting bool) (*models.ExcelImportResult, error) {
+func (s *stubExcelImportService) ImportOfficialResultsExcel(_ context.Context, examID uint, _ io.Reader, replaceExisting bool) (*models.ExcelImportResult, error) {
 	if replaceExisting != s.result.ReplaceExisting {
 		return nil, sqlErr{msg: "replace mismatch"}
 	}

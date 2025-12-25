@@ -59,7 +59,7 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 		return nil, ErrExamNameConflict
 	}
 
-	questions, err := buildQuestionModels(req.Questions, nil)
+	questions, err := createQuestions(req.Questions)
 	if err != nil {
 		return nil, err
 	}
@@ -82,6 +82,40 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 		return nil, err
 	}
 	return exam, nil
+}
+
+func createQuestions(inputs []QuestionInput) ([]models.Question, error) {
+	nameGen := newQuestionNameGenerator(nil)
+	questions := make([]models.Question, 0, len(inputs))
+
+	for _, input := range inputs {
+		isActive := true
+		isCancelled := false
+		if input.IsActive != nil {
+			isActive = *input.IsActive
+		}
+		if input.IsCancelled != nil {
+			isCancelled = *input.IsCancelled
+		}
+
+		normalizedOption := strings.ToUpper(strings.TrimSpace(input.CorrectOption))
+		if normalizedOption == "" {
+			return nil, errors.New("opcion de respuesta no valida")
+		}
+
+		model := models.Question{
+			ID:            0,
+			Name:          nameGen.Next(input.Name),
+			IsActive:      isActive,
+			IsCancelled:   isCancelled,
+			CorrectOption: normalizedOption,
+		}
+		if input.ID != nil {
+			model.ID = *input.ID
+		}
+		questions = append(questions, model)
+	}
+	return questions, nil
 }
 
 func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, error) {
@@ -109,8 +143,7 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 		exam.ValidatedTribunal = *req.ValidatedTribunal
 	}
 
-	nameGen := newQuestionNameGenerator(questionNames(exam.Questions))
-	questions, err := s.mergeQuestions(exam.ID, exam.Questions, req.Questions, nameGen)
+	questions, err := s.updateQuestions(exam.ID, exam.Questions, req.Questions)
 	if err != nil {
 		return nil, err
 	}
@@ -125,6 +158,11 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 	}
 
 	return &exam, nil
+}
+
+func (s *Service) updateQuestions(examID uint, existing []models.Question, inputs []QuestionInput) ([]models.Question, error) {
+	nameGen := newQuestionNameGenerator(questionNames(existing))
+	return s.mergeQuestions(examID, existing, inputs, nameGen)
 }
 
 func (s *Service) DeleteExam(examID uint) error {
@@ -146,6 +184,9 @@ func (s *Service) DeleteExam(examID uint) error {
 		}
 
 		if err := tx.Where("exam_id = ?", examID).Delete(&models.Question{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("exam_id = ?", examID).Delete(&models.ExamOfficialResult{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Delete(&models.Exam{}, examID).Error; err != nil {
@@ -175,33 +216,47 @@ func (s *Service) UpdateSubmission(submissionID uint, req SubmissionUpdateReques
 		return nil, err
 	}
 
-	updated := false
-	if req.Name != "" && submission.User.Name != req.Name {
-		submission.User.Name = req.Name
-		updated = true
-	}
-	if req.Surname != "" && submission.User.Surname != req.Surname {
-		submission.User.Surname = req.Surname
-		updated = true
-	}
-	if req.Email != "" && submission.User.Email != req.Email {
-		submission.User.Email = req.Email
-		updated = true
-	}
-	if req.DNI != "" && submission.User.DNI != req.DNI {
-		submission.User.DNI = req.DNI
-		updated = true
-	}
-	if updated && submission.User.ID != 0 {
-		if err := s.db.Model(&submission.User).Updates(submission.User).Error; err != nil {
-			return nil, err
-		}
-	}
-
-	if err := s.db.Save(&submission).Error; err != nil {
+	if err := s.updateUserFromSubmission(submission.User, req); err != nil {
 		return nil, err
 	}
 
+	if err := s.updateAnswersFromSubmission(&submission, req); err != nil {
+		return nil, err
+	}
+
+	if err := s.db.Preload("User").Preload("Answers").First(&submission, submission.ID).Error; err != nil {
+		return nil, err
+	}
+	return &submission, nil
+}
+
+func (s *Service) updateUserFromSubmission(user models.ExamUser, req SubmissionUpdateRequest) error {
+	updated := false
+	if req.Name != "" && user.Name != req.Name {
+		user.Name = req.Name
+		updated = true
+	}
+	if req.Surname != "" && user.Surname != req.Surname {
+		user.Surname = req.Surname
+		updated = true
+	}
+	if req.Email != "" && user.Email != req.Email {
+		user.Email = req.Email
+		updated = true
+	}
+	if req.DNI != "" && user.DNI != req.DNI {
+		user.DNI = req.DNI
+		updated = true
+	}
+	if updated && user.ID != 0 {
+		if err := s.db.Model(&user).Updates(user).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) updateAnswersFromSubmission(submission *models.UserExamSubmission, req SubmissionUpdateRequest) error {
 	answerMap := make(map[uint]*models.UserAnswer)
 	for i := range submission.Answers {
 		answer := submission.Answers[i]
@@ -212,7 +267,7 @@ func (s *Service) UpdateSubmission(submissionID uint, req SubmissionUpdateReques
 		if existing, ok := answerMap[answer.QuestionID]; ok {
 			existing.Answer = answer.Answer
 			if err := s.db.Save(existing).Error; err != nil {
-				return nil, err
+				return err
 			}
 		} else {
 			newAnswer := models.UserAnswer{
@@ -221,15 +276,11 @@ func (s *Service) UpdateSubmission(submissionID uint, req SubmissionUpdateReques
 				Answer:       answer.Answer,
 			}
 			if err := s.db.Create(&newAnswer).Error; err != nil {
-				return nil, err
+				return err
 			}
 		}
 	}
-
-	if err := s.db.Preload("User").Preload("Answers").First(&submission, submission.ID).Error; err != nil {
-		return nil, err
-	}
-	return &submission, nil
+	return nil
 }
 
 func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats bool, search, orderBy, orderDir string, moodleSynced *bool) (*ListSubmissionsResult, error) {

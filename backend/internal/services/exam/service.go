@@ -1,6 +1,7 @@
 package exam
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sort"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/inscripcion-moodle/go-backend/internal/helpers"
 	"github.com/inscripcion-moodle/go-backend/internal/models"
+	"github.com/inscripcion-moodle/go-backend/internal/repository"
 )
 
 var (
@@ -114,9 +116,45 @@ func ValidateAnswerOption(option string) (string, error) {
 	return upper, nil
 }
 
-func ProcessExamSubmission(db *gorm.DB, req SubmitExamRequest) (*SubmissionPayload, error) {
+type Service struct {
+	db   *gorm.DB
+	repo repository.ExamRepository
+}
+
+func NewService(db *gorm.DB, repo repository.ExamRepository) *Service {
+	return &Service{db: db, repo: repo}
+}
+
+// recalculateScoresAsync runs the score and percentile recalculation in a separate
+// transaction and context, making it safe to run in a background goroutine.
+func (s *Service) recalculateScoresAsync(examID uint) {
+	// Use a background context so the request context being canceled doesn't kill the job.
+	ctx := context.Background()
+
+	// We can't use the original transaction, so we start a new one.
+	tx := s.db.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		// This will be tricky to log without a logger dependency.
+		// For now, printing to stderr is a temporary solution.
+		fmt.Printf("ERROR: could not begin transaction for async recalculateScores for exam %d: %v\n", examID, tx.Error)
+		return
+	}
+	// Ensure rollback on panic or early return.
+	defer tx.Rollback()
+
+	if err := recalculateScores(tx, examID); err != nil {
+		fmt.Printf("ERROR: failed to asynchronously recalculate scores for exam %d: %v\n", examID, err)
+		return
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		fmt.Printf("ERROR: could not commit transaction for async recalculateScores for exam %d: %v\n", examID, err)
+	}
+}
+
+func (s *Service) ProcessExamSubmission(req SubmitExamRequest) (*SubmissionPayload, error) {
 	var payload *SubmissionPayload
-	err := db.Transaction(func(tx *gorm.DB) error {
+	err := s.db.Transaction(func(tx *gorm.DB) error {
 		p, err := processSubmission(tx, req)
 		if err != nil {
 			return err
@@ -127,11 +165,74 @@ func ProcessExamSubmission(db *gorm.DB, req SubmitExamRequest) (*SubmissionPaylo
 	if err != nil {
 		return nil, err
 	}
+
+	// On success, launch the recalculation in the background.
+	go s.recalculateScoresAsync(req.ExamID)
+
 	return payload, nil
 }
 
-func processSubmission(tx *gorm.DB, req SubmitExamRequest) (*SubmissionPayload, error) {
+func (s *Service) GetQuestionStubs(ctx context.Context, examID uint) ([]QuestionStub, error) {
+	_, err := s.repo.FindExamByID(ctx, s.db, examID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrExamNotFound
+		}
+		return nil, err
+	}
+
+	questions, err := s.repo.FindQuestionsByExamID(ctx, s.db, examID)
+	if err != nil {
+		return nil, err
+	}
+
+	stubs := make([]QuestionStub, 0, len(questions))
+	for _, question := range questions {
+		stubs = append(stubs, QuestionStub{
+			ID:          question.ID,
+			Name:        question.Name,
+			IsActive:    question.IsActive,
+			IsCancelled: question.IsCancelled,
+		})
+	}
+	return stubs, nil
+}
+
+func getOrCreateUser(tx *gorm.DB, req SubmitExamRequest) (*models.ExamUser, error) {
 	normalizedEmail := strings.ToLower(strings.TrimSpace(req.Email))
+	normalizedDNI := NormalizeDNI(req.DNI)
+	trimmedName := strings.TrimSpace(req.Name)
+	trimmedSurname := strings.TrimSpace(req.Surname)
+
+	var candidate models.ExamUser
+	if err := tx.Where("dni = ?", normalizedDNI).First(&candidate).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			candidate = models.ExamUser{
+				Name:             trimmedName,
+				Surname:          trimmedSurname,
+				Email:            normalizedEmail,
+				DNI:              normalizedDNI,
+				AcceptsMarketing: req.AcceptsMarketing,
+			}
+			if err := tx.Create(&candidate).Error; err != nil {
+				return nil, err
+			}
+			return &candidate, nil
+		}
+		return nil, err
+	}
+
+	candidate.Name = trimmedName
+	candidate.Surname = trimmedSurname
+	candidate.Email = normalizedEmail
+	candidate.AcceptsMarketing = req.AcceptsMarketing
+	if err := tx.Save(&candidate).Error; err != nil {
+		return nil, err
+	}
+	return &candidate, nil
+}
+
+func processSubmission(tx *gorm.DB, req SubmitExamRequest) (*SubmissionPayload, error) {
 	normalizedDNI := NormalizeDNI(req.DNI)
 	trimmedName := strings.TrimSpace(req.Name)
 	trimmedSurname := strings.TrimSpace(req.Surname)
@@ -152,30 +253,9 @@ func processSubmission(tx *gorm.DB, req SubmitExamRequest) (*SubmissionPayload, 
 		return nil, ErrOfficialResultMissing
 	}
 
-	var candidate models.ExamUser
-	if err := tx.Where("dni = ?", normalizedDNI).First(&candidate).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			candidate = models.ExamUser{
-				Name:             trimmedName,
-				Surname:          trimmedSurname,
-				Email:            normalizedEmail,
-				DNI:              normalizedDNI,
-				AcceptsMarketing: req.AcceptsMarketing,
-			}
-			if err := tx.Create(&candidate).Error; err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, err
-		}
-	} else {
-		candidate.Name = trimmedName
-		candidate.Surname = trimmedSurname
-		candidate.Email = normalizedEmail
-		candidate.AcceptsMarketing = req.AcceptsMarketing
-		if err := tx.Save(&candidate).Error; err != nil {
-			return nil, err
-		}
+	candidate, err := getOrCreateUser(tx, req)
+	if err != nil {
+		return nil, err
 	}
 
 	var existingCount int64
@@ -188,87 +268,161 @@ func processSubmission(tx *gorm.DB, req SubmitExamRequest) (*SubmissionPayload, 
 		return nil, errors.New("ya has enviado este examen")
 	}
 
-	var exam models.Exam
-	if err := tx.Preload("Questions").First(&exam, req.ExamID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrExamNotFound
-		}
-		return nil, err
-	}
-	if len(exam.Questions) == 0 {
-		return nil, ErrExamNoQuestions
-	}
-
-	activeQuestions := make([]models.Question, 0, len(exam.Questions))
-	activeMap := make(map[uint]models.Question)
-	for _, question := range exam.Questions {
-		if question.IsActive && !question.IsCancelled {
-			activeQuestions = append(activeQuestions, question)
-			activeMap[question.ID] = question
-		}
-	}
-	if len(activeQuestions) == 0 {
-		return nil, ErrExamNoActive
-	}
-
-	answersMap := make(map[uint]string)
-	for _, ans := range req.Answers {
-		question, ok := activeMap[ans.QuestionID]
-		if !ok {
-			return nil, fmt.Errorf("pregunta %d no encontrada", ans.QuestionID)
-		}
-		value, err := ValidateAnswerOption(ans.Answer)
-		if err != nil {
-			return nil, err
-		}
-		answersMap[question.ID] = value
-	}
-
-	breakdown, err := CalculateScoreBreakdown(activeQuestions, answersMap)
+	submission, breakdown, _, err := createSubmission(tx, req, candidate.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	scorePtr := helpers.Ptr(breakdown.Score)
-	submission := &models.UserExamSubmission{
-		UserID:     candidate.ID,
-		ExamID:     req.ExamID,
-		Score:      scorePtr,
-		Percentile: helpers.Ptr(0.0),
-	}
-	if err := tx.Create(submission).Error; err != nil {
-		return nil, err
-	}
-
-	for _, ans := range req.Answers {
-		option, ok := answersMap[ans.QuestionID]
-		if !ok {
-			continue
-		}
-		answer := models.UserAnswer{
-			SubmissionID: submission.ID,
-			QuestionID:   ans.QuestionID,
-			Answer:       option,
-		}
-		if err := tx.Create(&answer).Error; err != nil {
-			return nil, err
-		}
-	}
-
-	if err := recalculateScores(tx, req.ExamID); err != nil {
-		return nil, err
-	}
+	// The score recalculation is now handled asynchronously by the caller.
 
 	if err := tx.Preload("Answers").Preload("User").First(submission, submission.ID).Error; err != nil {
 		return nil, err
 	}
 
-	payload, err := buildSubmissionPayload(tx, &exam, submission, "Examen enviado correctamente", &breakdown)
+	payload, err := buildSubmissionPayload(tx, &submission.Exam, submission, "Examen enviado correctamente", breakdown)
 	if err != nil {
 		return nil, err
 	}
 
 	return payload, nil
+}
+
+func createSubmission(tx *gorm.DB, req SubmitExamRequest, userID uint) (*models.UserExamSubmission, *ScoreBreakdown, map[uint]string, error) {
+
+	var exam models.Exam
+
+	if err := tx.Preload("Questions").First(&exam, req.ExamID).Error; err != nil {
+
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+
+			return nil, nil, nil, ErrExamNotFound
+
+		}
+
+		return nil, nil, nil, err
+
+	}
+
+	if len(exam.Questions) == 0 {
+
+		return nil, nil, nil, ErrExamNoQuestions
+
+	}
+
+
+
+	activeQuestions := make([]models.Question, 0, len(exam.Questions))
+
+	activeMap := make(map[uint]models.Question)
+
+	for _, question := range exam.Questions {
+
+		if question.IsActive && !question.IsCancelled {
+
+			activeQuestions = append(activeQuestions, question)
+
+			activeMap[question.ID] = question
+
+		}
+
+	}
+
+	if len(activeQuestions) == 0 {
+
+		return nil, nil, nil, ErrExamNoActive
+
+	}
+
+
+
+	answersMap := make(map[uint]string)
+
+	for _, ans := range req.Answers {
+
+		question, ok := activeMap[ans.QuestionID]
+
+		if !ok {
+
+			return nil, nil, nil, fmt.Errorf("pregunta %d no encontrada", ans.QuestionID)
+
+		}
+
+		value, err := ValidateAnswerOption(ans.Answer)
+
+		if err != nil {
+
+			return nil, nil, nil, err
+
+		}
+
+		answersMap[question.ID] = value
+
+	}
+
+
+
+	breakdown, err := CalculateScoreBreakdown(activeQuestions, answersMap)
+
+	if err != nil {
+
+		return nil, nil, nil, err
+
+	}
+
+
+
+	scorePtr := helpers.Ptr(breakdown.Score)
+
+	submission := &models.UserExamSubmission{
+
+		UserID:     userID,
+
+		ExamID:     req.ExamID,
+
+		Score:      scorePtr,
+
+		Percentile: helpers.Ptr(0.0),
+
+	}
+
+	if err := tx.Create(submission).Error; err != nil {
+
+		return nil, nil, nil, err
+
+	}
+
+
+
+	for _, ans := range req.Answers {
+
+		option, ok := answersMap[ans.QuestionID]
+
+		if !ok {
+
+			continue
+
+		}
+
+		answer := models.UserAnswer{
+
+			SubmissionID: submission.ID,
+
+			QuestionID:   ans.QuestionID,
+
+			Answer:       option,
+
+		}
+
+		if err := tx.Create(&answer).Error; err != nil {
+
+			return nil, nil, nil, err
+
+		}
+
+	}
+
+	return submission, &breakdown, answersMap, nil
+
 }
 
 func BuildSubmissionCheckResponse(db *gorm.DB, req SubmissionCheckRequest) (*SubmissionPayload, error) {

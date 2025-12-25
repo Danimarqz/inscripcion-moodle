@@ -43,8 +43,12 @@ func TestImportOfficialResultsExcel(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&models.ExamOfficialResult{}))
 
+	f, err := os.Open(excelPath)
+	require.NoError(t, err)
+	defer f.Close()
+
 	svc := &Service{repo: &stubExamRepository{exam: exam}, db: db}
-	result, err := svc.ImportOfficialResultsExcel(context.Background(), exam.ID, excelPath, true)
+	result, err := svc.ImportOfficialResultsExcel(context.Background(), exam.ID, f, true)
 	require.NoError(t, err)
 	require.Equal(t, exam.ID, result.ExamID)
 	require.Equal(t, 2, result.TotalRows)
@@ -76,8 +80,12 @@ func TestImportOfficialResultsExcel_WithHeader(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&models.ExamOfficialResult{}))
 
+	f, err := os.Open(excelPath)
+	require.NoError(t, err)
+	defer f.Close()
+
 	svc := &Service{repo: &stubExamRepository{exam: exam}, db: db}
-	result, err := svc.ImportOfficialResultsExcel(context.Background(), exam.ID, excelPath, true)
+	result, err := svc.ImportOfficialResultsExcel(context.Background(), exam.ID, f, true)
 	require.NoError(t, err)
 	require.Equal(t, exam.ID, result.ExamID)
 	require.Equal(t, 2, result.TotalRows)

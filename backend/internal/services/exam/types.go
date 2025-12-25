@@ -56,3 +56,10 @@ type ScoreBreakdown struct {
 	CorrectAnswers int
 	TotalQuestions int
 }
+
+type QuestionStub struct {
+	ID          uint `json:"id"`
+	Name        int  `json:"name"`
+	IsActive    bool `json:"is_active"`
+	IsCancelled bool `json:"is_cancelled"`
+}

@@ -33,10 +33,11 @@ type EnrolledUser struct {
 }
 
 type Client struct {
-	cfg         *config.Config
-	httpClient  *http.Client
-	db          *sql.DB
-	tablePrefix string
+	cfg                *config.Config
+	httpClient         *http.Client
+	db                 *sql.DB
+	tablePrefix        string
+	moodleExamCourseID int
 }
 
 func New(cfg *config.Config) *Client {
@@ -56,8 +57,9 @@ func New(cfg *config.Config) *Client {
 		httpClient: &http.Client{
 			Timeout: 15 * time.Second,
 		},
-		db:          db,
-		tablePrefix: normalizeTablePrefix(cfg.MoodleDBPrefix),
+		db:                 db,
+		tablePrefix:        normalizeTablePrefix(cfg.MoodleDBPrefix),
+		moodleExamCourseID: cfg.MoodleExamCourseID,
 	}
 }
 

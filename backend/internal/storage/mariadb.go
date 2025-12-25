@@ -17,7 +17,9 @@ func NewMariaDB(cfg *config.Config) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+		PrepareStmt: true,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("connect to mariadb: %w", err)
 	}

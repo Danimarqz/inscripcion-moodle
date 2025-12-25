@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -18,8 +17,11 @@ import (
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
+	"github.com/inscripcion-moodle/go-backend/internal/cache"
 	"github.com/inscripcion-moodle/go-backend/internal/config"
+	"github.com/inscripcion-moodle/go-backend/internal/constants"
 	"github.com/inscripcion-moodle/go-backend/internal/models"
+	"github.com/inscripcion-moodle/go-backend/internal/repository"
 	examservice "github.com/inscripcion-moodle/go-backend/internal/services/exam"
 	"github.com/inscripcion-moodle/go-backend/internal/services/moodle"
 )
@@ -40,15 +42,15 @@ type QuestionStub struct {
 
 type PublicController struct {
 	db           *gorm.DB
-	cache        *redis.Client
+	cache        *cache.Cache
 	cacheTTL     time.Duration
 	moodleClient *moodle.Client
 }
 
-func NewPublicController(db *gorm.DB, cache *redis.Client, cfg *config.Config) *PublicController {
+func NewPublicController(db *gorm.DB, rds *redis.Client, cfg *config.Config) *PublicController {
 	return &PublicController{
 		db:           db,
-		cache:        cache,
+		cache:        cache.New(rds),
 		cacheTTL:     cfg.PublicCacheTTL,
 		moodleClient: moodle.New(cfg),
 	}
@@ -56,33 +58,37 @@ func NewPublicController(db *gorm.DB, cache *redis.Client, cfg *config.Config) *
 
 func (h *PublicController) GetExams(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if cached, ok := h.readCache(ctx, examsCacheKey); ok {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(cached)
-		return
-	}
-
-	var exams []models.Exam
-	if err := h.db.Where("is_active = ?", true).Find(&exams).Error; err != nil {
-		http.Error(w, "failed to load exams", http.StatusInternalServerError)
-		return
-	}
-
-	payload, err := h.writeJSON(w, exams)
+	payload, err := h.cache.GetOrSet(ctx, examsCacheKey, 0, func() ([]byte, error) {
+		var exams []models.Exam
+		if err := h.db.Where("is_active = ?", true).Find(&exams).Error; err != nil {
+			return nil, err
+		}
+		return json.Marshal(exams)
+	})
 	if err != nil {
+		http.Error(w, constants.FailedToLoadExams, http.StatusInternalServerError)
 		return
 	}
-	h.setCache(ctx, examsCacheKey, payload, 0)
+
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(payload)
 }
 
 func (h *PublicController) SubmitExam(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
 	var req examservice.SubmitExamRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		http.Error(w, constants.InvalidRequest, http.StatusBadRequest)
 		return
 	}
 
-	payload, err := examservice.ProcessExamSubmission(h.db, req)
+	if strings.TrimSpace(req.Email) == "" || strings.TrimSpace(req.DNI) == "" {
+		http.Error(w, constants.EmailAndDNIAreRequired, http.StatusBadRequest)
+		return
+	}
+
+	examService := examservice.NewService(h.db, repository.NewExamRepository())
+	payload, err := examService.ProcessExamSubmission(req)
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -91,97 +97,92 @@ func (h *PublicController) SubmitExam(w http.ResponseWriter, r *http.Request) {
 	h.invalidateCheckCacheForExam(req.ExamID)
 	h.scheduleMoodleSync(req.Email, req.DNI)
 
-	_, _ = h.writeJSON(w, payload)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(payload)
 }
 
 func (h *PublicController) GetQuestionStubs(w http.ResponseWriter, r *http.Request) {
 	examIDParam := chi.URLParam(r, "exam_id")
 	examID, err := strconv.ParseUint(examIDParam, 10, 64)
 	if err != nil {
-		http.Error(w, "invalid exam id", http.StatusBadRequest)
+		http.Error(w, constants.InvalidExamID, http.StatusBadRequest)
 		return
 	}
 
 	ctx := r.Context()
 	key := h.questionsCacheKey(uint(examID))
-	if cached, ok := h.readCache(ctx, key); ok {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(cached)
-		return
-	}
 
-	var exam models.Exam
-	if err := h.db.First(&exam, uint(examID)).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			http.Error(w, "exam not found", http.StatusNotFound)
-			return
+	// Service is instantiated here as it's lightweight.
+	// For a larger application, it might be part of the controller's dependencies.
+	examService := examservice.NewService(h.db, repository.NewExamRepository())
+
+	payload, err := h.cache.GetOrSet(ctx, key, 0, func() ([]byte, error) {
+		stubs, err := examService.GetQuestionStubs(ctx, uint(examID))
+		if err != nil {
+			return nil, err
 		}
-		http.Error(w, "failed to load exam questions", http.StatusInternalServerError)
-		return
-	}
-
-	var questions []models.Question
-	if err := h.db.Where("exam_id = ?", uint(examID)).Find(&questions).Error; err != nil {
-		http.Error(w, "failed to load questions", http.StatusInternalServerError)
-		return
-	}
-
-	sort.SliceStable(questions, func(i, j int) bool {
-		if questions[i].Name == questions[j].Name {
-			return questions[i].ID < questions[j].ID
-		}
-		return questions[i].Name < questions[j].Name
+		return json.Marshal(stubs)
 	})
 
-	stubs := make([]QuestionStub, 0, len(questions))
-	for _, question := range questions {
-		stubs = append(stubs, QuestionStub{
-			ID:          question.ID,
-			Name:        question.Name,
-			IsActive:    question.IsActive,
-			IsCancelled: question.IsCancelled,
-		})
-	}
-
-	payload, err := h.writeJSON(w, stubs)
 	if err != nil {
+		if errors.Is(err, examservice.ErrExamNotFound) {
+			http.Error(w, constants.ExamNotFound, http.StatusNotFound)
+			return
+		}
+		http.Error(w, constants.FailedToLoadQuestions, http.StatusInternalServerError)
 		return
 	}
-	h.setCache(ctx, key, payload, 0)
+
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(payload)
 }
 
 func (h *PublicController) CheckSubmission(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
 	var req examservice.SubmissionCheckRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		http.Error(w, constants.InvalidRequest, http.StatusBadRequest)
+		return
+	}
+
+	if strings.TrimSpace(req.Email) == "" || strings.TrimSpace(req.DNI) == "" {
+		http.Error(w, constants.EmailAndDNIAreRequired, http.StatusBadRequest)
 		return
 	}
 
 	ctx := r.Context()
 	cacheKey := h.submissionCacheKey(req.ExamID, req.Email, req.DNI)
-	if cached, ok := h.readCache(ctx, cacheKey); ok {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(cached)
-		return
-	}
 
-	payload, err := examservice.BuildSubmissionCheckResponse(h.db, req)
+	payload, err := h.cache.GetOrSet(ctx, cacheKey, h.cacheTTL, func() ([]byte, error) {
+		payload, err := examservice.BuildSubmissionCheckResponse(h.db, req)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(payload)
+	})
+
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
 
-	data, err := h.writeJSON(w, payload)
-	if err != nil {
-		return
-	}
-	h.setCache(ctx, cacheKey, data, h.cacheTTL)
+	submissionSetKey := h.submissionSetKey(req.ExamID)
+	h.cache.SAdd(ctx, submissionSetKey, cacheKey)
+
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(payload)
 }
 
 func (h *PublicController) CheckOfficialResultMatch(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
 	var req examservice.OfficialResultMatchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		http.Error(w, constants.InvalidRequest, http.StatusBadRequest)
+		return
+	}
+
+	if strings.TrimSpace(req.DNI) == "" {
+		http.Error(w, constants.DNIRequired, http.StatusBadRequest)
 		return
 	}
 
@@ -191,24 +192,12 @@ func (h *PublicController) CheckOfficialResultMatch(w http.ResponseWriter, r *ht
 		if errors.Is(err, examservice.ErrExamNotFound) {
 			status = http.StatusNotFound
 		}
-		http.Error(w, "failed to verify official result", status)
+		http.Error(w, constants.FailedToVerifyResult, status)
 		return
 	}
 
-	_, _ = h.writeJSON(w, examservice.OfficialResultMatchResponse{Match: match})
-}
-
-func (h *PublicController) writeJSON(w http.ResponseWriter, data any) ([]byte, error) {
-	payload, err := json.Marshal(data)
-	if err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
-		return nil, err
-	}
 	w.Header().Set("Content-Type", "application/json")
-	if _, err := w.Write(payload); err != nil {
-		return nil, err
-	}
-	return payload, nil
+	json.NewEncoder(w).Encode(examservice.OfficialResultMatchResponse{Match: match})
 }
 
 func (h *PublicController) questionsCacheKey(examID uint) string {
@@ -223,25 +212,8 @@ func (h *PublicController) submissionCacheKey(examID uint, email, dni string) st
 	return fmt.Sprintf("%s:%d:%s", submissionCachePrefix, examID, hex.EncodeToString(sum[:]))
 }
 
-func (h *PublicController) readCache(ctx context.Context, key string) ([]byte, bool) {
-	if h.cache == nil {
-		return nil, false
-	}
-	payload, err := h.cache.Get(ctx, key).Bytes()
-	if err == nil {
-		return payload, true
-	}
-	if err != redis.Nil {
-		_ = err
-	}
-	return nil, false
-}
-
-func (h *PublicController) setCache(ctx context.Context, key string, payload []byte, ttl time.Duration) {
-	if h.cache == nil || ttl < 0 {
-		return
-	}
-	_ = h.cache.Set(ctx, key, payload, ttl).Err()
+func (h *PublicController) submissionSetKey(examID uint) string {
+	return fmt.Sprintf("%s:%d:set", submissionCachePrefix, examID)
 }
 
 func (h *PublicController) invalidateCheckCacheForExam(examID uint) {
@@ -249,11 +221,15 @@ func (h *PublicController) invalidateCheckCacheForExam(examID uint) {
 		return
 	}
 	ctx := context.Background()
-	pattern := fmt.Sprintf("%s:%d:*", submissionCachePrefix, examID)
-	iter := h.cache.Scan(ctx, 0, pattern, 250).Iterator()
-	for iter.Next(ctx) {
-		_ = h.cache.Del(ctx, iter.Val()).Err()
+	setKey := h.submissionSetKey(examID)
+	keys, err := h.cache.SMembers(ctx, setKey)
+	if err != nil {
+		return
 	}
+	for _, key := range keys {
+		_ = h.cache.Del(ctx, key)
+	}
+	_ = h.cache.Del(ctx, setKey)
 }
 
 func (h *PublicController) handleError(w http.ResponseWriter, err error) {
