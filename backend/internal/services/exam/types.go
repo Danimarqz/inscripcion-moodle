@@ -21,6 +21,17 @@ type SubmissionCheckRequest struct {
 	ExamID uint   `json:"exam_id"`
 }
 
+type OfficialResultMatchRequest struct {
+	ExamID  uint   `json:"exam_id"`
+	Name    string `json:"name"`
+	Surname string `json:"surname"`
+	DNI     string `json:"dni"`
+}
+
+type OfficialResultMatchResponse struct {
+	Match bool `json:"match"`
+}
+
 type SubmissionPayload struct {
 	Message          string         `json:"message"`
 	Score            *float64       `json:"score"`
@@ -44,4 +55,11 @@ type ScoreBreakdown struct {
 	Score          float64
 	CorrectAnswers int
 	TotalQuestions int
+}
+
+type QuestionStub struct {
+	ID          uint `json:"id"`
+	Name        int  `json:"name"`
+	IsActive    bool `json:"is_active"`
+	IsCancelled bool `json:"is_cancelled"`
 }

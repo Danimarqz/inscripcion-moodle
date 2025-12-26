@@ -62,8 +62,6 @@ document.addEventListener('DOMContentLoaded', function () {
     signaturePad.clear();
   }
 
-
-
   /**
    * Gestiona el envío del formulario.
    * @param {Event} e - El evento de envío.
@@ -72,29 +70,47 @@ document.addEventListener('DOMContentLoaded', function () {
     e.preventDefault();
     if (!validateForm()) return;
 
-    setLoading(true);
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
     data.signature = signaturePad.toDataURL();
-    console.log('Data to send: ', data)
+    console.log('Sending data:', data);
+
+    // 1. Mostrar estado de carga
+    setLoading(true);
+
     try {
+      // 2. Enviar la petición y ESPERAR respuesta
       const res = await fetch('/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
 
-      const result = await res.json();
       if (res.ok) {
-        showModal('Éxito', 'Formulario enviado correctamente.');
+        // 3. ÉXITO: Solo borrar si todo fue bien
+        showModal('Éxito', 'Su inscripción se ha enviado correctamente. Recibirá un correo de confirmación.');
         form.reset();
         signaturePad.clear();
+        // Restablecer fecha actual
+        if (document.getElementById('requestdate')) {
+          const today = new Date();
+          const yyyy = today.getFullYear();
+          const mm = String(today.getMonth() + 1).padStart(2, '0');
+          const dd = String(today.getDate()).padStart(2, '0');
+          document.getElementById('requestdate').value = `${dd}-${mm}-${yyyy}`;
+        }
       } else {
-        showModal('Error', result.detail || 'Error al enviar el formulario.');
+        // 4. ERROR API: Mostrar mensaje pero NO borrar datos
+        const result = await res.json().catch(() => ({}));
+        console.error('API Error:', result);
+        showModal('Error', 'Hubo un problema al enviar la inscripción: ' + (result.detail || res.statusText));
       }
     } catch (err) {
-      showModal('Error', 'Error de red o inesperado.');
+      // 5. ERROR RED: Mostrar mensaje y NO borrar datos
+      console.error('Network Error:', err);
+      showModal('Error', 'Error de conexión. Por favor, compruebe su internet e inténtelo de nuevo.');
     } finally {
+      // 6. Restaurar botón
       setLoading(false);
     }
   }

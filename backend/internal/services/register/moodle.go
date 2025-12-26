@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/inscripcion-moodle/go-backend/internal/services/moodle"
 )
 
 var (
@@ -38,16 +38,9 @@ var (
 	extraCourses = []int{16, 11}
 )
 
-var (
-	errMoodleUserExists = errors.New("existing_user")
-	errMoodleConfig     = errors.New("moodle url/token not configured")
-)
-
 func (s *Service) createMoodleUser(ctx context.Context, data Data) (bool, error) {
-	if s.cfg.MoodleURL == "" || s.cfg.MoodleToken == "" {
-		return false, errMoodleConfig
-	}
 	username := strings.ToLower(strings.TrimSpace(data.Email))
+	courseKey := strings.TrimSpace(strings.ToLower(data.Course))
 	payload := url.Values{
 		"users[0][username]":  {username},
 		"users[0][firstname]": {data.Name},
@@ -63,7 +56,7 @@ func (s *Service) createMoodleUser(ctx context.Context, data Data) (bool, error)
 		{"dni", data.DNI},
 		{"conocer", data.Discover},
 	}
-	for i, field := range append(custom, courseCustomField(data.Course)...) {
+	for i, field := range append(custom, courseCustomField(courseKey)...) {
 		payload.Set(fmt.Sprintf("users[0][customfields][%d][type]", i), field.key)
 		payload.Set(fmt.Sprintf("users[0][customfields][%d][value]", i), field.value)
 	}
@@ -71,7 +64,7 @@ func (s *Service) createMoodleUser(ctx context.Context, data Data) (bool, error)
 	var userID int
 	body, err := s.callMoodle(ctx, "core_user_create_users", payload)
 	if err != nil {
-		if errors.Is(err, errMoodleUserExists) {
+		if errors.Is(err, moodle.ErrUserAlreadyExists) {
 			users, findErr := s.findExistingUser(ctx, data.Email)
 			if findErr != nil {
 				return true, findErr
@@ -83,11 +76,10 @@ func (s *Service) createMoodleUser(ctx context.Context, data Data) (bool, error)
 			return true, s.enrolUserInCourses(ctx, userID, resolveCourses(data.Course))
 		}
 		return false, err
-	} else {
-		userID, err = parseUserID(body)
-		if err != nil {
-			return false, err
-		}
+	}
+	userID, err = parseUserID(body)
+	if err != nil {
+		return false, err
 	}
 
 	return false, s.enrolUserInCourses(ctx, userID, resolveCourses(data.Course))
@@ -96,14 +88,13 @@ func (s *Service) createMoodleUser(ctx context.Context, data Data) (bool, error)
 func courseCustomField(course string) []struct {
 	key, value string
 } {
-	if course == "" {
+	if course == "" || !isValidCourseKey(course) {
 		return nil
 	}
-	key := strings.TrimSpace(strings.ToLower(course))
 	return []struct {
 		key, value string
 	}{
-		{key, "true"},
+		{course, "true"},
 	}
 }
 
@@ -123,6 +114,11 @@ func resolveCourses(course string) []int {
 		unique = append(unique, id)
 	}
 	return unique
+}
+
+func isValidCourseKey(course string) bool {
+	_, ok := validCourses[course]
+	return ok
 }
 
 func (s *Service) enrolUserInCourses(ctx context.Context, userID int, courseIDs []int) error {
@@ -145,26 +141,21 @@ func (s *Service) enrolUserInCourse(ctx context.Context, userID, courseID int) e
 }
 
 func (s *Service) findExistingUser(ctx context.Context, email string) ([]map[string]int, error) {
-	payload := url.Values{
-		"field":     {"email"},
-		"values[0]": {strings.TrimSpace(email)},
+	if s.moodleClient == nil {
+		return nil, moodle.ErrNotConfigured
 	}
-	body, err := s.callMoodle(ctx, "core_user_get_users_by_field", payload)
+
+	users, err := s.moodleClient.FindUsersByField(ctx, "email", email)
 	if err != nil {
-		return nil, err
-	}
-	var users []map[string]interface{}
-	if err := json.Unmarshal(body, &users); err != nil {
+		if errors.Is(err, moodle.ErrUserNotFound) {
+			return nil, errors.New("usuario no encontrado")
+		}
 		return nil, err
 	}
 
 	result := make([]map[string]int, 0, len(users))
-	for _, raw := range users {
-		if id, ok := raw["id"]; ok {
-			if parsed, ok := id.(float64); ok {
-				result = append(result, map[string]int{"id": int(parsed)})
-			}
-		}
+	for _, user := range users {
+		result = append(result, map[string]int{"id": user.ID})
 	}
 	if len(result) == 0 {
 		return nil, errors.New("usuario no encontrado")
@@ -181,63 +172,13 @@ func parseUserID(body []byte) (int, error) {
 		return 0, errors.New("moodle response missing user id")
 	}
 	if id, ok := users[0]["id"]; ok {
-		switch value := id.(type) {
-		case float64:
-			return int(value), nil
-		case string:
-			return strconv.Atoi(value)
-		}
+		return moodle.ToInt(id)
 	}
 	return 0, errors.New("invalid moodle id type")
 }
 
 func (s *Service) callMoodle(ctx context.Context, function string, extra url.Values) ([]byte, error) {
-	endpoint := fmt.Sprintf("%s/webservice/rest/server.php", strings.TrimRight(s.cfg.MoodleURL, "/"))
-	payload := url.Values{}
-	payload.Set("wstoken", s.cfg.MoodleToken)
-	payload.Set("wsfunction", function)
-	payload.Set("moodlewsrestformat", "json")
-	for key, vals := range extra {
-		for _, val := range vals {
-			payload.Add(key, val)
-		}
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(payload.Encode()))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("moodle error: %s", strings.TrimSpace(string(body)))
-	}
-
-	var decoded map[string]interface{}
-	if err := json.Unmarshal(body, &decoded); err == nil {
-		if exception, ok := decoded["exception"]; ok && exception != nil {
-			msg := strings.ToLower(fmt.Sprint(decoded["message"]))
-			if strings.Contains(msg, "username already exists") || strings.Contains(msg, "email address already exists") {
-				return nil, errMoodleUserExists
-			}
-			return nil, fmt.Errorf("moodle exception: %v", decoded["message"])
-		}
-	}
-
-	return body, nil
+	return moodle.Call(ctx, s.cfg, s.client, function, extra)
 }
 
 func generatePassword(dni string) string {

@@ -44,6 +44,7 @@ export type ExamUser = {
   surname: string;
   email?: string | null;
   dni: string;
+  moodle_id?: number | null;
   accepts_marketing?: boolean;
 };
 
@@ -69,6 +70,12 @@ export type AdminSubmissionsResponse = {
   stats_included: boolean;
 };
 
+export type SyncMoodleUsersResponse = {
+  checked: number;
+  synced: number;
+  failed: number;
+};
+
 export type ExamSubmissionPayload = {
   email: string;
   dni: string;
@@ -77,6 +84,7 @@ export type ExamSubmissionPayload = {
   exam_id: number;
   answers: Answer[];
   accepts_marketing: boolean;
+  eligibility_confirmed?: boolean;
 }
 
 export type SubmissionUpdatePayload = {
@@ -90,6 +98,17 @@ export type SubmissionUpdatePayload = {
 export type ExamQuestionsResponse = {
   exam_name: string;
   questions: Question[];
+};
+
+export type OfficialResultCheckPayload = {
+  exam_id: number;
+  name: string;
+  surname: string;
+  dni: string;
+};
+
+export type OfficialResultCheckResponse = {
+  match: boolean;
 };
 
 export type QuestionCreate = {
@@ -152,6 +171,18 @@ export type ExamOfficialResult = {
   apellido_2?: string | null;
   nombre: string;
   created_at: string;
+};
+
+export type CreateOfficialResultPayload = {
+  dni: string;
+  apellido_1: string;
+  apellido_2?: string | null;
+  nombre: string;
+};
+
+export type AdminOfficialResultsResponse = {
+  results: ExamOfficialResult[];
+  total: number;
 };
 
 export type ImportOfficialResultsSummary = {

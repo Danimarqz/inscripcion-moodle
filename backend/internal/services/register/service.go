@@ -9,11 +9,13 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/inscripcion-moodle/go-backend/internal/config"
+	"github.com/inscripcion-moodle/go-backend/internal/services/moodle"
 )
 
 type Service struct {
-	cfg    *config.Config
-	client *http.Client
+	cfg          *config.Config
+	client       *http.Client
+	moodleClient *moodle.Client
 }
 
 func New(cfg *config.Config) *Service {
@@ -22,6 +24,7 @@ func New(cfg *config.Config) *Service {
 		client: &http.Client{
 			Timeout: 15 * time.Second,
 		},
+		moodleClient: moodle.New(cfg),
 	}
 }
 
@@ -30,6 +33,9 @@ func (s *Service) Register(ctx context.Context, data Data) (*Result, error) {
 		pdfBytes     []byte
 		moodleFailed bool
 	)
+	// aumentar tiempo de ejecución para llamdas a moodle
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
 	group, ctx := errgroup.WithContext(ctx)
 
 	group.Go(func() error {
@@ -52,7 +58,11 @@ func (s *Service) Register(ctx context.Context, data Data) (*Result, error) {
 	})
 
 	group.Go(func() error {
-		return postRegistrationToGSheet(ctx, s.client, s.cfg.GSheetAPI, data)
+		if err := postRegistrationToGSheet(ctx, s.client, s.cfg.GSheetAPI, data); err != nil {
+			log.Printf("register: gsheet error: %v", err)
+			return err
+		}
+		return nil
 	})
 
 	if err := group.Wait(); err != nil {
@@ -60,7 +70,7 @@ func (s *Service) Register(ctx context.Context, data Data) (*Result, error) {
 	}
 
 	if err := sendEmails(s.cfg, data.Email, pdfBytes, data.Name, data.Surname, moodleFailed); err != nil {
-		return nil, err
+		log.Printf("register: email send error: %v", err)
 	}
 
 	message := "Inscripción completada correctamente"

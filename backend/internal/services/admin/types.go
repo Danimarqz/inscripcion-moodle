@@ -37,6 +37,11 @@ type ListSubmissionsResult struct {
 	StatsIncluded    bool                        `json:"stats_included"`
 }
 
+type OfficialResultsList struct {
+	Results []models.ExamOfficialResult `json:"results"`
+	Total   int64                       `json:"total"`
+}
+
 type SubmissionAnswerInput struct {
 	QuestionID uint   `json:"question_id"`
 	Answer     string `json:"answer"`
@@ -48,4 +53,11 @@ type SubmissionUpdateRequest struct {
 	Email   string                  `json:"email"`
 	DNI     string                  `json:"dni"`
 	Answers []SubmissionAnswerInput `json:"answers"`
+}
+
+type CreateOfficialResultRequest struct {
+	DNI       string `json:"dni"`
+	Apellido1 string `json:"apellido_1"`
+	Apellido2 string `json:"apellido_2,omitempty"`
+	Nombre    string `json:"nombre"`
 }

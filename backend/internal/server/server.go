@@ -14,9 +14,11 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/inscripcion-moodle/go-backend/internal/config"
-	"github.com/inscripcion-moodle/go-backend/internal/handlers"
+	controllers "github.com/inscripcion-moodle/go-backend/internal/controllers"
 	"github.com/inscripcion-moodle/go-backend/internal/middleware"
+	"github.com/inscripcion-moodle/go-backend/internal/repository"
 	"github.com/inscripcion-moodle/go-backend/internal/services/auth"
+	examservice "github.com/inscripcion-moodle/go-backend/internal/services/exam"
 	"github.com/inscripcion-moodle/go-backend/internal/storage"
 )
 
@@ -37,13 +39,16 @@ func New(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 
-	publicHandler := handlers.NewPublicHandler(db, cache, cfg)
-	registerHandler := handlers.NewRegisterHandler(cfg)
+	examRepo := repository.NewExamRepository()
+	examService := examservice.NewService(db, examRepo)
+
+	publicController := controllers.NewPublicController(db, cache, cfg, examService)
+	registerController := controllers.NewRegisterController(cfg)
 	authService, err := auth.New(cfg)
 	if err != nil {
 		return nil, err
 	}
-	adminHandler := handlers.NewAdminHandler(db, cache, authService)
+	adminController := controllers.NewAdminController(db, cache, authService, cfg)
 	router := chi.NewRouter()
 	router.Use(chimiddleware.RequestID)
 	router.Use(chimiddleware.RealIP)
@@ -61,13 +66,14 @@ func New(cfg *config.Config) (*Server, error) {
 	rateLimiter := middleware.NewRateLimiter(cfg.RateLimitRequests, cfg.RateLimitWindow)
 	router.Use(rateLimiter.Middleware)
 
-	router.Post("/register", registerHandler.Register)
-	router.Post("/submit-exam", publicHandler.SubmitExam)
-	router.Get("/exams", publicHandler.GetExams)
-	router.Get("/exams/{exam_id}/questions", publicHandler.GetQuestionStubs)
-	router.Post("/check_submission", publicHandler.CheckSubmission)
+	router.Post("/register", registerController.Register)
+	router.Post("/submit-exam", publicController.SubmitExam)
+	router.Post("/check-official-result", publicController.CheckOfficialResultMatch)
+	router.Get("/exams", publicController.GetExams)
+	router.Get("/exams/{exam_id}/questions", publicController.GetQuestionStubs)
+	router.Post("/check_submission", publicController.CheckSubmission)
 	router.Route("/admin", func(r chi.Router) {
-		adminHandler.RegisterRoutes(r)
+		adminController.RegisterRoutes(r)
 	})
 
 	httpServer := &http.Server{

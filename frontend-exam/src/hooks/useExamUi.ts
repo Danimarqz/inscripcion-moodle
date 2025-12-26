@@ -60,6 +60,7 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         totalQuestions: null,
         submissionMessage: null,
         resultError: action.payload ?? null,
+        answersReview: null,
       };
     case 'SUBMIT_SUCCESS':
       return {

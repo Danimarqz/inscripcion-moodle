@@ -38,19 +38,18 @@ func generatePDF(data Data) ([]byte, error) {
 	pdf.SetFont("Arial", "B", 14)
 	translator := pdf.UnicodeTranslatorFromDescriptor("cp1252")
 
-	if logoPath, err := findLogoPath(); err == nil {
-		pdf.ImageOptions(
-			logoPath,
-			15,
-			8,
-			18,
-			0,
-			false,
-			gofpdf.ImageOptions{ImageType: "PNG", ReadDpi: true},
-			0,
-			"",
-		)
-	}
+	// Use constant logo path
+	pdf.ImageOptions(
+		logoPath,
+		15,
+		8,
+		18,
+		0,
+		false,
+		gofpdf.ImageOptions{ImageType: "PNG", ReadDpi: true},
+		0,
+		"",
+	)
 
 	pdf.SetTextColor(0, 51, 102)
 	pdf.CellFormat(0, 10, translator("FORMULARIO DE SUSCRIPCIÓN"), "", 1, "C", false, 0, "")
@@ -231,15 +230,8 @@ func savePDF(data []byte, email string) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
-func findLogoPath() (string, error) {
-	candidates := []string{"opositalogo.png", "../opositalogo.png"}
-	for _, candidate := range candidates {
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate, nil
-		}
-	}
-	return "", fmt.Errorf("logo not found")
-}
+// Logo path constant
+const logoPath = "opositalogo.png"
 
 func sanitizeFilename(email string) string {
 	var builder strings.Builder

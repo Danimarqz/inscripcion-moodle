@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -9,39 +10,48 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/inscripcion-moodle/go-backend/internal/models"
+	"github.com/inscripcion-moodle/go-backend/internal/repository"
 )
 
 var (
-	ErrExamNameConflict = errors.New("ya existe un examen con ese nombre")
-	ErrActiveQuestions  = errors.New("el examen debe tener al menos una pregunta activa no anulada")
-	ErrQuestionNotFound = errors.New("la pregunta no pertenece al examen")
+	ErrExamNameConflict      = errors.New("ya existe un examen con ese nombre")
+	ErrActiveQuestions       = errors.New("el examen debe tener al menos una pregunta activa no anulada")
+	ErrQuestionNotFound      = errors.New("la pregunta no pertenece al examen")
+	ErrOfficialResultExists  = errors.New("ya existe un resultado oficial con ese DNI para este examen")
+	ErrInvalidOfficialResult = errors.New("datos de resultado oficial invalidos")
 )
 
 type Service struct {
-	db *gorm.DB
+	db             *gorm.DB
+	examRepo       repository.ExamRepository
+	submissionRepo repository.SubmissionRepository
+	officialRepo   repository.OfficialResultRepository
+	questionRepo   repository.QuestionRepository
 }
 
-func New(db *gorm.DB) *Service {
-	return &Service{db: db}
+func New(db *gorm.DB, examRepo repository.ExamRepository, subRepo repository.SubmissionRepository, offRepo repository.OfficialResultRepository, questionRepo repository.QuestionRepository) *Service {
+	return &Service{
+		db:             db,
+		examRepo:       examRepo,
+		submissionRepo: subRepo,
+		officialRepo:   offRepo,
+		questionRepo:   questionRepo,
+	}
 }
 
 func (s *Service) ListExams() ([]models.Exam, error) {
-	var exams []models.Exam
-	if err := s.db.Preload("Questions").Find(&exams).Error; err != nil {
-		return nil, err
-	}
-	return exams, nil
+	return s.examRepo.ListExams(context.Background(), s.db)
 }
 
 func (s *Service) GetExam(examID uint) (*models.Exam, error) {
-	var exam models.Exam
-	if err := s.db.Preload("Questions").First(&exam, examID).Error; err != nil {
+	exam, err := s.examRepo.FindExamByID(context.Background(), s.db, examID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("examen %d no existe: %w", examID, err)
 		}
 		return nil, err
 	}
-	return &exam, nil
+	return exam, nil
 }
 
 func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
@@ -49,15 +59,15 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 		return nil, errors.New("el examen debe tener al menos una pregunta")
 	}
 
-	var exists int64
-	if err := s.db.Model(&models.Exam{}).Where("name = ?", req.Name).Count(&exists).Error; err != nil {
+	exists, err := s.examRepo.CountByName(context.Background(), s.db, req.Name)
+	if err != nil {
 		return nil, err
 	}
 	if exists > 0 {
 		return nil, ErrExamNameConflict
 	}
 
-	questions, err := buildQuestionModels(req.Questions, nil)
+	questions, err := createQuestions(req.Questions)
 	if err != nil {
 		return nil, err
 	}
@@ -76,15 +86,49 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 		return nil, ErrActiveQuestions
 	}
 
-	if err := s.db.Create(exam).Error; err != nil {
+	if err := s.examRepo.CreateExam(context.Background(), s.db, exam); err != nil {
 		return nil, err
 	}
 	return exam, nil
 }
 
+func createQuestions(inputs []QuestionInput) ([]models.Question, error) {
+	nameGen := newQuestionNameGenerator(nil)
+	questions := make([]models.Question, 0, len(inputs))
+
+	for _, input := range inputs {
+		isActive := true
+		isCancelled := false
+		if input.IsActive != nil {
+			isActive = *input.IsActive
+		}
+		if input.IsCancelled != nil {
+			isCancelled = *input.IsCancelled
+		}
+
+		normalizedOption := strings.ToUpper(strings.TrimSpace(input.CorrectOption))
+		if normalizedOption == "" {
+			return nil, errors.New("opcion de respuesta no valida")
+		}
+
+		model := models.Question{
+			ID:            0,
+			Name:          nameGen.Next(input.Name),
+			IsActive:      isActive,
+			IsCancelled:   isCancelled,
+			CorrectOption: normalizedOption,
+		}
+		if input.ID != nil {
+			model.ID = *input.ID
+		}
+		questions = append(questions, model)
+	}
+	return questions, nil
+}
+
 func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, error) {
-	var exam models.Exam
-	if err := s.db.Preload("Questions").First(&exam, examID).Error; err != nil {
+	exam, err := s.examRepo.FindExamByID(context.Background(), s.db, examID)
+	if err != nil {
 		return nil, err
 	}
 
@@ -107,8 +151,7 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 		exam.ValidatedTribunal = *req.ValidatedTribunal
 	}
 
-	nameGen := newQuestionNameGenerator(questionNames(exam.Questions))
-	questions, err := s.mergeQuestions(exam.ID, exam.Questions, req.Questions, nameGen)
+	questions, err := s.updateQuestions(exam.ID, exam.Questions, req.Questions)
 	if err != nil {
 		return nil, err
 	}
@@ -118,99 +161,104 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 	}
 
 	exam.Questions = questions
-	if err := s.db.Session(&gorm.Session{FullSaveAssociations: true}).Save(&exam).Error; err != nil {
+	if err := s.examRepo.UpdateExam(context.Background(), s.db, exam); err != nil {
 		return nil, err
 	}
 
-	return &exam, nil
+	return exam, nil
+}
+
+func (s *Service) updateQuestions(examID uint, existing []models.Question, inputs []QuestionInput) ([]models.Question, error) {
+	nameGen := newQuestionNameGenerator(questionNames(existing))
+	return s.mergeQuestions(examID, existing, inputs, nameGen)
 }
 
 func (s *Service) DeleteExam(examID uint) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
-		var submissionIDs []uint
-		if err := tx.Model(&models.UserExamSubmission{}).
-			Where("exam_id = ?", examID).
-			Pluck("id", &submissionIDs).Error; err != nil {
+		ctx := context.Background()
+		if err := s.submissionRepo.DeleteByExamID(ctx, tx, examID); err != nil {
 			return err
 		}
-
-		if len(submissionIDs) > 0 {
-			if err := tx.Where("submission_id IN (?)", submissionIDs).Delete(&models.UserAnswer{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("id IN (?)", submissionIDs).Delete(&models.UserExamSubmission{}).Error; err != nil {
-				return err
-			}
-		}
-
-		if err := tx.Where("exam_id = ?", examID).Delete(&models.Question{}).Error; err != nil {
+		if err := s.questionRepo.DeleteByExamID(ctx, tx, examID); err != nil {
 			return err
 		}
-		if err := tx.Delete(&models.Exam{}, examID).Error; err != nil {
+		if err := s.officialRepo.DeleteByExamID(ctx, tx, examID); err != nil {
 			return err
 		}
-		return nil
+		return s.examRepo.DeleteExam(ctx, tx, examID)
 	})
 }
 
 func (s *Service) DeleteSubmission(submissionID uint) (examID uint, err error) {
-	var submission models.UserExamSubmission
-	if err := s.db.First(&submission, submissionID).Error; err != nil {
+	submission, err := s.submissionRepo.FindByID(context.Background(), s.db, submissionID)
+	if err != nil {
 		return 0, err
 	}
-	if err := s.db.Where("submission_id = ?", submissionID).Delete(&models.UserAnswer{}).Error; err != nil {
-		return 0, err
-	}
-	if err := s.db.Delete(&submission).Error; err != nil {
+	if err := s.submissionRepo.Delete(context.Background(), s.db, submissionID); err != nil {
 		return 0, err
 	}
 	return submission.ExamID, nil
 }
 
 func (s *Service) UpdateSubmission(submissionID uint, req SubmissionUpdateRequest) (*models.UserExamSubmission, error) {
-	var submission models.UserExamSubmission
-	if err := s.db.Preload("User").Preload("Answers").First(&submission, submissionID).Error; err != nil {
+	submission, err := s.submissionRepo.FindByID(context.Background(), s.db, submissionID)
+	if err != nil {
 		return nil, err
 	}
 
+	if err := s.updateUserFromSubmission(submission.User, req); err != nil {
+		return nil, err
+	}
+
+	if err := s.updateAnswersFromSubmission(submission, req); err != nil {
+		return nil, err
+	}
+
+	if err := s.submissionRepo.Update(context.Background(), s.db, submission); err != nil {
+		return nil, err
+	}
+	return s.submissionRepo.FindByID(context.Background(), s.db, submissionID)
+}
+
+func (s *Service) updateUserFromSubmission(user models.ExamUser, req SubmissionUpdateRequest) error {
 	updated := false
-	if req.Name != "" && submission.User.Name != req.Name {
-		submission.User.Name = req.Name
+	if req.Name != "" && user.Name != req.Name {
+		user.Name = req.Name
 		updated = true
 	}
-	if req.Surname != "" && submission.User.Surname != req.Surname {
-		submission.User.Surname = req.Surname
+	if req.Surname != "" && user.Surname != req.Surname {
+		user.Surname = req.Surname
 		updated = true
 	}
-	if req.Email != "" && submission.User.Email != req.Email {
-		submission.User.Email = req.Email
+	if req.Email != "" && user.Email != req.Email {
+		user.Email = req.Email
 		updated = true
 	}
-	if req.DNI != "" && submission.User.DNI != req.DNI {
-		submission.User.DNI = req.DNI
+	if req.DNI != "" && user.DNI != req.DNI {
+		user.DNI = req.DNI
 		updated = true
 	}
-	if updated && submission.User.ID != 0 {
-		if err := s.db.Model(&submission.User).Updates(submission.User).Error; err != nil {
-			return nil, err
+	if updated && user.ID != 0 {
+		if err := s.db.Model(&user).Updates(user).Error; err != nil {
+			return err
 		}
 	}
+	return nil
+}
 
-	if err := s.db.Save(&submission).Error; err != nil {
-		return nil, err
-	}
-
+func (s *Service) updateAnswersFromSubmission(submission *models.UserExamSubmission, req SubmissionUpdateRequest) error {
 	answerMap := make(map[uint]*models.UserAnswer)
 	for i := range submission.Answers {
 		answer := submission.Answers[i]
 		answerMap[answer.QuestionID] = &submission.Answers[i]
 	}
 
+	ctx := context.Background()
 	for _, answer := range req.Answers {
 		if existing, ok := answerMap[answer.QuestionID]; ok {
 			existing.Answer = answer.Answer
-			if err := s.db.Save(existing).Error; err != nil {
-				return nil, err
+			if err := s.submissionRepo.SaveAnswer(ctx, s.db, existing); err != nil {
+				return err
 			}
 		} else {
 			newAnswer := models.UserAnswer{
@@ -218,29 +266,59 @@ func (s *Service) UpdateSubmission(submissionID uint, req SubmissionUpdateReques
 				QuestionID:   answer.QuestionID,
 				Answer:       answer.Answer,
 			}
-			if err := s.db.Create(&newAnswer).Error; err != nil {
-				return nil, err
+			if err := s.submissionRepo.CreateAnswer(ctx, s.db, &newAnswer); err != nil {
+				return err
 			}
 		}
 	}
-
-	if err := s.db.Preload("User").Preload("Answers").First(&submission, submission.ID).Error; err != nil {
-		return nil, err
-	}
-	return &submission, nil
+	return nil
 }
 
-func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats bool, search, orderBy, orderDir string) (*ListSubmissionsResult, error) {
-	var subs []models.UserExamSubmission
-	query := s.db.Preload("User").Preload("Answers").
-		Where("exam_id = ?", examID).
-		Order("submitted_at DESC")
-	query = query.Joins("LEFT JOIN exam_user ON exam_user.id = user_exam_submission.user_id")
-	if limit > 0 {
-		query = query.Limit(limit)
+func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats bool, search, orderBy, orderDir string, moodleSynced *bool) (*ListSubmissionsResult, error) {
+	orderClause := buildSubmissionOrder(strings.TrimSpace(orderBy), strings.TrimSpace(orderDir))
+	
+	subs, err := s.submissionRepo.List(context.Background(), s.db, examID, limit, offset, search, orderClause, moodleSynced)
+	if err != nil {
+		return nil, err
 	}
-	if offset > 0 {
-		query = query.Offset(offset)
+
+	result := &ListSubmissionsResult{
+		Submissions: subs,
+	}
+	if includeStats {
+		totalCount, err := s.submissionRepo.Count(context.Background(), s.db, examID, moodleSynced)
+		if err != nil {
+			return nil, err
+		}
+
+		avg, err := s.submissionRepo.GetAverageScore(context.Background(), s.db, examID)
+		if err != nil {
+			return nil, err
+		}
+
+		result.TotalSubmissions = totalCount
+		result.AverageScore = avg
+		result.StatsIncluded = true
+	}
+	return result, nil
+}
+
+type submissionEmailRow struct {
+	SubmissionEmail sql.NullString `gorm:"column:submission_email"`
+}
+
+func (s *Service) ListSubmissionEmails(examID uint, search, orderBy, orderDir string, moodleSynced *bool) ([]string, error) {
+	var rows []submissionEmailRow
+	query := s.db.Model(&models.UserExamSubmission{}).
+		Select("exam_user.email AS submission_email").
+		Joins("LEFT JOIN exam_user ON exam_user.id = user_exam_submission.user_id").
+		Where("exam_id = ?", examID)
+	if moodleSynced != nil {
+		if *moodleSynced {
+			query = query.Where("exam_user.moodle_id IS NOT NULL")
+		} else {
+			query = query.Where("exam_user.moodle_id IS NULL")
+		}
 	}
 	if sanitized := strings.TrimSpace(search); sanitized != "" {
 		like := fmt.Sprintf("%%%s%%", strings.ToLower(sanitized))
@@ -256,36 +334,27 @@ func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats b
 	if orderClause != "" {
 		query = query.Order(orderClause)
 	}
-	if err := query.Find(&subs).Error; err != nil {
+	if err := query.Find(&rows).Error; err != nil {
 		return nil, err
 	}
 
-	result := &ListSubmissionsResult{
-		Submissions: subs,
+	seen := map[string]struct{}{}
+	emails := make([]string, 0, len(rows))
+	for _, row := range rows {
+		for _, candidate := range []sql.NullString{row.SubmissionEmail} {
+			email := strings.TrimSpace(candidate.String)
+			if email == "" {
+				continue
+			}
+			normalized := strings.ToLower(email)
+			if _, ok := seen[normalized]; ok {
+				continue
+			}
+			seen[normalized] = struct{}{}
+			emails = append(emails, email)
+		}
 	}
-	if includeStats {
-		var totalCount int64
-		if err := s.db.Model(&models.UserExamSubmission{}).
-			Where("exam_id = ?", examID).
-			Count(&totalCount).Error; err != nil {
-			return nil, err
-		}
-
-		var avg sql.NullFloat64
-		if err := s.db.Model(&models.UserExamSubmission{}).
-			Select("AVG(score)").
-			Where("exam_id = ? AND score IS NOT NULL", examID).
-			Row().Scan(&avg); err != nil {
-			return nil, err
-		}
-
-		result.TotalSubmissions = totalCount
-		if avg.Valid {
-			result.AverageScore = &avg.Float64
-		}
-		result.StatsIncluded = true
-	}
-	return result, nil
+	return emails, nil
 }
 
 func buildSubmissionOrder(orderBy, orderDir string) string {
@@ -328,15 +397,111 @@ func buildSubmissionOrder(orderBy, orderDir string) string {
 	return fmt.Sprintf("%s %s", field, dir)
 }
 
-func (s *Service) ListOfficialResults(examID uint) ([]models.ExamOfficialResult, error) {
-	var results []models.ExamOfficialResult
-	if err := s.db.Preload("User").
-		Where("exam_id = ?", examID).
-		Order("apellido_1 ASC, apellido_2 ASC, nombre ASC").
-		Find(&results).Error; err != nil {
+func buildOfficialResultsOrder(orderBy, orderDir string) string {
+	order := strings.ToLower(strings.TrimSpace(orderBy))
+	dir := strings.ToUpper(strings.TrimSpace(orderDir))
+	if dir != "ASC" && dir != "DESC" {
+		dir = ""
+	}
+
+	switch order {
+	case "dni":
+		if dir == "" {
+			dir = "ASC"
+		}
+		return fmt.Sprintf("exam_official_result.dni_masked %s", dir)
+	case "nombre":
+		if dir == "" {
+			dir = "ASC"
+		}
+		return fmt.Sprintf("exam_official_result.nombre %s", dir)
+	case "apellidos":
+		if dir == "" {
+			dir = "ASC"
+		}
+		return fmt.Sprintf("exam_official_result.apellido_1 %s, exam_official_result.apellido_2 %s", dir, dir)
+	case "usuario":
+		if dir == "" {
+			dir = "ASC"
+		}
+		return fmt.Sprintf("exam_user.name %s, exam_user.surname %s", dir, dir)
+	case "creado", "created_at":
+		if dir == "" {
+			dir = "DESC"
+		}
+		return fmt.Sprintf("exam_official_result.created_at %s", dir)
+	default:
+		if dir == "" {
+			dir = "DESC"
+		}
+		return fmt.Sprintf("exam_official_result.created_at %s", dir)
+	}
+}
+
+func (s *Service) ListOfficialResults(examID uint, limit, offset int, orderBy, orderDir string) (*OfficialResultsList, error) {
+	orderClause := buildOfficialResultsOrder(orderBy, orderDir)
+	results, total, err := s.officialRepo.List(context.Background(), s.db, examID, offset, limit, orderClause)
+	if err != nil {
 		return nil, err
 	}
-	return results, nil
+
+	return &OfficialResultsList{
+		Results: results,
+		Total:   total,
+	}, nil
+}
+
+func (s *Service) CreateOfficialResult(examID uint, req CreateOfficialResultRequest) (*models.ExamOfficialResult, error) {
+	dni := strings.ToUpper(strings.TrimSpace(req.DNI))
+	apellido1 := strings.ToUpper(strings.TrimSpace(req.Apellido1))
+	nombre := strings.ToUpper(strings.TrimSpace(req.Nombre))
+
+	if dni == "" || apellido1 == "" || nombre == "" {
+		return nil, fmt.Errorf("%w: DNI, apellido 1 y nombre son obligatorios", ErrInvalidOfficialResult)
+	}
+
+	apellido2Raw := strings.ToUpper(strings.TrimSpace(req.Apellido2))
+	var apellido2 *string
+	if apellido2Raw != "" {
+		apellido2 = &apellido2Raw
+	}
+
+	if err := s.db.First(&models.Exam{}, examID).Error; err != nil {
+		return nil, err
+	}
+
+	existing, err := s.officialRepo.FindByExamAndDNI(context.Background(), s.db, examID, dni)
+	if err == nil && existing != nil {
+		return nil, ErrOfficialResultExists
+	}
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	newResult := models.ExamOfficialResult{
+		ExamID:    examID,
+		DniMasked: dni,
+		Apellido1: apellido1,
+		Apellido2: apellido2,
+		Nombre:    nombre,
+	}
+
+	var user models.ExamUser
+	if err := s.db.Where("UPPER(dni) = ?", dni).First(&user).Error; err == nil {
+		newResult.UserID = &user.ID
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	if err := s.officialRepo.Create(context.Background(), s.db, &newResult); err != nil {
+		return nil, err
+	}
+
+	// We might need to reload if triggers/db sets fields, or just return what we created. 
+	// The repo helper Create likely doesn't preload user. 
+	// If needed we can do FindByExamAndDNI again or rely on GORM filling ID. 
+	// For consistency let's just return the struct as GORM fills ID.
+	return &newResult, nil
 }
 
 func activeQuestions(questions []models.Question) []models.Question {
@@ -349,45 +514,7 @@ func activeQuestions(questions []models.Question) []models.Question {
 	return out
 }
 
-func buildQuestionModels(inputs []QuestionInput, existing []models.Question) ([]models.Question, error) {
-	var base []int
-	for _, q := range existing {
-		if q.Name > 0 {
-			base = append(base, q.Name)
-		}
-	}
-	nameGen := newQuestionNameGenerator(base)
-	questions := make([]models.Question, 0, len(inputs))
 
-	for _, input := range inputs {
-		isActive := true
-		isCancelled := false
-		if input.IsActive != nil {
-			isActive = *input.IsActive
-		}
-		if input.IsCancelled != nil {
-			isCancelled = *input.IsCancelled
-		}
-
-		normalizedOption := strings.ToUpper(strings.TrimSpace(input.CorrectOption))
-		if normalizedOption == "" {
-			return nil, errors.New("opcion de respuesta no valida")
-		}
-
-		model := models.Question{
-			ID:            0,
-			Name:          nameGen.Next(input.Name),
-			IsActive:      isActive,
-			IsCancelled:   isCancelled,
-			CorrectOption: normalizedOption,
-		}
-		if input.ID != nil {
-			model.ID = *input.ID
-		}
-		questions = append(questions, model)
-	}
-	return questions, nil
-}
 
 type questionNameGenerator struct {
 	used map[int]struct{}

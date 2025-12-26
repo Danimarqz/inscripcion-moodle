@@ -3,13 +3,28 @@ import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
 import type { AdminSubmission, AdminSubmissionsResponse, Exam, QuestionEdit } from '../types/exam';
 import {
   deleteSubmissionAttempt,
+  downloadSubmissionEmails,
+  fetchSubmissionEmailList,
   getExamById,
   getExamSubmissions,
+  sendSubmissionEmails,
+  syncMoodleUsers,
+  type SubmissionEmailAttachmentPayload,
+  type SendSubmissionEmailsPayload,
   updateSubmissionAttempt,
 } from '../services/adminService';
 import { normalizeDni, validateDniNie } from '../utils/validation';
 
-const ANSWER_OPTIONS = ['A', 'B', 'C', 'D'];
+import ExamSelector from './submissions/ExamSelector';
+import SubmissionFilters from './submissions/SubmissionFilters';
+import SubmissionFilterActions from './submissions/SubmissionFilterActions';
+import SubmissionStats from './submissions/SubmissionStats';
+import EmailComposer from './submissions/EmailComposer';
+import PaginationSettings from './submissions/PaginationSettings';
+import PaginationControls from './submissions/PaginationControls';
+import SubmissionList from './submissions/SubmissionList';
+import { ANSWER_OPTIONS } from './submissions/types';
+import type { AnswerOption, EditingState, SubmissionOrderBy, SubmissionOrderDir } from './submissions/types';
 
 type SubmissionStats = {
   totalSubmissions: number;
@@ -26,15 +41,6 @@ interface SubmissionsManagerProps {
   token: string;
 }
 
-interface EditingState {
-  submissionId: number;
-  name: string;
-  surname: string;
-  email: string;
-  dni: string;
-  answers: Record<number, string>;
-}
-
 function isValidEmail(value: string): boolean {
   return /^[\w-.]+@([\w-]+\.)+[\w-]{2,}$/i.test(value.trim());
 }
@@ -48,14 +54,31 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   const [feedback, setFeedback] = useState<string | null>(null);
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [saving, setSaving] = useState<boolean>(false);
+  const [filterMoodleUsers, setFilterMoodleUsers] = useState(false);
+  const [syncingMoodle, setSyncingMoodle] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [downloadingEmails, setDownloadingEmails] = useState(false);
+  const [downloadMessage, setDownloadMessage] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [emailComposerOpen, setEmailComposerOpen] = useState(false);
+  const [emailCandidates, setEmailCandidates] = useState<{ email: string; selected: boolean }[]>([]);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailComposeModalError, setEmailComposeModalError] = useState<string | null>(null);
+  const [emailComposeMessage, setEmailComposeMessage] = useState<string | null>(null);
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [emailAttachments, setEmailAttachments] = useState<File[]>([]);
+  const [emailSending, setEmailSending] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [submissionStats, setSubmissionStats] = useState<SubmissionStats>(() => ({
     ...INITIAL_SUBMISSION_STATS,
   }));
   const [needsStats, setNeedsStats] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [orderBy, setOrderBy] = useState<'submitted_at' | 'score' | 'name' | 'surname'>('submitted_at');
-  const [orderDir, setOrderDir] = useState<'asc' | 'desc'>('desc');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [orderBy, setOrderBy] = useState<SubmissionOrderBy>('submitted_at');
+  const [orderDir, setOrderDir] = useState<SubmissionOrderDir>('desc');
   const [pageLimit, setPageLimit] = useState(25);
   const [pageInput, setPageInput] = useState(1);
   const resetFilters = useCallback(() => {
@@ -77,11 +100,11 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     setSearchTerm(value);
     setCurrentPage(1);
   };
-  const handleOrderByChange = (value: 'submitted_at' | 'score' | 'name' | 'surname') => {
+  const handleOrderByChange = (value: SubmissionOrderBy) => {
     setOrderBy(value);
     setCurrentPage(1);
   };
-  const handleOrderDirChange = (value: 'asc' | 'desc') => {
+  const handleOrderDirChange = (value: SubmissionOrderDir) => {
     setOrderDir(value);
     setCurrentPage(1);
   };
@@ -98,11 +121,18 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     const desired = Math.max(1, Math.min(totalPages, Math.floor(pageInput)));
     setCurrentPage(desired);
   };
+  const handleFilterMoodleUsersChange = (value: boolean) => {
+    setFilterMoodleUsers(value);
+    setCurrentPage(1);
+    setNeedsStats(true);
+    setSubmissionStats({ ...INITIAL_SUBMISSION_STATS });
+  };
 
   const selectedExamName = useMemo(() => {
     const numericId = Number(selectedExamId);
     return exams.find((exam) => exam.id === numericId)?.name ?? '';
   }, [exams, selectedExamId]);
+  const selectedEmailCount = emailCandidates.filter((candidate) => candidate.selected).length;
 
   async function loadSubmissionsPage(
     examNumericId: number,
@@ -110,8 +140,9 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     limit: number,
     includeStats = false,
     search = '',
-    orderBy: 'submitted_at' | 'score' | 'name' | 'surname' = 'submitted_at',
-    orderDir: 'asc' | 'desc' = 'desc',
+    orderBy: SubmissionOrderBy = 'submitted_at',
+    orderDir: SubmissionOrderDir = 'desc',
+    moodleSynced?: boolean,
   ): Promise<AdminSubmissionsResponse | null> {
     const response = await getExamSubmissions(examNumericId, token, {
       limit,
@@ -120,6 +151,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
       search,
       orderBy,
       orderDir,
+      moodleSynced,
     });
     const knownTotal = includeStats && response.stats_included
       ? response.total_submissions
@@ -145,6 +177,9 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   const effectiveLimit = pageLimit > 0 ? pageLimit : 1;
   const totalPages = Math.max(1, Math.ceil(totalSubmissions / effectiveLimit));
 
+  const handlePrevPage = () => setCurrentPage((prev) => Math.max(1, prev - 1));
+  const handleNextPage = () => setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+
   useEffect(() => {
     async function loadData(examNumericId: number) {
       setLoading(true);
@@ -157,9 +192,10 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
           currentPage,
           pageLimit,
           needsStats,
-          searchTerm,
+          debouncedSearchTerm,
           orderBy,
           orderDir,
+          filterMoodleUsers ? true : undefined,
         );
         if (!pageResponse) {
           return;
@@ -198,25 +234,45 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     }
 
     loadData(examNumericId);
-  }, [selectedExamId, token, currentPage, searchTerm, orderBy, orderDir, pageLimit]);
+  }, [
+    selectedExamId,
+    token,
+    currentPage,
+    debouncedSearchTerm,
+    orderBy,
+    orderDir,
+    pageLimit,
+    filterMoodleUsers,
+  ]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
 
   useEffect(() => {
     resetFilters();
   }, [selectedExamId, resetFilters]);
 
   useEffect(() => {
+    setDownloadMessage(null);
+    setDownloadError(null);
+  }, [searchTerm, filterMoodleUsers]);
+
+  useEffect(() => {
     setPageInput(currentPage);
   }, [currentPage]);
 
-  function handleSelectExam(event: Event) {
-    const target = event.currentTarget as HTMLSelectElement;
-    setSelectedExamId(target.value);
-  }
-
   function startEditing(submission: AdminSubmission) {
-    const initialAnswers: Record<number, string> = {};
+    const initialAnswers: Record<number, AnswerOption> = {};
     submission.answers.forEach((answer) => {
-      initialAnswers[answer.question_id] = answer.answer;
+      const normalizedAnswer = (answer.answer ?? '').toUpperCase();
+      const castAnswer = normalizedAnswer as AnswerOption;
+      initialAnswers[answer.question_id] = ANSWER_OPTIONS.includes(castAnswer)
+        ? castAnswer
+        : ANSWER_OPTIONS[0];
     });
 
     const user = submission.user;
@@ -249,6 +305,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
               searchTerm,
               orderBy,
               orderDir,
+              filterMoodleUsers ? true : undefined,
             );
           }
       }
@@ -269,13 +326,14 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   function updateAnswer(questionId: number, value: string) {
     if (!editing) return;
     const upper = value.toUpperCase();
-    if (!ANSWER_OPTIONS.includes(upper)) return;
+    const normalized = upper as AnswerOption;
+    if (!ANSWER_OPTIONS.includes(normalized)) return;
 
     setEditing({
       ...editing,
       answers: {
         ...editing.answers,
-        [questionId]: upper,
+        [questionId]: normalized,
       },
     });
   }
@@ -344,6 +402,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
             searchTerm,
             orderBy,
             orderDir,
+            filterMoodleUsers ? true : undefined,
           );
         }
 
@@ -356,71 +415,207 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     }
   }
 
+  async function handleSyncMoodleUsers() {
+    setSyncMessage(null);
+    setSyncError(null);
+    setSyncingMoodle(true);
+    try {
+      const result = await syncMoodleUsers(token);
+      setSyncMessage(
+        `Sincronizados ${result.synced} de ${result.checked} usuarios (fallidos: ${result.failed}).`,
+      );
+    } catch (err) {
+      setSyncError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSyncingMoodle(false);
+    }
+  }
+
+  async function handleDownloadEmails() {
+    if (!selectedExamId) {
+      return;
+    }
+    setDownloadMessage(null);
+    setDownloadError(null);
+    setDownloadingEmails(true);
+    try {
+      const content = await downloadSubmissionEmails(Number(selectedExamId), token, {
+        search: searchTerm,
+        moodleSynced: filterMoodleUsers ? true : undefined,
+      });
+      const lines = content
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line !== '');
+      if (lines.length === 0) {
+        setDownloadError('No hay correos para descargar con los filtros actuales.');
+        return;
+      }
+      const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `emails_${selectedExamId}.txt`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+      setDownloadMessage(`Descargados ${lines.length} emails.`);
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDownloadingEmails(false);
+    }
+  }
+
+  const readFileAsBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const commaIndex = result.indexOf(',');
+        resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+
+  const closeEmailComposer = () => {
+    setEmailComposerOpen(false);
+    setEmailComposeModalError(null);
+    setEmailCandidates([]);
+    setEmailAttachments([]);
+  };
+
+  const handleComposeEmails = async () => {
+    if (!selectedExamId) {
+      return;
+    }
+    setEmailComposeModalError(null);
+    setEmailComposeMessage(null);
+    setEmailComposerOpen(true);
+    setEmailLoading(true);
+    setEmailCandidates([]);
+    setEmailAttachments([]);
+    setEmailSubject(selectedExamName ? `Comunicado sobre ${selectedExamName}` : 'Comunicado oficial');
+    setEmailBody('');
+    try {
+      const emails = await fetchSubmissionEmailList(Number(selectedExamId), token, {
+        search: searchTerm,
+        orderBy,
+        orderDir,
+        moodleSynced: filterMoodleUsers ? true : undefined,
+      });
+      setEmailCandidates(emails.map((address) => ({ email: address, selected: true })));
+    } catch (err) {
+      setEmailComposeModalError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
+  const toggleEmailRecipient = (index: number) => {
+    setEmailCandidates((prev) =>
+      prev.map((item, idx) => (idx === index ? { ...item, selected: !item.selected } : item)),
+    );
+  };
+
+  const handleAttachmentChange = (files: FileList | null) => {
+    if (!files) {
+      return;
+    }
+    setEmailAttachments((prev) => [...prev, ...Array.from(files)]);
+  };
+
+  const handleRemoveAttachment = (index: number) => {
+    setEmailAttachments((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleSendEmails = async () => {
+    if (!selectedExamId) {
+      return;
+    }
+    const recipients = emailCandidates.filter((candidate) => candidate.selected).map((item) => item.email);
+    if (recipients.length === 0) {
+      setEmailComposeModalError('Selecciona al menos un destinatario.');
+      return;
+    }
+    const trimmedBody = emailBody.trim();
+    if (!trimmedBody) {
+      setEmailComposeModalError('El cuerpo del email no puede estar vacío.');
+      return;
+    }
+    setEmailComposeModalError(null);
+    setEmailSending(true);
+    try {
+      const attachments = await Promise.all(
+        emailAttachments.map(async (file) => {
+          const content = await readFileAsBase64(file);
+          return {
+            filename: file.name,
+            content_type: file.type || 'application/octet-stream',
+            content,
+          } as SubmissionEmailAttachmentPayload;
+        }),
+      );
+      const payload: SendSubmissionEmailsPayload = {
+        exam_id: Number(selectedExamId),
+        subject:
+          emailSubject || (selectedExamName ? `Comunicado sobre ${selectedExamName}` : 'Comunicado oficial'),
+        body: trimmedBody,
+        recipients,
+        search: searchTerm,
+        order_by: orderBy,
+        order_dir: orderDir,
+        moodle_synced: filterMoodleUsers ? true : undefined,
+        attachments: attachments.length > 0 ? attachments : undefined,
+      };
+      await sendSubmissionEmails(payload, token);
+      setEmailComposeMessage(`Correo enviado a ${recipients.length} destinatarios.`);
+      closeEmailComposer();
+    } catch (err) {
+      setEmailComposeModalError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
   return (
     <section className="mt-8 space-y-6">
-      <label className="block mb-4">
-        <span className="block font-semibold mb-2 text-brand-pink tracking-[0.35em] uppercase text-xs">
-          Selecciona un examen
-        </span>
-        <select
-          value={selectedExamId}
-          onChange={handleSelectExam}
-          className="w-full max-w-sm px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white transition-colors focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-        >
-          <option value="">-- Escoge un examen --</option>
-          {exams.map((exam) => (
-            <option key={exam.id} value={exam.id}>
-              {exam.name} (ID: {exam.id})
-            </option>
-          ))}
-        </select>
-      </label>
+      <ExamSelector
+        exams={exams}
+        selectedExamId={selectedExamId}
+        onSelectExam={(value) => setSelectedExamId(value)}
+        onSyncMoodleUsers={handleSyncMoodleUsers}
+        syncingMoodle={syncingMoodle}
+        syncMessage={syncMessage}
+        syncError={syncError}
+        canSync={Boolean(selectedExamId && (totalSubmissions > 0 || filterMoodleUsers))}
+      />
 
-      <div className="grid gap-4 md:grid-cols-3 mb-4">
-        <label className="flex flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-blue">Buscar</span>
-          <input
-            type="text"
-            placeholder="Nombre, email o DNI"
-            value={searchTerm}
-            onInput={(event) =>
-              handleSearchInput((event.currentTarget as HTMLInputElement).value)
-            }
-            className="w-full px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-          />
-        </label>
-        <label className="flex flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-blue">Ordenar por</span>
-          <select
-            value={orderBy}
-            onChange={(event) =>
-              handleOrderByChange(
-                event.currentTarget.value as 'submitted_at' | 'score' | 'name' | 'surname',
-              )
-            }
-            className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-          >
-            <option value="submitted_at">Fecha envío</option>
-            <option value="score">Nota</option>
-            <option value="name">Nombre</option>
-            <option value="surname">Apellido</option>
-          </select>
-        </label>
-        <label className="flex flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-blue">Dirección</span>
-          <select
-            value={orderDir}
-            onChange={(event) =>
-              handleOrderDirChange(event.currentTarget.value as 'asc' | 'desc')
-            }
-            className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-          >
-            <option value="desc">Descendente</option>
-            <option value="asc">Ascendente</option>
-          </select>
-        </label>
-      </div>
+      <SubmissionFilters
+        searchTerm={searchTerm}
+        onSearchTermChange={handleSearchInput}
+        orderBy={orderBy}
+        onOrderByChange={handleOrderByChange}
+        orderDir={orderDir}
+        onOrderDirChange={handleOrderDirChange}
+      />
 
+      {selectedExamId && (totalSubmissions > 0 || filterMoodleUsers) && (
+        <SubmissionFilterActions
+          filterMoodleUsers={filterMoodleUsers}
+          onFilterChange={handleFilterMoodleUsersChange}
+          downloadingEmails={downloadingEmails}
+          downloadMessage={downloadMessage}
+          downloadError={downloadError}
+          onDownloadEmails={handleDownloadEmails}
+          onComposeEmails={handleComposeEmails}
+          composingEmails={emailLoading || emailSending}
+          composeMessage={emailComposeMessage}
+          composeError={emailComposeModalError}
+        />
+      )}
 
       {error && (
         <p className="text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mb-4">{error}</p>
@@ -430,74 +625,24 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
       )}
 
       {selectedExamId && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mb-6">
-          <div className="rounded-xl border border-brand-pink-soft bg-brand-pink-soft p-5 shadow-lg">
-            <p className="text-xs font-semibold uppercase tracking-[0.4em] text-brand-pink">
-              Total de intentos
-            </p>
-            <p className="text-3xl font-extrabold text-brand-pink mt-2">
-              {loading ? 'Actualizando...' : totalSubmissions}
-            </p>
-            {selectedExamName && (
-              <p className="text-xs text-brand-yellow mt-2 opacity-90">
-                Examen: {selectedExamName}
-              </p>
-            )}
-          </div>
-          <div className="rounded-xl border border-brand-blue-soft bg-brand-blue-soft p-5 shadow-lg">
-            <p className="text-xs font-semibold uppercase tracking-[0.4em] text-brand-blue">
-              Nota media
-            </p>
-            <p className="text-3xl font-extrabold text-brand-blue mt-2">
-              {loading ? 'Actualizando...' : averageScore !== null ? averageScore.toFixed(2) : 'Sin datos'}
-            </p>
-            {!loading && averageScore === null && (
-              <p className="text-xs text-brand-yellow mt-2 opacity-90">Aún no hay notas registradas.</p>
-            )}
-          </div>
-        </div>
+        <SubmissionStats
+          totalSubmissions={totalSubmissions}
+          averageScore={averageScore}
+          needsStats={needsStats}
+          selectedExamName={selectedExamName}
+          loading={loading}
+        />
       )}
-      <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <label className="flex flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-blue">Mostrar por página</span>
-          <select
-            value={pageLimit}
-            onChange={(event) => handleLimitChange(Number(event.currentTarget.value))}
-            className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-          >
-            {[10, 25, 50, 100].map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-blue">Ir a página</span>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              min={1}
-              max={totalPages}
-              value={pageInput}
-              onInput={(event) => handlePageInputChange(Number(event.currentTarget.value))}
-              className="w-full px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-            />
-            <button
-              type="button"
-              onClick={goToPage}
-              className="px-4 py-2 rounded cursor-pointer border border-brand-blue-soft text-brand-blue transition-colors hover:bg-[#1b2635] hover:border-brand-pink-soft"
-            >
-              Ir
-            </button>
-          </div>
-        </label>
-        <div className="flex flex-col justify-end">
-          <p className="text-xs text-gray-400">
-            de {totalPages} {totalPages === 1 ? 'página' : 'páginas'}
-          </p>
-        </div>
-      </div>
+
+      <PaginationSettings
+        pageLimit={pageLimit}
+        onLimitChange={handleLimitChange}
+        pageInput={pageInput}
+        onPageInputChange={handlePageInputChange}
+        totalPages={totalPages}
+        goToPage={goToPage}
+      />
+
       {!selectedExamId && (
         <p className="text-sm text-brand-blue">Selecciona un examen para ver los intentos disponibles.</p>
       )}
@@ -507,258 +652,63 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
       {selectedExamId && !loading && totalSubmissions === 0 && !error && (
         <p className="text-sm text-brand-pink">No hay intentos para este examen.</p>
       )}
+
       {selectedExamId && !loading && totalSubmissions > 0 && submissions.length === 0 && !error && (
         <p className="text-sm text-brand-blue">Esta pagina no contiene intentos.</p>
       )}
+
       {selectedExamId && !loading && totalSubmissions > 0 && (
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mt-6">
-          <button
-            type="button"
-            disabled={currentPage <= 1}
-            onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-            className={`px-4 py-2 rounded border border-brand-blue-soft text-brand-blue transition-colors ${
-              currentPage <= 1
-                ? 'opacity-40 cursor-not-allowed'
-                : 'hover:bg-[#1b2635] hover:border-brand-pink-soft cursor-pointer'
-            }`}
-          >
-            Anterior
-          </button>
-          <p className="text-sm text-gray-300">
-            Pagina {currentPage} de {totalPages}
-          </p>
-          <button
-            type="button"
-            disabled={currentPage >= totalPages}
-            onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-            className={`px-4 py-2 rounded border border-brand-blue-soft text-brand-blue transition-colors ${
-              currentPage >= totalPages
-                ? 'opacity-40 cursor-not-allowed'
-                : 'hover:bg-[#1b2635] hover:border-brand-pink-soft cursor-pointer'
-            }`}
-          >
-            Siguiente
-          </button>
-        </div>
+        <PaginationControls
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPrev={handlePrevPage}
+          onNext={handleNextPage}
+        />
       )}
+
       {selectedExamId && !loading && submissions.length > 0 && (
-        <ul className="list-none p-0 space-y-6">
-          {submissions.map((submission) => {
-            const user = submission.user;
-            const displayName = `${user?.name ?? submission.name ?? ''} ${user?.surname ?? submission.surname ?? ''}`
-              .trim()
-              || 'Usuario sin nombre';
-            const displayEmail = submission.email ?? user?.email ?? 'Sin email registrado';
-            const displayDni = submission.dni || user?.dni || 'Sin DNI';
-            const marketingAllowed =
-              user?.accepts_marketing ??
-              submission.accepts_marketing ??
-              false;
-            const marketingBadgeClass = marketingAllowed
-              ? 'bg-brand-yellow-soft text-brand-yellow border border-brand-yellow-soft'
-              : 'bg-brand-pink-soft text-brand-pink border border-brand-pink-soft';
-
-            return (
-              <li
-                key={submission.id}
-                className="bg-[#1f2229] border border-brand-blue-soft p-6 rounded-2xl shadow-lg transition-all duration-300 hover:border-brand-pink-soft"
-              >
-                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                  <div className="space-y-1">
-                    <p className="text-lg font-semibold text-brand-blue">{displayName}</p>
-                    <p className="text-sm text-gray-200">
-                      <span className="font-semibold text-brand-pink">Email:</span> {displayEmail}
-                    </p>
-                    <p className="text-sm text-gray-200">
-                      <span className="font-semibold text-brand-pink">DNI/NIE:</span> {displayDni}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
-                      <span className="px-3 py-1 rounded-full border border-brand-blue-soft text-brand-blue">
-                        Nota: {submission.score ?? 'N/A'}
-                      </span>
-                      <span className="px-3 py-1 rounded-full border border-brand-yellow-soft text-brand-yellow">
-                        Percentil: {submission.percentile ?? 'N/A'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-brand-yellow mt-2 opacity-90">
-                      Enviado el {new Date(submission.submitted_at).toLocaleString()}
-                    </p>
-                    <span
-                      className={`mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold ${marketingBadgeClass}`}
-                    >
-                      <span
-                        className={`h-2 w-2 rounded-full ${
-                          marketingAllowed ? 'bg-brand-yellow' : 'bg-brand-pink'
-                        }`}
-                      />
-                      {marketingAllowed ? 'Acepta comunicaciones de marketing' : 'Marketing no autorizado'}
-                    </span>
-                  </div>
-                  <div className="flex gap-3 mt-4 md:mt-0 flex-wrap">
-                    {!editing ? 
-                    <button
-                      className="py-2 px-4 rounded bg-brand-pink text-dark-200 hover:bg-brand-yellow transition-colors cursor-pointer"
-                      onClick={() => startEditing(submission)}
-                    >
-                      Editar
-                    </button>
-                    : 
-                    <button
-                      className="py-2 px-4 rounded border border-brand-pink-soft text-brand-pink hover:bg-brand-pink-soft transition-colors cursor-pointer"
-                      onClick={() => setEditing(null)}
-                    >
-                      Cancelar
-                    </button>
-                    }
-                    <button
-                      className="py-2 px-4 rounded bg-red-600 hover:bg-red-700 transition-colors cursor-pointer"
-                      onClick={() => handleDelete(submission.id)}
-                    >
-                      Borrar
-                    </button>
-                  </div>
-                </div>
-
-                {editing && editing.submissionId === submission.id && (
-                  <div className="mt-6 border-t border-brand-blue-soft pt-6">
-                    <h3 className="text-xl font-semibold mb-4 text-brand-pink">
-                      Editar intento ({selectedExamName})
-                    </h3>
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <label className="flex flex-col gap-1">
-                        <span className="text-sm font-semibold text-brand-blue">Nombre</span>
-                        <input
-                          type="text"
-                          value={editing.name}
-                          onInput={(event) =>
-                            updateEditingField(
-                              'name',
-                              (event.currentTarget as HTMLInputElement).value,
-                            )
-                          }
-                          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-                        />
-                      </label>
-                      <label className="flex flex-col gap-1">
-                        <span className="text-sm font-semibold text-brand-blue">Apellidos</span>
-                        <input
-                          type="text"
-                          value={editing.surname}
-                          onInput={(event) =>
-                            updateEditingField(
-                              'surname',
-                              (event.currentTarget as HTMLInputElement).value,
-                            )
-                          }
-                          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-                        />
-                      </label>
-                      <label className="flex flex-col gap-1">
-                        <span className="text-sm font-semibold text-brand-blue">Email</span>
-                        <input
-                          type="email"
-                          value={editing.email}
-                          onInput={(event) =>
-                            updateEditingField(
-                              'email',
-                              (event.currentTarget as HTMLInputElement).value,
-                            )
-                          }
-                          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-                        />
-                      </label>
-                      <label className="flex flex-col gap-1">
-                        <span className="text-sm font-semibold text-brand-blue">DNI/NIE</span>
-                        <input
-                          type="text"
-                          value={editing.dni}
-                          onInput={(event) =>
-                            updateEditingField(
-                              'dni',
-                              normalizeDni((event.currentTarget as HTMLInputElement).value),
-                            )
-                          }
-                          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-                        />
-                      </label>
-                    </div>
-
-                    <div className="mt-6 space-y-4">
-                      {questions.map((question, index) => (
-                        <div key={question.id ?? index} className="flex flex-wrap items-center gap-3">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-brand-pink">Pregunta {index + 1}</span>
-                            {question.is_active === false && (
-                              <span className="text-xs font-semibold px-2 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/50">
-                                Reserva
-                              </span>
-                            )}
-                          </div>
-                          <select
-                            value={editing.answers[question.id ?? -1] || 'A'}
-                            onChange={(event) =>
-                              question.id !== undefined &&
-                              updateAnswer(question.id, (event.currentTarget as HTMLSelectElement).value)
-                            }
-                            className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
-                          >
-                            {ANSWER_OPTIONS.map((option) => (
-                              <option key={option} value={option}>
-                                {option}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex flex-wrap gap-3 mt-6">
-                      <button
-                        className="py-2 px-4 rounded bg-brand-blue text-white font-semibold hover:bg-[#12b2d4] transition-colors cursor-pointer disabled:opacity-60"
-                        onClick={handleSave}
-                        disabled={saving}
-                      >
-                        {saving ? 'Guardando...' : 'Guardar cambios'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+        <SubmissionList
+          submissions={submissions}
+          editing={editing}
+          questions={questions}
+          selectedExamName={selectedExamName}
+          answerOptions={ANSWER_OPTIONS}
+          onStartEditing={startEditing}
+          onCancelEditing={() => setEditing(null)}
+          onDelete={handleDelete}
+          onUpdateField={updateEditingField}
+          onUpdateAnswer={updateAnswer}
+          onSave={handleSave}
+          saving={saving}
+        />
       )}
+
       {selectedExamId && !loading && totalSubmissions > 0 && (
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mt-6">
-          <button
-            type="button"
-            disabled={currentPage <= 1}
-            onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-            className={`px-4 py-2 rounded border border-brand-blue-soft text-brand-blue transition-colors ${
-              currentPage <= 1
-                ? 'opacity-40 cursor-not-allowed'
-                : 'hover:bg-[#1b2635] hover:border-brand-pink-soft cursor-pointer'
-            }`}
-          >
-            Anterior
-          </button>
-          <p className="text-sm text-gray-300">
-            Pagina {currentPage} de {totalPages}
-          </p>
-          <button
-            type="button"
-            disabled={currentPage >= totalPages}
-            onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-            className={`px-4 py-2 rounded border border-brand-blue-soft text-brand-blue transition-colors ${
-              currentPage >= totalPages
-                ? 'opacity-40 cursor-not-allowed'
-                : 'hover:bg-[#1b2635] hover:border-brand-pink-soft cursor-pointer'
-            }`}
-          >
-            Siguiente
-          </button>
-        </div>
+        <PaginationControls
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPrev={handlePrevPage}
+          onNext={handleNextPage}
+        />
+      )}
+      {emailComposerOpen && (
+        <EmailComposer
+          loading={emailLoading}
+          sending={emailSending}
+          subject={emailSubject}
+          body={emailBody}
+          attachments={emailAttachments}
+          candidates={emailCandidates}
+          selectedCount={selectedEmailCount}
+          error={emailComposeModalError}
+          onSubjectChange={setEmailSubject}
+          onBodyChange={setEmailBody}
+          onAddAttachments={handleAttachmentChange}
+          onRemoveAttachment={handleRemoveAttachment}
+          onToggleRecipient={toggleEmailRecipient}
+          onClose={closeEmailComposer}
+          onSend={handleSendEmails}
+        />
       )}
     </section>
   );
