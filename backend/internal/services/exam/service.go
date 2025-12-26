@@ -34,7 +34,7 @@ var (
 	ErrSubmissionNotFound    = errors.New("submission not found")
 	ErrExamNotActive         = errors.New("exam is not active or responses not visible")
 	ErrResultsNotViewable    = errors.New("los resultados no estan disponibles para este examen")
-	ErrOfficialResultMissing = errors.New("Este apartado es solo para personas que realizaron el examen oficial. Si no puedes registrar tus resultados y si te presentaste, contacta con nosotros: info.opositatcae@gmail.com")
+	ErrOfficialResultMissing = errors.New("este apartado es solo para personas que realizaron el examen oficial. Si no puedes registrar tus resultados y si te presentaste, contacta con nosotros: info.opositatcae@gmail.com")
 )
 
 func NormalizeDNI(value string) string {
@@ -117,12 +117,13 @@ func ValidateAnswerOption(option string) (string, error) {
 }
 
 type Service struct {
-	db   *gorm.DB
-	repo repository.ExamRepository
+	db           *gorm.DB
+	repo         repository.ExamRepository
+	contactEmail string
 }
 
-func NewService(db *gorm.DB, repo repository.ExamRepository) *Service {
-	return &Service{db: db, repo: repo}
+func NewService(db *gorm.DB, repo repository.ExamRepository, contactEmail string) *Service {
+	return &Service{db: db, repo: repo, contactEmail: contactEmail}
 }
 
 // recalculateScoresAsync runs the score and percentile recalculation in a separate
@@ -155,7 +156,7 @@ func (s *Service) recalculateScoresAsync(examID uint) {
 func (s *Service) ProcessExamSubmission(req SubmitExamRequest) (*SubmissionPayload, error) {
 	var payload *SubmissionPayload
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		p, err := processSubmission(tx, req)
+		p, err := processSubmission(tx, req, s.contactEmail)
 		if err != nil {
 			return err
 		}
@@ -232,7 +233,7 @@ func getOrCreateUser(tx *gorm.DB, req SubmitExamRequest) (*models.ExamUser, erro
 	return &candidate, nil
 }
 
-func processSubmission(tx *gorm.DB, req SubmitExamRequest) (*SubmissionPayload, error) {
+func processSubmission(tx *gorm.DB, req SubmitExamRequest, contactEmail string) (*SubmissionPayload, error) {
 	normalizedDNI := NormalizeDNI(req.DNI)
 	trimmedName := strings.TrimSpace(req.Name)
 	trimmedSurname := strings.TrimSpace(req.Surname)
@@ -250,7 +251,7 @@ func processSubmission(tx *gorm.DB, req SubmitExamRequest) (*SubmissionPayload, 
 		return nil, err
 	}
 	if !match {
-		return nil, ErrOfficialResultMissing
+		return nil, fmt.Errorf("este apartado es solo para personas que realizaron el examen oficial. Si no puedes registrar tus resultados y si te presentaste, contacta con nosotros: %s: %w", contactEmail, ErrOfficialResultMissing)
 	}
 
 	candidate, err := getOrCreateUser(tx, req)

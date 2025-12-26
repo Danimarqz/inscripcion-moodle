@@ -40,7 +40,7 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 
 	examRepo := repository.NewExamRepository()
-	examService := examservice.NewService(db, examRepo)
+	examService := examservice.NewService(db, examRepo, cfg.SMTPUser)
 
 	publicController := controllers.NewPublicController(db, cache, cfg, examService)
 	registerController := controllers.NewRegisterController(cfg)

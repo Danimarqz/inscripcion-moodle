@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 
@@ -21,7 +22,11 @@ func NewRegisterController(cfg *config.Config) *RegisterController {
 }
 
 func (h *RegisterController) Register(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			log.Printf("failed to close request body: %v", err)
+		}
+	}()
 	var data registerservice.Data
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		http.Error(w, constants.InvalidRequest, http.StatusBadRequest)
