@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 
@@ -14,7 +15,11 @@ import (
 )
 
 func (h *AdminController) createAdmin(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			log.Printf("failed to close request body: %v", err)
+		}
+	}()
 	var payload adminRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, constants.InvalidRequest, http.StatusBadRequest)
@@ -56,7 +61,11 @@ func (h *AdminController) createAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AdminController) login(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			log.Printf("failed to close request body: %v", err)
+		}
+	}()
 	var payload adminRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, constants.InvalidRequest, http.StatusBadRequest)
