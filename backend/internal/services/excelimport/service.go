@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 
+	"log"
 	"regexp"
 	"strings"
 
@@ -55,7 +56,11 @@ func (s *Service) ImportOfficialResultsExcel(ctx context.Context, examID uint, r
 	if err != nil {
 		return nil, fmt.Errorf("failed to open excel reader: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Printf("failed to close excel file: %v", err)
+		}
+	}()
 
 	// Assuming the data is on the first sheet
 	sheetName := f.GetSheetName(0)

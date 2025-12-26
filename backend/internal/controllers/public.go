@@ -76,7 +76,11 @@ func (h *PublicController) GetExams(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PublicController) SubmitExam(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			log.Printf("failed to close request body: %v", err)
+		}
+	}()
 	var req examservice.SubmitExamRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, constants.InvalidRequest, http.StatusBadRequest)
@@ -98,7 +102,9 @@ func (h *PublicController) SubmitExam(w http.ResponseWriter, r *http.Request) {
 	h.scheduleMoodleSync(req.Email, req.DNI)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(payload)
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		log.Printf("failed to encode response: %v", err)
+	}
 }
 
 func (h *PublicController) GetQuestionStubs(w http.ResponseWriter, r *http.Request) {
@@ -163,7 +169,9 @@ func (h *PublicController) CheckSubmission(w http.ResponseWriter, r *http.Reques
 	}
 
 	submissionSetKey := h.submissionSetKey(req.ExamID)
-	h.cache.SAdd(ctx, submissionSetKey, cacheKey)
+	if err := h.cache.SAdd(ctx, submissionSetKey, cacheKey); err != nil {
+		log.Printf("failed to add to cache set: %v", err)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write(payload)
@@ -193,7 +201,9 @@ func (h *PublicController) CheckOfficialResultMatch(w http.ResponseWriter, r *ht
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(examservice.OfficialResultMatchResponse{Match: match})
+	if err := json.NewEncoder(w).Encode(examservice.OfficialResultMatchResponse{Match: match}); err != nil {
+		log.Printf("failed to encode response: %v", err)
+	}
 }
 
 func (h *PublicController) questionsCacheKey(examID uint) string {

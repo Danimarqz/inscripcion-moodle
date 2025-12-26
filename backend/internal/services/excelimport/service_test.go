@@ -45,7 +45,11 @@ func TestImportOfficialResultsExcel(t *testing.T) {
 
 	f, err := os.Open(excelPath)
 	require.NoError(t, err)
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Logf("failed to close file: %v", err)
+		}
+	}()
 
 	svc := &Service{repo: &stubExamRepository{exam: exam}, db: db}
 	result, err := svc.ImportOfficialResultsExcel(context.Background(), exam.ID, f, true)
@@ -82,7 +86,11 @@ func TestImportOfficialResultsExcel_WithHeader(t *testing.T) {
 
 	f, err := os.Open(excelPath)
 	require.NoError(t, err)
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Logf("failed to close file: %v", err)
+		}
+	}()
 
 	svc := &Service{repo: &stubExamRepository{exam: exam}, db: db}
 	result, err := svc.ImportOfficialResultsExcel(context.Background(), exam.ID, f, true)
