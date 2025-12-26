@@ -140,7 +140,11 @@ func (h *PublicController) GetQuestionStubs(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *PublicController) CheckSubmission(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			log.Printf("failed to close request body: %v", err)
+		}
+	}()
 	var req examservice.SubmissionCheckRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, constants.InvalidRequest, http.StatusBadRequest)
@@ -178,7 +182,11 @@ func (h *PublicController) CheckSubmission(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *PublicController) CheckOfficialResultMatch(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			log.Printf("failed to close request body: %v", err)
+		}
+	}()
 	var req examservice.OfficialResultMatchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, constants.InvalidRequest, http.StatusBadRequest)
