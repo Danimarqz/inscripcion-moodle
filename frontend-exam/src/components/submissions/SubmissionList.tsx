@@ -75,6 +75,9 @@ export default function SubmissionList({
                   <span className="px-3 py-1 rounded-full border border-brand-yellow-soft text-brand-yellow">
                     Percentil: {submission.percentile ?? 'N/A'}
                   </span>
+                  <span className="px-3 py-1 rounded-full border border-purple-500/30 text-purple-400">
+                    Méritos: {submission.merits ?? 0}
+                  </span>
                 </div>
                 <p className="text-xs text-brand-yellow mt-2 opacity-90">
                   Enviado el {new Date(submission.submitted_at).toLocaleString()}
@@ -193,6 +196,22 @@ export default function SubmissionList({
                           'dni',
                           (event.currentTarget as HTMLInputElement).value,
                         )
+                      }
+                      className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm font-semibold text-brand-blue">Méritos</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={editingState.merits ?? 0}
+                      onInput={(event) =>
+                         onUpdateField(
+                           submission.id,
+                           'merits',
+                           parseFloat((event.currentTarget as HTMLInputElement).value),
+                         )
                       }
                       className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
                     />

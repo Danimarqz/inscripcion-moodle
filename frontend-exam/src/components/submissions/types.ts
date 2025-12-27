@@ -14,4 +14,5 @@ export interface EditingState {
   email: string;
   dni: string;
   answers: Record<number, AnswerOption>;
+  merits?: number;
 }

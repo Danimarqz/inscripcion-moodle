@@ -253,6 +253,9 @@ export default function ExamPage({
       return acc;
     }, []);
 
+    const meritsRaw = formData.get('merits') as string;
+    const merits = meritsRaw ? parseFloat(meritsRaw) : undefined;
+
     const payload: ExamSubmissionPayload = {
       email: emailRaw,
       dni: dniRaw,
@@ -260,6 +263,7 @@ export default function ExamPage({
       surname: trimmedSurname,
       exam_id: examId,
       answers,
+      merits,
       accepts_marketing: acceptsMarketing,
       eligibility_confirmed: eligibilityAllowed,
       result_type: resultType,
@@ -424,6 +428,23 @@ export default function ExamPage({
               onSetAnswer={setAnswerForQuestion}
               onClearAnswer={clearAnswerForQuestion}
             />
+
+            <div className="mt-8 mb-6 p-4 rounded-lg bg-[#2a2d33] border border-[#555]">
+               <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Puntuación de méritos (Opcional)
+               </label>
+               <input
+                 type="number"
+                 step="0.01"
+                 min="0"
+                 placeholder="0"
+                 name="merits"
+                 className="w-full px-4 py-3 rounded-lg bg-[#1f2229] border border-[#555] text-white focus:ring-2 focus:ring-brand-pink focus:border-transparent transition-all"
+               />
+               <p className="text-xs text-gray-400 mt-1">
+                 Esta puntuación se guarda como referencia pero NO afecta a la nota ni al percentil.
+               </p>
+            </div>
 
             <div className="mt-8 space-top-3 text-sm">
               <label htmlFor="accepts_marketing" className="flex items-start gap-3 text-gray-200">

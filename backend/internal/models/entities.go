@@ -52,6 +52,7 @@ type UserExamSubmission struct {
 	UserID      uint         `gorm:"column:user_id;index:idx_user_exam_submission_user_id" json:"user_id"`
 	ExamID      uint         `gorm:"column:exam_id;index:idx_user_exam_submission_exam_id" json:"exam_id"`
 	Score              *float64     `gorm:"column:score" json:"score"`
+	Merits             *float64     `gorm:"column:merits" json:"merits"`
 	Percentile         *float64     `gorm:"column:percentile" json:"percentile"`
 	SelectedResultType string       `gorm:"column:selected_result_type;default:'General'" json:"selected_result_type"`
 	SubmittedAt        time.Time    `gorm:"column:submitted_at;autoCreateTime;index:idx_user_exam_submission_submitted_at" json:"submitted_at"`

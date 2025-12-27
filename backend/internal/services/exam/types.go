@@ -12,6 +12,7 @@ type SubmitExamRequest struct {
 	Surname          string             `json:"surname"`
 	ExamID           uint               `json:"exam_id"`
 	Answers          []AnswerSubmission `json:"answers"`
+	Merits           *float64           `json:"merits"`
 	AcceptsMarketing bool               `json:"accepts_marketing"`
 	ResultType       string             `json:"result_type"`
 }
@@ -36,6 +37,7 @@ type OfficialResultMatchResponse struct {
 type SubmissionPayload struct {
 	Message          string         `json:"message"`
 	Score            *float64       `json:"score"`
+	Merits           *float64       `json:"merits"`
 	Percentile       *float64       `json:"percentile"`
 	Position         *int           `json:"position"`
 	TotalSubmissions *int           `json:"total_submissions"`

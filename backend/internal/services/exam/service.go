@@ -317,10 +317,11 @@ func createSubmission(tx *gorm.DB, req SubmitExamRequest, userID uint) (*models.
 	scorePtr := helpers.Ptr(breakdown.Score)
 
 	submission := &models.UserExamSubmission{
-		UserID:     userID,
-		ExamID:     req.ExamID,
-		Score:      scorePtr,
-		Percentile: helpers.Ptr(0.0),
+		UserID:             userID,
+		ExamID:             req.ExamID,
+		Score:              scorePtr,
+		Merits:             req.Merits,
+		Percentile:         helpers.Ptr(0.0),
 		SelectedResultType: req.ResultType,
 	}
 
@@ -460,6 +461,7 @@ func CalculateScoreBreakdown(questions []models.Question, answers map[uint]strin
 func buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submission *models.UserExamSubmission, message string, breakdown *ScoreBreakdown) (*SubmissionPayload, error) {
 	payload := &SubmissionPayload{
 		Message: message,
+		Merits:  submission.Merits,
 	}
 
 	if exam.ShowScore {
@@ -612,7 +614,7 @@ func recalculateScores(tx *gorm.DB, examID uint) error {
 UPDATE user_exam_submission AS u
 JOIN (
     SELECT ua.submission_id,
-           ROUND(SUM(CASE WHEN UPPER(ua.answer) = q.correct_option THEN 1 ELSE 0 END) / COUNT(q.id) * 100, 2) AS score
+           ROUND(SUM(CASE WHEN UPPER(ua.answer) = q.correct_option THEN 1 ELSE 0 END) / COUNT(q.id) * 100, 2) AS base_score
     FROM user_answer ua
     JOIN question q ON q.id = ua.question_id
     WHERE q.exam_id = ?
@@ -620,7 +622,7 @@ JOIN (
       AND NOT q.is_cancelled
     GROUP BY ua.submission_id
 ) AS t ON u.id = t.submission_id
-SET u.score = t.score
+SET u.score = t.base_score
 WHERE u.exam_id = ?`
 	if err := tx.Exec(scoreSQL, examID, examID).Error; err != nil {
 		return err

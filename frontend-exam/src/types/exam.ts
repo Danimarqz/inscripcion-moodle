@@ -57,6 +57,7 @@ export type AdminSubmission = {
   name: string;
   surname: string;
   score?: number | null;
+  merits?: number | null;
   percentile?: number | null;
   submitted_at: string;
   answers: SubmissionAnswer[];
@@ -84,6 +85,7 @@ export type ExamSubmissionPayload = {
   surname: string;
   exam_id: number;
   answers: Answer[];
+  merits?: number;
   accepts_marketing: boolean;
   eligibility_confirmed?: boolean;
   result_type: string;
