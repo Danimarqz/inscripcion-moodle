@@ -13,6 +13,7 @@ type SubmitExamRequest struct {
 	ExamID           uint               `json:"exam_id"`
 	Answers          []AnswerSubmission `json:"answers"`
 	AcceptsMarketing bool               `json:"accepts_marketing"`
+	ResultType       string             `json:"result_type"`
 }
 
 type SubmissionCheckRequest struct {

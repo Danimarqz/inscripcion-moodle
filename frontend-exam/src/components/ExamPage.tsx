@@ -43,6 +43,7 @@ export default function ExamPage({
   const [studentSurname, setStudentSurname] = useState('');
   const [email, setEmail] = useState('');
   const [dni, setDni] = useState('');
+  const [resultType, setResultType] = useState('General');
   const [acceptsMarketing, setAcceptsMarketing] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [autoCheckDisabled, setAutoCheckDisabled] = useState(false);
@@ -261,6 +262,7 @@ export default function ExamPage({
       answers,
       accepts_marketing: acceptsMarketing,
       eligibility_confirmed: eligibilityAllowed,
+      result_type: resultType,
     };
 
     try {
@@ -382,6 +384,24 @@ export default function ExamPage({
           onBlurCheck={handleCheckSubmissionBlur}
           eligibilityError={eligibilityError}
         />
+        
+        {!hasPreviousSubmission && (
+          <div className="mt-6 mb-6">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Tipo de alumno
+            </label>
+            <select
+              value={resultType}
+              onChange={(e) => setResultType((e.target as HTMLSelectElement).value)}
+              className="w-full px-4 py-3 rounded-lg bg-[#2a2d33] border border-[#555] text-white focus:ring-2 focus:ring-brand-pink focus:border-transparent transition-all"
+            >
+              <option value="General">General</option>
+              <option value="Promoción interna">Promoción interna</option>
+              <option value="Discapacidad">Discapacidad</option>
+              <option value="Otros">Otros</option>
+            </select>
+          </div>
+        )}
 
         {checking && (
           <p className="text-center text-brand-blue bg-brand-blue/10 border border-brand-blue/50 p-4 rounded-md mt-6">

@@ -18,7 +18,7 @@ export default function SubmissionStats({
       <div className="rounded-xl border border-brand-pink-soft bg-brand-pink-soft p-5 shadow-lg">
         <p className="text-xs font-semibold uppercase tracking-[0.4em] text-brand-pink">Total de intentos</p>
         <p className="text-3xl font-extrabold text-brand-pink mt-2">
-          {needsStats ? 'Actualizando...' : totalSubmissions}
+          {totalSubmissions}
         </p>
         {selectedExamName && (
           <p className="text-xs text-brand-yellow mt-2 opacity-90">Examen: {selectedExamName}</p>
@@ -27,7 +27,7 @@ export default function SubmissionStats({
       <div className="rounded-xl border border-brand-blue-soft bg-brand-blue-soft p-5 shadow-lg">
         <p className="text-xs font-semibold uppercase tracking-[0.4em] text-brand-blue">Nota media</p>
         <p className="text-3xl font-extrabold text-brand-blue mt-2">
-          {needsStats ? 'Actualizando...' : averageScore !== null ? averageScore.toFixed(2) : 'Sin datos'}
+          {averageScore !== null ? averageScore.toFixed(2) : 'Sin datos'}
         </p>
         {!loading && averageScore === null && (
           <p className="text-xs text-brand-yellow mt-2 opacity-90">Aún no hay notas registradas.</p>

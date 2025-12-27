@@ -29,7 +29,9 @@ export default function AdminSubmissionsPage() {
       {loading ? (
         <p>Cargando examenes...</p>
       ) : !error ? (
-        <SubmissionsManager exams={exams} token={token} />
+        <div key="manager-container" className="w-full">
+          <SubmissionsManager exams={exams} token={token} />
+        </div>
       ) : (
         <p>No hay examenes disponibles</p>
       )}

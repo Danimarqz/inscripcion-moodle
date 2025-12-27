@@ -16,11 +16,13 @@ export default function OfficialResultForm({ examId, token, onSuccess, onError }
     apellido1: string;
     apellido2: string;
     nombre: string;
+    resultType: string;
   }>({
     dni: '',
     apellido1: '',
     apellido2: '',
     nombre: '',
+    resultType: 'General',
   });
 
   async function handleCreateResult(event: Event) {
@@ -40,6 +42,7 @@ export default function OfficialResultForm({ examId, token, onSuccess, onError }
     const apellido1 = manualResult.apellido1.trim();
     const apellido2 = manualResult.apellido2.trim();
     const nombre = manualResult.nombre.trim();
+    const resultType = manualResult.resultType.trim();
 
     if (!dni || !apellido1 || !nombre) {
       onError('DNI, apellido 1 y nombre son obligatorios.');
@@ -51,6 +54,7 @@ export default function OfficialResultForm({ examId, token, onSuccess, onError }
       apellido_1: apellido1,
       nombre,
       ...(apellido2 ? { apellido_2: apellido2 } : {}),
+      result_type: resultType,
     };
 
     setCreating(true);
@@ -58,7 +62,7 @@ export default function OfficialResultForm({ examId, token, onSuccess, onError }
 
     try {
       await createOfficialResult(examNumericId, payload, token);
-      setManualResult({ dni: '', apellido1: '', apellido2: '', nombre: '' });
+      setManualResult({ dni: '', apellido1: '', apellido2: '', nombre: '', resultType: 'General' });
       onSuccess('Registro agregado correctamente.');
     } catch (err) {
       onError(err instanceof Error ? err.message : String(err));
@@ -69,7 +73,7 @@ export default function OfficialResultForm({ examId, token, onSuccess, onError }
 
   return (
     <form
-      className="grid gap-3 md:grid-cols-[repeat(5,minmax(0,1fr))] items-end bg-[#14161d] border border-brand-blue-soft rounded-2xl p-4 shadow-xl"
+      className="grid gap-3 md:grid-cols-[repeat(6,minmax(0,1fr))] items-end bg-[#14161d] border border-brand-blue-soft rounded-2xl p-4 shadow-xl"
       onSubmit={handleCreateResult}
     >
       <div className="flex flex-col gap-1">
@@ -133,6 +137,22 @@ export default function OfficialResultForm({ examId, token, onSuccess, onError }
           placeholder="Nombre"
           disabled={!examId || creating}
         />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-brand-pink font-semibold uppercase tracking-[0.25em]">Tipo</label>
+        <select
+           value={manualResult.resultType}
+           onChange={(event) =>
+             setManualResult((prev) => ({ ...prev, resultType: (event.target as HTMLSelectElement).value }))
+           }
+           className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
+           disabled={!examId || creating}
+        >
+          <option value="General">General</option>
+          <option value="Promoción interna">Promoción interna</option>
+          <option value="Discapacidad">Discapacidad</option>
+          <option value="Otros">Otros</option>
+        </select>
       </div>
       <div className="flex md:justify-end">
         <button

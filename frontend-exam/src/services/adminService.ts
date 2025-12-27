@@ -86,6 +86,7 @@ interface FetchSubmissionsOptions {
   orderBy?: 'submitted_at' | 'score' | 'name' | 'surname';
   orderDir?: 'asc' | 'desc';
   moodleSynced?: boolean;
+  type?: string;
 }
 
 export interface SubmissionEmailAttachmentPayload {
@@ -113,7 +114,12 @@ function buildParams(examId: number, options: FetchSubmissionsOptions): URLSearc
   if (options.search) params.set('search', options.search);
   if (options.orderBy) params.set('order_by', options.orderBy);
   if (options.orderDir) params.set('order_dir', options.orderDir);
-  if (options.moodleSynced !== undefined) params.set('moodle_synced', String(options.moodleSynced));
+  if (options?.moodleSynced !== undefined) {
+    params.append('moodle_synced', String(options.moodleSynced));
+  }
+  if (options?.type) {
+    params.append('type', options.type);
+  }
   return params;
 }
 
@@ -175,23 +181,28 @@ export async function syncMoodleUsers(token: string): Promise<SyncMoodleUsersRes
   });
 }
 
-interface FetchOfficialResultsOptions {
-  limit?: number;
-  offset?: number;
-  orderBy?: 'dni' | 'nombre' | 'apellidos' | 'usuario' | 'creado';
-  orderDir?: 'asc' | 'desc';
-}
+export type FetchOfficialResultsOptions = {
+  limit: number;
+  offset: number;
+  orderBy: 'dni' | 'nombre' | 'apellidos' | 'usuario' | 'creado';
+  orderDir: 'asc' | 'desc';
+  type?: string;
+};
 
 export async function getOfficialResults(
   examId: number,
   token: string,
-  options: FetchOfficialResultsOptions = {},
+  options: FetchOfficialResultsOptions,
 ): Promise<AdminOfficialResultsResponse> {
-  const params = new URLSearchParams();
-  if (options.limit !== undefined) params.set('limit', String(options.limit));
-  if (options.offset !== undefined) params.set('offset', String(options.offset));
-  if (options.orderBy) params.set('order_by', options.orderBy);
-  if (options.orderDir) params.set('order_dir', options.orderDir);
+  const params = new URLSearchParams({
+    limit: options.limit.toString(),
+    offset: options.offset.toString(),
+    order_by: options.orderBy,
+    order_dir: options.orderDir,
+  });
+  if (options.type) {
+    params.append('type', options.type);
+  }
 
   const query = params.toString();
   return request<AdminOfficialResultsResponse>(`/admin/exams/${examId}/results/official${query ? `?${query}` : ''}`, {

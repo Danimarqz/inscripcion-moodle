@@ -53,7 +53,13 @@ func (h *AdminController) listSubmissions(w http.ResponseWriter, r *http.Request
 	orderBy := sanitizeOrderBy(r.URL.Query().Get("order_by"))
 	orderDir := sanitizeOrderDir(r.URL.Query().Get("order_dir"))
 	moodleSynced := parseOptionalBool(r.URL.Query().Get("moodle_synced"))
-	result, err := h.service.ListSubmissions(uint(examID), limit, offset, includeStats, search, orderBy, orderDir, moodleSynced)
+	resultType := r.URL.Query().Get("type")
+	var resultTypePtr *string
+	if resultType != "" {
+		resultTypePtr = &resultType
+	}
+
+	result, err := h.service.ListSubmissions(uint(examID), limit, offset, includeStats, search, orderBy, orderDir, moodleSynced, resultTypePtr)
 	if err != nil {
 		http.Error(w, "failed to load submissions", http.StatusInternalServerError)
 		return

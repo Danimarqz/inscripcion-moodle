@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'preact/hooks';
 
 import type { AdminSubmission, AdminSubmissionsResponse, Exam, QuestionEdit } from '../types/exam';
 import {
@@ -46,22 +46,26 @@ function isValidEmail(value: string): boolean {
   return /^[\w-.]+@([\w-]+\.)+[\w-]{2,}$/i.test(value.trim());
 }
 
-export default function SubmissionsManager({ exams, token }: SubmissionsManagerProps) {
-  const [selectedExamId, setSelectedExamId] = useState<string>('');
+interface SubmissionsViewerProps {
+  examId: number;
+  selectedExamName: string;
+  token: string;
+}
+
+function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewerProps) {
   const [questions, setQuestions] = useState<QuestionEdit[]>([]);
   const [submissions, setSubmissions] = useState<AdminSubmission[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true); // Start loading immediately since we only mount when ID exists
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [saving, setSaving] = useState<boolean>(false);
   const [filterMoodleUsers, setFilterMoodleUsers] = useState(false);
-  const [syncingMoodle, setSyncingMoodle] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
-  const [syncError, setSyncError] = useState<string | null>(null);
+
   const [downloadingEmails, setDownloadingEmails] = useState(false);
   const [downloadMessage, setDownloadMessage] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+
   const [emailComposerOpen, setEmailComposerOpen] = useState(false);
   const [emailCandidates, setEmailCandidates] = useState<{ email: string; selected: boolean }[]>([]);
   const [emailLoading, setEmailLoading] = useState(false);
@@ -71,11 +75,13 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   const [emailBody, setEmailBody] = useState('');
   const [emailAttachments, setEmailAttachments] = useState<File[]>([]);
   const [emailSending, setEmailSending] = useState(false);
+
   const [currentPage, setCurrentPage] = useState(1);
   const [submissionStats, setSubmissionStats] = useState<SubmissionStats>(() => ({
     ...INITIAL_SUBMISSION_STATS,
   }));
   const [needsStats, setNeedsStats] = useState(true);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [orderBy, setOrderBy] = useState<SubmissionOrderBy>('submitted_at');
@@ -83,21 +89,9 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   const [pageLimit, setPageLimit] = useState(25);
   const [pageInput, setPageInput] = useState(1);
   const [subDeleteId, setSubDeleteId] = useState<number | null>(null);
-  const resetFilters = useCallback(() => {
-    setCurrentPage(1);
-    setNeedsStats(true);
-    setSubmissionStats({ ...INITIAL_SUBMISSION_STATS });
-    setSubmissions([]);
-    setQuestions([]);
-    setEditing(null);
-    setFeedback(null);
-    setError(null);
-    setSearchTerm('');
-    setOrderBy('submitted_at');
-    setOrderDir('desc');
-    setPageLimit(25);
-    setPageInput(1);
-  }, []);
+  const [filterType, setFilterType] = useState<string>('');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
   const handleSearchInput = (value: string) => {
     setSearchTerm(value);
     setCurrentPage(1);
@@ -108,6 +102,12 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   };
   const handleOrderDirChange = (value: SubmissionOrderDir) => {
     setOrderDir(value);
+    setCurrentPage(1);
+  };
+  const handleFilterTypeChange = (value: string) => {
+    setFilterType(value);
+    setNeedsStats(true);
+    setSubmissionStats({ ...INITIAL_SUBMISSION_STATS });
     setCurrentPage(1);
   };
   const handleLimitChange = (value: number) => {
@@ -130,51 +130,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     setSubmissionStats({ ...INITIAL_SUBMISSION_STATS });
   };
 
-  const selectedExamName = useMemo(() => {
-    const numericId = Number(selectedExamId);
-    return exams.find((exam) => exam.id === numericId)?.name ?? '';
-  }, [exams, selectedExamId]);
   const selectedEmailCount = emailCandidates.filter((candidate) => candidate.selected).length;
-
-  async function loadSubmissionsPage(
-    examNumericId: number,
-    page: number,
-    limit: number,
-    includeStats = false,
-    search = '',
-    orderBy: SubmissionOrderBy = 'submitted_at',
-    orderDir: SubmissionOrderDir = 'desc',
-    moodleSynced?: boolean,
-  ): Promise<AdminSubmissionsResponse | null> {
-    const response = await getExamSubmissions(examNumericId, token, {
-      limit,
-      offset: (page - 1) * limit,
-      firstLoad: includeStats,
-      search,
-      orderBy,
-      orderDir,
-      moodleSynced,
-    });
-    const knownTotal = includeStats && response.stats_included
-      ? response.total_submissions
-      : submissionStats.totalSubmissions;
-    const totalPages = Math.max(1, Math.ceil(Math.max(knownTotal, 1) / limit));
-    if (page > totalPages) {
-      setCurrentPage(totalPages);
-      return null;
-    }
-
-    setSubmissions(response.submissions);
-    if (includeStats && response.stats_included) {
-      setSubmissionStats({
-        totalSubmissions: response.total_submissions,
-        averageScore: response.average_score,
-      });
-      setNeedsStats(false);
-    }
-    return response;
-  }
-
   const { totalSubmissions, averageScore } = submissionStats;
   const effectiveLimit = pageLimit > 0 ? pageLimit : 1;
   const totalPages = Math.max(1, Math.ceil(totalSubmissions / effectiveLimit));
@@ -182,101 +138,120 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   const handlePrevPage = () => setCurrentPage((prev) => Math.max(1, prev - 1));
   const handleNextPage = () => setCurrentPage((prev) => Math.min(totalPages, prev + 1));
 
+  // Data Fetching Effect
   useEffect(() => {
-    async function loadData(examNumericId: number) {
+    let mounted = true;
+    const fetchData = async () => {
       setLoading(true);
       setError(null);
       setFeedback(null);
       setEditing(null);
+
       try {
-        const pageResponse = await loadSubmissionsPage(
-          examNumericId,
-          currentPage,
-          pageLimit,
-          needsStats,
-          debouncedSearchTerm,
+        const response = await getExamSubmissions(examId, token, {
+          limit: pageLimit,
+          offset: (currentPage - 1) * pageLimit,
+          firstLoad: needsStats,
+          search: debouncedSearchTerm,
           orderBy,
           orderDir,
-          filterMoodleUsers ? true : undefined,
-        );
-        if (!pageResponse) {
-          return;
-        }
+          moodleSynced: filterMoodleUsers ? true : undefined,
+          type: filterType,
+        });
+
+        if (!mounted) return;
+        console.log(response)
+        setSubmissions(response.submissions);
+        
         if (needsStats) {
-          const examData = await getExamById(examNumericId, token);
-          setQuestions(examData.questions ?? []);
+             if (response.stats_included) {
+               setSubmissionStats({
+                 totalSubmissions: response.total_submissions ?? 0,
+                 averageScore: response.average_score ?? null,
+               });
+               setNeedsStats(false);
+             } else if (response.submissions.length === 0) {
+               setSubmissionStats(INITIAL_SUBMISSION_STATS);
+               setNeedsStats(false);
+             }
         }
+
+        if (needsStats) {
+            try {
+              const examData = await getExamById(examId, token);
+              if (mounted) {
+                setQuestions(examData.questions ?? []);
+              }
+            } catch (qErr) {
+               console.error("Failed to load questions", qErr);
+            }
+        }
+
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-        setSubmissions([]);
-        setQuestions([]);
-        setSubmissionStats({ ...INITIAL_SUBMISSION_STATS });
+        if (mounted) {
+          setError(err instanceof Error ? err.message : String(err));
+          setSubmissions([]);
+          setSubmissionStats(INITIAL_SUBMISSION_STATS);
+          setNeedsStats(false);
+        }
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
-    }
+    };
 
-    if (!selectedExamId) {
-      setSubmissions([]);
-      setQuestions([]);
-      setEditing(null);
-      setFeedback(null);
-      setSubmissionStats({ ...INITIAL_SUBMISSION_STATS });
-      setNeedsStats(true);
-      return;
-    }
+    fetchData();
 
-    const examNumericId = Number(selectedExamId);
-    if (Number.isNaN(examNumericId)) {
-      setError('Identificador de examen invalido.');
-      setSubmissions([]);
-      setQuestions([]);
-      setSubmissionStats({ ...INITIAL_SUBMISSION_STATS });
-      return;
-    }
-
-    loadData(examNumericId);
+    return () => {
+      mounted = false;
+    };
   }, [
-    selectedExamId,
-    token,
+    examId,
+    token, 
     currentPage,
     debouncedSearchTerm,
     orderBy,
     orderDir,
     pageLimit,
     filterMoodleUsers,
+    filterType,
+    refreshTrigger, 
+    // needsStats removed to prevent loop
   ]);
 
+  // Debounce Search
   useEffect(() => {
     const handler = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
+      if (searchTerm !== debouncedSearchTerm) {
+        setDebouncedSearchTerm(searchTerm);
+        setCurrentPage(1);
+        setNeedsStats(true);
+      }
     }, 500);
     return () => clearTimeout(handler);
-  }, [searchTerm]);
-
-  useEffect(() => {
-    resetFilters();
-  }, [selectedExamId, resetFilters]);
-
+  }, [searchTerm, debouncedSearchTerm]);
+  
+  // Reset for download UI on filter change
   useEffect(() => {
     setDownloadMessage(null);
     setDownloadError(null);
   }, [searchTerm, filterMoodleUsers]);
 
+  // Sync page input
   useEffect(() => {
     setPageInput(currentPage);
   }, [currentPage]);
 
+
+  // Handler Copies (Simplified references)
   function startEditing(submission: AdminSubmission) {
     const initialAnswers: Record<number, AnswerOption> = {};
     submission.answers.forEach((answer) => {
-      const normalizedAnswer = (answer.answer ?? '').toUpperCase();
-      const castAnswer = normalizedAnswer as AnswerOption;
-      initialAnswers[answer.question_id] = ANSWER_OPTIONS.includes(castAnswer)
-        ? castAnswer
-        : ANSWER_OPTIONS[0];
+       const normalizedAnswer = (answer.answer ?? '').toUpperCase();
+       const castAnswer = normalizedAnswer as AnswerOption;
+       initialAnswers[answer.question_id] = ANSWER_OPTIONS.includes(castAnswer) ? castAnswer : ANSWER_OPTIONS[0];
     });
-
     const user = submission.user;
     setEditing({
       submissionId: submission.id,
@@ -295,24 +270,11 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   }
 
   const confirmSubDelete = async () => {
-    if (subDeleteId === null || !selectedExamId) return;
+    if (subDeleteId === null) return;
     try {
       await deleteSubmissionAttempt(subDeleteId, token);
-      if (selectedExamId) {
-        const examNumericId = Number(selectedExamId);
-          if (!Number.isNaN(examNumericId)) {
-            await loadSubmissionsPage(
-              examNumericId,
-              currentPage,
-              pageLimit,
-              needsStats,
-              searchTerm,
-              orderBy,
-              orderDir,
-              filterMoodleUsers ? true : undefined,
-            );
-          }
-      }
+      setNeedsStats(true); 
+      setRefreshTrigger((prev) => prev + 1); 
       setFeedback('Intento eliminado correctamente.');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -321,10 +283,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     }
   };
 
-  function updateEditingField<K extends keyof Omit<EditingState, 'answers' | 'submissionId'>>(
-    field: K,
-    value: EditingState[K],
-  ) {
+  function updateEditingField<K extends keyof Omit<EditingState, 'answers' | 'submissionId'>>(field: K, value: EditingState[K]) {
     if (!editing) return;
     setEditing({ ...editing, [field]: value });
   }
@@ -334,43 +293,25 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     const upper = value.toUpperCase();
     const normalized = upper as AnswerOption;
     if (!ANSWER_OPTIONS.includes(normalized)) return;
-
     setEditing({
       ...editing,
-      answers: {
-        ...editing.answers,
-        [questionId]: normalized,
-      },
+      answers: { ...editing.answers, [questionId]: normalized },
     });
   }
 
   async function handleSave() {
     if (!editing) return;
-
     setError(null);
     setFeedback(null);
-
     const trimmedName = editing.name.trim();
     const trimmedSurname = editing.surname.trim();
     const trimmedEmail = editing.email.trim().toLowerCase();
     const normalizedDni = normalizeDni(editing.dni);
 
-    if (!trimmedName) {
-      setError('El nombre es obligatorio.');
-      return;
-    }
-    if (!trimmedSurname) {
-      setError('Los apellidos son obligatorios.');
-      return;
-    }
-    if (!isValidEmail(trimmedEmail)) {
-      setError('Introduce un email valido.');
-      return;
-    }
-    if (!validateDniNie(normalizedDni)) {
-      setError('Introduce un DNI o NIE valido.');
-      return;
-    }
+    if (!trimmedName) { setError('El nombre es obligatorio.'); return; }
+    if (!trimmedSurname) { setError('Los apellidos son obligatorios.'); return; }
+    if (!isValidEmail(trimmedEmail)) { setError('Introduce un email valido.'); return; }
+    if (!validateDniNie(normalizedDni)) { setError('Introduce un DNI o NIE valido.'); return; }
 
     const answersPayload = questions
       .filter((question): question is QuestionEdit & { id: number } => typeof question.id === 'number')
@@ -379,39 +320,17 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
         answer: (editing.answers[question.id] || 'A').toUpperCase(),
       }));
 
-    if (answersPayload.length !== questions.length) {
-      setError('No se pudieron obtener todas las preguntas del examen.');
-      return;
-    }
+    if (answersPayload.length !== questions.length) { setError('No se pudieron obtener todas las preguntas del examen.'); return; }
 
     setSaving(true);
     try {
-      const updated = await updateSubmissionAttempt(
+      await updateSubmissionAttempt(
         editing.submissionId,
-        {
-          name: trimmedName,
-          surname: trimmedSurname,
-          email: trimmedEmail,
-          dni: normalizedDni,
-          answers: answersPayload,
-        },
+        { name: trimmedName, surname: trimmedSurname, email: trimmedEmail, dni: normalizedDni, answers: answersPayload },
         token,
       );
-
-      const examNumericId = Number(selectedExamId);
-        if (selectedExamId && !Number.isNaN(examNumericId)) {
-          await loadSubmissionsPage(
-            examNumericId,
-            currentPage,
-            pageLimit,
-            needsStats,
-            searchTerm,
-            orderBy,
-            orderDir,
-            filterMoodleUsers ? true : undefined,
-          );
-        }
-
+      setNeedsStats(true); 
+      setRefreshTrigger((prev) => prev + 1);
       setEditing(null);
       setFeedback('Intento actualizado correctamente.');
     } catch (err) {
@@ -421,47 +340,23 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     }
   }
 
-  async function handleSyncMoodleUsers() {
-    setSyncMessage(null);
-    setSyncError(null);
-    setSyncingMoodle(true);
-    try {
-      const result = await syncMoodleUsers(token);
-      setSyncMessage(
-        `Sincronizados ${result.synced} de ${result.checked} usuarios (fallidos: ${result.failed}).`,
-      );
-    } catch (err) {
-      setSyncError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSyncingMoodle(false);
-    }
-  }
-
   async function handleDownloadEmails() {
-    if (!selectedExamId) {
-      return;
-    }
     setDownloadMessage(null);
     setDownloadError(null);
     setDownloadingEmails(true);
     try {
-      const content = await downloadSubmissionEmails(Number(selectedExamId), token, {
+      const content = await downloadSubmissionEmails(examId, token, {
         search: searchTerm,
         moodleSynced: filterMoodleUsers ? true : undefined,
+        type: filterType,
       });
-      const lines = content
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => line !== '');
-      if (lines.length === 0) {
-        setDownloadError('No hay correos para descargar con los filtros actuales.');
-        return;
-      }
+      const lines = content.split(/\r?\n/).map((line) => line.trim()).filter((line) => line !== '');
+      if (lines.length === 0) { setDownloadError('No hay correos para descargar con los filtros actuales.'); return; }
       const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `emails_${selectedExamId}.txt`;
+      anchor.download = `emails_${examId}.txt`;
       document.body.appendChild(anchor);
       anchor.click();
       document.body.removeChild(anchor);
@@ -480,7 +375,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
       reader.onload = () => {
         const result = reader.result as string;
         const commaIndex = result.indexOf(',');
-        resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
+        resolve(commaIndex >= 1 ? result.slice(commaIndex + 1) : result);
       };
       reader.onerror = () => reject(reader.error);
       reader.readAsDataURL(file);
@@ -494,9 +389,6 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   };
 
   const handleComposeEmails = async () => {
-    if (!selectedExamId) {
-      return;
-    }
     setEmailComposeModalError(null);
     setEmailComposeMessage(null);
     setEmailComposerOpen(true);
@@ -506,11 +398,12 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     setEmailSubject(selectedExamName ? `Comunicado sobre ${selectedExamName}` : 'Comunicado oficial');
     setEmailBody('');
     try {
-      const emails = await fetchSubmissionEmailList(Number(selectedExamId), token, {
+      const emails = await fetchSubmissionEmailList(examId, token, {
         search: searchTerm,
         orderBy,
         orderDir,
         moodleSynced: filterMoodleUsers ? true : undefined,
+        type: filterType,
       });
       setEmailCandidates(emails.map((address) => ({ email: address, selected: true })));
     } catch (err) {
@@ -527,9 +420,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   };
 
   const handleAttachmentChange = (files: FileList | null) => {
-    if (!files) {
-      return;
-    }
+    if (!files) return;
     setEmailAttachments((prev) => [...prev, ...Array.from(files)]);
   };
 
@@ -538,36 +429,22 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   };
 
   const handleSendEmails = async () => {
-    if (!selectedExamId) {
-      return;
-    }
     const recipients = emailCandidates.filter((candidate) => candidate.selected).map((item) => item.email);
-    if (recipients.length === 0) {
-      setEmailComposeModalError('Selecciona al menos un destinatario.');
-      return;
-    }
+    if (recipients.length === 0) { setEmailComposeModalError('Selecciona al menos un destinatario.'); return; }
     const trimmedBody = emailBody.trim();
-    if (!trimmedBody) {
-      setEmailComposeModalError('El cuerpo del email no puede estar vacío.');
-      return;
-    }
+    if (!trimmedBody) { setEmailComposeModalError('El cuerpo del email no puede estar vacío.'); return; }
     setEmailComposeModalError(null);
     setEmailSending(true);
     try {
       const attachments = await Promise.all(
         emailAttachments.map(async (file) => {
           const content = await readFileAsBase64(file);
-          return {
-            filename: file.name,
-            content_type: file.type || 'application/octet-stream',
-            content,
-          } as SubmissionEmailAttachmentPayload;
+          return { filename: file.name, content_type: file.type || 'application/octet-stream', content } as SubmissionEmailAttachmentPayload;
         }),
       );
       const payload: SendSubmissionEmailsPayload = {
-        exam_id: Number(selectedExamId),
-        subject:
-          emailSubject || (selectedExamName ? `Comunicado sobre ${selectedExamName}` : 'Comunicado oficial'),
+        exam_id: examId,
+        subject: emailSubject || (selectedExamName ? `Comunicado sobre ${selectedExamName}` : 'Comunicado oficial'),
         body: trimmedBody,
         recipients,
         search: searchTerm,
@@ -587,136 +464,108 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   };
 
   return (
-    <section className="mt-8 space-y-6">
-      <ExamSelector
-        exams={exams}
-        selectedExamId={selectedExamId}
-        onSelectExam={(value) => setSelectedExamId(value)}
-        onSyncMoodleUsers={handleSyncMoodleUsers}
-        syncingMoodle={syncingMoodle}
-        syncMessage={syncMessage}
-        syncError={syncError}
-        canSync={Boolean(selectedExamId && (totalSubmissions > 0 || filterMoodleUsers))}
-      />
+    <div className="space-y-6">
+       <>
+          <SubmissionFilters
+            searchTerm={searchTerm}
+            onSearchTermChange={handleSearchInput}
+            orderBy={orderBy}
+            onOrderByChange={handleOrderByChange}
+            orderDir={orderDir}
+            onOrderDirChange={handleOrderDirChange}
+            filterType={filterType}
+            onFilterTypeChange={handleFilterTypeChange}
+          />
 
-      <SubmissionFilters
-        searchTerm={searchTerm}
-        onSearchTermChange={handleSearchInput}
-        orderBy={orderBy}
-        onOrderByChange={handleOrderByChange}
-        orderDir={orderDir}
-        onOrderDirChange={handleOrderDirChange}
-      />
+          <SubmissionFilterActions
+            filterMoodleUsers={filterMoodleUsers}
+            onFilterChange={handleFilterMoodleUsersChange}
+            downloadingEmails={downloadingEmails}
+            downloadMessage={downloadMessage}
+            downloadError={downloadError}
+            onDownloadEmails={handleDownloadEmails}
+            onComposeEmails={handleComposeEmails}
+            composingEmails={emailLoading || emailSending}
+            composeMessage={emailComposeMessage}
+            composeError={emailComposeModalError}
+          />
+       </>
 
-      {selectedExamId && (totalSubmissions > 0 || filterMoodleUsers) && (
-        <SubmissionFilterActions
-          filterMoodleUsers={filterMoodleUsers}
-          onFilterChange={handleFilterMoodleUsersChange}
-          downloadingEmails={downloadingEmails}
-          downloadMessage={downloadMessage}
-          downloadError={downloadError}
-          onDownloadEmails={handleDownloadEmails}
-          onComposeEmails={handleComposeEmails}
-          composingEmails={emailLoading || emailSending}
-          composeMessage={emailComposeMessage}
-          composeError={emailComposeModalError}
-        />
-      )}
-
-      {error && (
-        <p className="text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mb-4">{error}</p>
-      )}
-      {feedback && (
-        <p className="text-green-400 bg-green-400/10 border border-green-500 p-4 rounded-md mb-4">{feedback}</p>
-      )}
-
-      {selectedExamId && (
-        <SubmissionStats
+       {error && <p className="text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mb-4">{error}</p>}
+       {feedback && <p className="text-green-400 bg-green-400/10 border border-green-500 p-4 rounded-md mb-4">{feedback}</p>}
+       
+       <SubmissionStats
           totalSubmissions={totalSubmissions}
           averageScore={averageScore}
           needsStats={needsStats}
           selectedExamName={selectedExamName}
           loading={loading}
-        />
-      )}
+       />
+       {loading && <p className="text-brand-yellow">Cargando intentos...</p>}
+       
+       {!loading && !error && (
+         <>
+           {totalSubmissions === 0 ? (
+             <p className="text-sm text-brand-pink">No hay intentos registrados.</p>
+           ) : (
+             <>
+               <PaginationSettings
+                 pageLimit={pageLimit}
+                 onLimitChange={handleLimitChange}
+                 pageInput={pageInput}
+                 onPageInputChange={handlePageInputChange}
+                 totalPages={totalPages}
+                 goToPage={goToPage}
+               />
+               
+               {submissions.length === 0 && (
+                  <p className="text-sm text-brand-blue">Esta pagina no contiene intentos.</p>
+               )}
 
-      <PaginationSettings
-        pageLimit={pageLimit}
-        onLimitChange={handleLimitChange}
-        pageInput={pageInput}
-        onPageInputChange={handlePageInputChange}
-        totalPages={totalPages}
-        goToPage={goToPage}
-      />
+               {submissions.length > 0 && (
+                <>
+                  <PaginationControls currentPage={currentPage} totalPages={totalPages} onPrev={handlePrevPage} onNext={handleNextPage} />
+                  <SubmissionList
+                    submissions={submissions}
+                    editing={editing}
+                    questions={questions}
+                    selectedExamName={selectedExamName}
+                    answerOptions={ANSWER_OPTIONS}
+                    onStartEditing={startEditing}
+                    onCancelEditing={() => setEditing(null)}
+                    onDelete={handleDelete}
+                    onUpdateField={updateEditingField}
+                    onUpdateAnswer={updateAnswer}
+                    onSave={handleSave}
+                    saving={saving}
+                  />
+                  <PaginationControls currentPage={currentPage} totalPages={totalPages} onPrev={handlePrevPage} onNext={handleNextPage} />
+                </>
+               )}
+             </>
+           )}
+         </>
+       )}
 
-      {!selectedExamId && (
-        <p className="text-sm text-brand-blue">Selecciona un examen para ver los intentos disponibles.</p>
-      )}
-
-      {selectedExamId && loading && <p className="text-brand-yellow">Cargando intentos...</p>}
-
-      {selectedExamId && !loading && totalSubmissions === 0 && !error && (
-        <p className="text-sm text-brand-pink">No hay intentos para este examen.</p>
-      )}
-
-      {selectedExamId && !loading && totalSubmissions > 0 && submissions.length === 0 && !error && (
-        <p className="text-sm text-brand-blue">Esta pagina no contiene intentos.</p>
-      )}
-
-      {selectedExamId && !loading && totalSubmissions > 0 && (
-        <PaginationControls
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPrev={handlePrevPage}
-          onNext={handleNextPage}
-        />
-      )}
-
-      {selectedExamId && !loading && submissions.length > 0 && (
-        <SubmissionList
-          submissions={submissions}
-          editing={editing}
-          questions={questions}
-          selectedExamName={selectedExamName}
-          answerOptions={ANSWER_OPTIONS}
-          onStartEditing={startEditing}
-          onCancelEditing={() => setEditing(null)}
-          onDelete={handleDelete}
-          onUpdateField={updateEditingField}
-          onUpdateAnswer={updateAnswer}
-          onSave={handleSave}
-          saving={saving}
-        />
-      )}
-
-      {selectedExamId && !loading && totalSubmissions > 0 && (
-        <PaginationControls
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPrev={handlePrevPage}
-          onNext={handleNextPage}
-        />
-      )}
       {emailComposerOpen && (
         <EmailComposer
-          loading={emailLoading}
-          sending={emailSending}
-          subject={emailSubject}
-          body={emailBody}
-          attachments={emailAttachments}
-          candidates={emailCandidates}
-          selectedCount={selectedEmailCount}
-          error={emailComposeModalError}
-          onSubjectChange={setEmailSubject}
-          onBodyChange={setEmailBody}
-          onAddAttachments={handleAttachmentChange}
-          onRemoveAttachment={handleRemoveAttachment}
-          onToggleRecipient={toggleEmailRecipient}
-          onClose={closeEmailComposer}
-          onSend={handleSendEmails}
+           loading={emailLoading}
+           sending={emailSending}
+           subject={emailSubject}
+           body={emailBody}
+           attachments={emailAttachments}
+           candidates={emailCandidates}
+           selectedCount={selectedEmailCount}
+           error={emailComposeModalError}
+           onSubjectChange={setEmailSubject}
+           onBodyChange={setEmailBody}
+           onAddAttachments={handleAttachmentChange}
+           onRemoveAttachment={handleRemoveAttachment}
+           onToggleRecipient={toggleEmailRecipient}
+           onClose={closeEmailComposer}
+           onSend={handleSendEmails}
         />
       )}
-
       <ConfirmModal
         isOpen={subDeleteId !== null}
         title="Eliminar Intento"
@@ -726,6 +575,60 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
         onConfirm={confirmSubDelete}
         onClose={() => setSubDeleteId(null)}
       />
-    </section>
+    </div>
+  );
+}
+
+export default function SubmissionsManager({ exams, token }: SubmissionsManagerProps) {
+  const [selectedExamId, setSelectedExamId] = useState<string>('');
+  const [syncingMoodle, setSyncingMoodle] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  const handleSyncMoodleUsers = async () => {
+    setSyncMessage(null);
+    setSyncError(null);
+    setSyncingMoodle(true);
+    try {
+      const result = await syncMoodleUsers(token);
+      setSyncMessage(
+        `Sincronizados ${result.synced} de ${result.checked} usuarios (fallidos: ${result.failed}).`,
+      );
+    } catch (err) {
+      setSyncError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSyncingMoodle(false);
+    }
+  };
+
+  const selectedExamName = useMemo(() => {
+    const numericId = Number(selectedExamId);
+    return exams.find((exam) => exam.id === numericId)?.name ?? '';
+  }, [exams, selectedExamId]);
+
+  return (
+    <div className="mt-8 space-y-6">
+      <ExamSelector
+        exams={exams}
+        selectedExamId={selectedExamId}
+        onSelectExam={(value) => setSelectedExamId(value)}
+        onSyncMoodleUsers={handleSyncMoodleUsers}
+        syncingMoodle={syncingMoodle}
+        syncMessage={syncMessage}
+        syncError={syncError}
+        canSync={!!selectedExamId}
+      />
+
+      {!selectedExamId ? (
+        <p className="text-sm text-brand-blue">Selecciona un examen para ver los intentos disponibles.</p>
+      ) : (
+        <SubmissionsViewer 
+            key={selectedExamId} 
+            examId={Number(selectedExamId)} 
+            selectedExamName={selectedExamName}
+            token={token} 
+        />
+      )}
+    </div>
   );
 }

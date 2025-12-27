@@ -51,12 +51,13 @@ type UserExamSubmission struct {
 	ID          uint         `gorm:"column:id;primaryKey" json:"id"`
 	UserID      uint         `gorm:"column:user_id;index:idx_user_exam_submission_user_id" json:"user_id"`
 	ExamID      uint         `gorm:"column:exam_id;index:idx_user_exam_submission_exam_id" json:"exam_id"`
-	Score       *float64     `gorm:"column:score" json:"score"`
-	Percentile  *float64     `gorm:"column:percentile" json:"percentile"`
-	SubmittedAt time.Time    `gorm:"column:submitted_at;autoCreateTime;index:idx_user_exam_submission_submitted_at" json:"submitted_at"`
-	User        ExamUser     `gorm:"foreignKey:UserID" json:"user"`
-	Exam        Exam         `gorm:"foreignKey:ExamID" json:"exam"`
-	Answers     []UserAnswer `gorm:"foreignKey:SubmissionID" json:"answers"`
+	Score              *float64     `gorm:"column:score" json:"score"`
+	Percentile         *float64     `gorm:"column:percentile" json:"percentile"`
+	SelectedResultType string       `gorm:"column:selected_result_type;default:'General'" json:"selected_result_type"`
+	SubmittedAt        time.Time    `gorm:"column:submitted_at;autoCreateTime;index:idx_user_exam_submission_submitted_at" json:"submitted_at"`
+	User               ExamUser     `gorm:"foreignKey:UserID" json:"user"`
+	Exam               Exam         `gorm:"foreignKey:ExamID" json:"exam"`
+	Answers            []UserAnswer `gorm:"foreignKey:SubmissionID" json:"answers"`
 }
 
 func (UserExamSubmission) TableName() string {
@@ -85,16 +86,17 @@ func (AdminUser) TableName() string {
 }
 
 type ExamOfficialResult struct {
-	ID        uint      `gorm:"column:id;primaryKey" json:"id"`
-	ExamID    uint      `gorm:"column:exam_id;index:idx_official_result_exam_dni" json:"exam_id"`
-	UserID    *uint     `gorm:"column:user_id" json:"user_id,omitempty"`
-	DniMasked string    `gorm:"column:dni_masked;index:idx_official_result_exam_dni" json:"dni_masked"`
-	Apellido1 string    `gorm:"column:apellido_1" json:"apellido_1"`
-	Apellido2 *string   `gorm:"column:apellido_2" json:"apellido_2,omitempty"`
-	Nombre    string    `gorm:"column:nombre" json:"nombre"`
-	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
-	Exam      Exam      `gorm:"foreignKey:ExamID"`
-	User      *ExamUser `gorm:"foreignKey:UserID"`
+	ID         uint      `gorm:"column:id;primaryKey" json:"id"`
+	ExamID     uint      `gorm:"column:exam_id;index:idx_official_result_exam_dni" json:"exam_id"`
+	UserID     *uint     `gorm:"column:user_id" json:"user_id,omitempty"`
+	DniMasked  string    `gorm:"column:dni_masked;index:idx_official_result_exam_dni" json:"dni_masked"`
+	Apellido1  string    `gorm:"column:apellido_1" json:"apellido_1"`
+	Apellido2  *string   `gorm:"column:apellido_2" json:"apellido_2,omitempty"`
+	Nombre     string    `gorm:"column:nombre" json:"nombre"`
+	ResultType string    `gorm:"column:result_type;default:'General'" json:"result_type"`
+	CreatedAt  time.Time `gorm:"column:created_at" json:"created_at"`
+	Exam       Exam      `gorm:"foreignKey:ExamID"`
+	User       *ExamUser `gorm:"foreignKey:UserID"`
 }
 
 func (ExamOfficialResult) TableName() string {

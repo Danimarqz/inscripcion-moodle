@@ -61,6 +61,7 @@ export type AdminSubmission = {
   submitted_at: string;
   answers: SubmissionAnswer[];
   accepts_marketing?: boolean | null;
+  selected_result_type?: string | null;
 };
 
 export type AdminSubmissionsResponse = {
@@ -85,6 +86,7 @@ export type ExamSubmissionPayload = {
   answers: Answer[];
   accepts_marketing: boolean;
   eligibility_confirmed?: boolean;
+  result_type: string;
 }
 
 export type SubmissionUpdatePayload = {
@@ -170,6 +172,7 @@ export type ExamOfficialResult = {
   apellido_1: string;
   apellido_2?: string | null;
   nombre: string;
+  result_type: string;
   created_at: string;
 };
 
@@ -178,6 +181,7 @@ export type CreateOfficialResultPayload = {
   apellido_1: string;
   apellido_2?: string | null;
   nombre: string;
+  result_type: string;
 };
 
 export type EditOfficialResultPayload = {
@@ -185,6 +189,7 @@ export type EditOfficialResultPayload = {
   apellido_1?: string;
   apellido_2?: string | null;
   nombre?: string;
+  result_type?: string;
 };
 
 

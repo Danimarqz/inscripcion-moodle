@@ -60,6 +60,7 @@ type CreateOfficialResultRequest struct {
 	Apellido1 string `json:"apellido_1"`
 	Apellido2 string `json:"apellido_2,omitempty"`
 	Nombre    string `json:"nombre"`
+	ResultType string `json:"result_type"`
 }
 
 type EditOfficialResultRequest struct {
@@ -67,5 +68,6 @@ type EditOfficialResultRequest struct {
 	Apellido1 *string `json:"apellido_1,omitempty"`
 	Apellido2 *string `json:"apellido_2,omitempty"`
 	Nombre    *string `json:"nombre,omitempty"`
+	ResultType *string `json:"result_type,omitempty"`
 }
 

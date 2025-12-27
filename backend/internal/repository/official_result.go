@@ -13,7 +13,7 @@ type OfficialResultRepository interface {
 	Create(ctx context.Context, db *gorm.DB, result *models.ExamOfficialResult) error
 	FindByExamAndDNI(ctx context.Context, db *gorm.DB, examID uint, dni string) (*models.ExamOfficialResult, error)
 	FindByID(ctx context.Context, db *gorm.DB, id uint) (*models.ExamOfficialResult, error)
-	List(ctx context.Context, db *gorm.DB, examID uint, offset, limit int, order string) ([]models.ExamOfficialResult, int64, error)
+	List(ctx context.Context, db *gorm.DB, examID uint, resultType string, offset, limit int, order string) ([]models.ExamOfficialResult, int64, error)
 	DeleteByExamID(ctx context.Context, db *gorm.DB, examID uint) error
 	Update(ctx context.Context, db *gorm.DB, result *models.ExamOfficialResult) error
 	Delete(ctx context.Context, db *gorm.DB, id uint) error
@@ -54,12 +54,16 @@ func (r *officialResultRepository) FindByID(ctx context.Context, db *gorm.DB, id
 }
 
 
-func (r *officialResultRepository) List(ctx context.Context, db *gorm.DB, examID uint, offset, limit int, order string) ([]models.ExamOfficialResult, int64, error) {
+func (r *officialResultRepository) List(ctx context.Context, db *gorm.DB, examID uint, resultType string, offset, limit int, order string) ([]models.ExamOfficialResult, int64, error) {
 	var results []models.ExamOfficialResult
 	var total int64
 
 	query := db.WithContext(ctx).Model(&models.ExamOfficialResult{}).Where("exam_id = ?", examID)
 	
+	if resultType != "" && resultType != "all" {
+		query = query.Where("result_type = ?", resultType)
+	}
+
 	if strings.Contains(strings.ToLower(order), "exam_user.") {
 		query = query.Joins("LEFT JOIN exam_user ON exam_user.id = exam_official_result.user_id")
 	}

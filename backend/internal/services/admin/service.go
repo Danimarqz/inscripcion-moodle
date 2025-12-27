@@ -278,10 +278,10 @@ func (s *Service) updateAnswersFromSubmission(submission *models.UserExamSubmiss
 	return nil
 }
 
-func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats bool, search, orderBy, orderDir string, moodleSynced *bool) (*ListSubmissionsResult, error) {
+func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats bool, search, orderBy, orderDir string, moodleSynced *bool, resultType *string) (*ListSubmissionsResult, error) {
 	orderClause := buildSubmissionOrder(strings.TrimSpace(orderBy), strings.TrimSpace(orderDir))
 	
-	subs, err := s.submissionRepo.List(context.Background(), s.db, examID, limit, offset, search, orderClause, moodleSynced)
+	subs, err := s.submissionRepo.List(context.Background(), s.db, examID, limit, offset, search, orderClause, moodleSynced, resultType)
 	if err != nil {
 		return nil, err
 	}
@@ -290,12 +290,12 @@ func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats b
 		Submissions: subs,
 	}
 	if includeStats {
-		totalCount, err := s.submissionRepo.Count(context.Background(), s.db, examID, moodleSynced)
+		totalCount, err := s.submissionRepo.Count(context.Background(), s.db, examID, moodleSynced, resultType)
 		if err != nil {
 			return nil, err
 		}
 
-		avg, err := s.submissionRepo.GetAverageScore(context.Background(), s.db, examID)
+		avg, err := s.submissionRepo.GetAverageScore(context.Background(), s.db, examID, moodleSynced, resultType)
 		if err != nil {
 			return nil, err
 		}
@@ -442,9 +442,9 @@ func buildOfficialResultsOrder(orderBy, orderDir string) string {
 	}
 }
 
-func (s *Service) ListOfficialResults(examID uint, limit, offset int, orderBy, orderDir string) (*OfficialResultsList, error) {
+func (s *Service) ListOfficialResults(examID uint, limit, offset int, resultType, orderBy, orderDir string) (*OfficialResultsList, error) {
 	orderClause := buildOfficialResultsOrder(orderBy, orderDir)
-	results, total, err := s.officialRepo.List(context.Background(), s.db, examID, offset, limit, orderClause)
+	results, total, err := s.officialRepo.List(context.Background(), s.db, examID, resultType, offset, limit, orderClause)
 	if err != nil {
 		return nil, err
 	}
@@ -496,6 +496,10 @@ func (s *Service) CreateOfficialResult(examID uint, req CreateOfficialResultRequ
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
+	
+	if req.ResultType != "" {
+		newResult.ResultType = req.ResultType
+	}
 
 	if err := s.officialRepo.Create(context.Background(), s.db, &newResult); err != nil {
 		return nil, err
@@ -538,6 +542,9 @@ func (s *Service) UpdateOfficialResult(id uint, req EditOfficialResultRequest) (
 			return nil, ErrInvalidOfficialResult
 		}
 		result.Nombre = val
+	}
+	if req.ResultType != nil {
+		result.ResultType = *req.ResultType
 	}
 
 	if err := s.officialRepo.Update(context.Background(), s.db, result); err != nil {

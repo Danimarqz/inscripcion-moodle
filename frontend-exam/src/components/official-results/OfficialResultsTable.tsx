@@ -86,12 +86,13 @@ export default function OfficialResultsTable({
           <thead className="bg-[#1f2229] text-brand-yellow uppercase text-xs tracking-[0.3em]">
             <tr>
               <SortableHeader
-                label="DNI Excel"
+                label="DNI"
                 sortKey="dni"
                 activeKey={sortBy}
                 direction={sortDirection}
                 onSort={onSort}
               />
+              <th className="px-3 py-2 text-left cursor-default">Tipo</th>
               <SortableHeader
                 label="Nombre"
                 sortKey="nombre"
@@ -147,6 +148,23 @@ export default function OfficialResultsTable({
                         }
                         className="w-full px-2 py-1 rounded bg-[#14161d] border border-brand-blue text-white text-xs font-mono"
                       />
+                    </td>
+                     <td className="px-3 py-2">
+                       <select
+                         value={editPayload.result_type || result.result_type}
+                         onChange={(e) =>
+                           setEditPayload({
+                             ...editPayload,
+                             result_type: (e.target as HTMLSelectElement).value,
+                           })
+                         }
+                         className="w-full px-2 py-1 rounded bg-[#14161d] border border-brand-blue text-white text-xs"
+                       >
+                         <option value="General">General</option>
+                         <option value="Promoción interna">Promoción interna</option>
+                         <option value="Discapacidad">Discapacidad</option>
+                         <option value="Otros">Otros</option>
+                       </select>
                     </td>
                     <td className="px-3 py-2">
                       <input
@@ -219,6 +237,7 @@ export default function OfficialResultsTable({
                   <td className="px-3 py-2 font-mono text-xs text-brand-blue">
                     {result.dni_masked}
                   </td>
+                  <td className="px-3 py-2 text-white text-xs">{result.result_type || 'General'}</td>
                   <td className="px-3 py-2 text-white font-semibold">{result.nombre}</td>
                   <td className="px-3 py-2 text-white">{surname}</td>
                   <td className="px-3 py-2 text-brand-pink">{associatedUser}</td>

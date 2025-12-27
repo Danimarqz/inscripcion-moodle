@@ -172,6 +172,18 @@ func parseOfficialResultRow(examID uint, row []string) (models.ExamOfficialResul
 	apellido1 := cleanNameField(row[1])
 	apellido2 := cleanNameField(row[2])
 	nombre := cleanNameField(row[3])
+	
+	resultType := "General"
+	if len(row) >= 5 {
+		val := strings.TrimSpace(row[4])
+		// Normalize or validate if needed. For now, take as is if valid, or default.
+		// Allowed types: General, Promoción interna, Discapacidad, Otros
+		// We can do a simple check or just cleaner upper/case.
+		// Let's Capitalize first letter.
+		if val != "" {
+			resultType = val
+		}
+	}
 
 	if dni == "" || apellido1 == "" || nombre == "" {
 		return models.ExamOfficialResult{}, false
@@ -183,10 +195,11 @@ func parseOfficialResultRow(examID uint, row []string) (models.ExamOfficialResul
 	}
 
 	return models.ExamOfficialResult{
-		ExamID:    examID,
-		DniMasked: dni,
-		Apellido1: apellido1,
-		Apellido2: apellido2Ptr,
-		Nombre:    nombre,
+		ExamID:     examID,
+		DniMasked:  dni,
+		Apellido1:  apellido1,
+		Apellido2:  apellido2Ptr,
+		Nombre:     nombre,
+		ResultType: resultType,
 	}, true
 }

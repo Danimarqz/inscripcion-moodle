@@ -271,137 +271,78 @@ func createSubmission(tx *gorm.DB, req SubmitExamRequest, userID uint) (*models.
 	var exam models.Exam
 
 	if err := tx.Preload("Questions").First(&exam, req.ExamID).Error; err != nil {
-
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-
 			return nil, nil, nil, ErrExamNotFound
-
 		}
-
 		return nil, nil, nil, err
-
 	}
 
 	if len(exam.Questions) == 0 {
-
 		return nil, nil, nil, ErrExamNoQuestions
-
 	}
 
-
-
 	activeQuestions := make([]models.Question, 0, len(exam.Questions))
-
 	activeMap := make(map[uint]models.Question)
 
 	for _, question := range exam.Questions {
-
 		if question.IsActive && !question.IsCancelled {
-
 			activeQuestions = append(activeQuestions, question)
-
 			activeMap[question.ID] = question
-
 		}
-
 	}
 
 	if len(activeQuestions) == 0 {
-
 		return nil, nil, nil, ErrExamNoActive
-
 	}
 
-
-
 	answersMap := make(map[uint]string)
-
 	for _, ans := range req.Answers {
-
 		question, ok := activeMap[ans.QuestionID]
-
 		if !ok {
-
 			return nil, nil, nil, fmt.Errorf("pregunta %d no encontrada", ans.QuestionID)
-
 		}
 
 		value, err := ValidateAnswerOption(ans.Answer)
-
 		if err != nil {
-
 			return nil, nil, nil, err
-
 		}
-
 		answersMap[question.ID] = value
-
 	}
-
-
 
 	breakdown, err := CalculateScoreBreakdown(activeQuestions, answersMap)
-
 	if err != nil {
-
 		return nil, nil, nil, err
-
 	}
-
-
 
 	scorePtr := helpers.Ptr(breakdown.Score)
 
 	submission := &models.UserExamSubmission{
-
 		UserID:     userID,
-
 		ExamID:     req.ExamID,
-
 		Score:      scorePtr,
-
 		Percentile: helpers.Ptr(0.0),
-
+		SelectedResultType: req.ResultType,
 	}
 
 	if err := tx.Create(submission).Error; err != nil {
-
 		return nil, nil, nil, err
-
 	}
-
-
 
 	for _, ans := range req.Answers {
-
 		option, ok := answersMap[ans.QuestionID]
-
 		if !ok {
-
 			continue
-
 		}
-
 		answer := models.UserAnswer{
-
 			SubmissionID: submission.ID,
-
 			QuestionID:   ans.QuestionID,
-
 			Answer:       option,
-
 		}
-
 		if err := tx.Create(&answer).Error; err != nil {
-
 			return nil, nil, nil, err
-
 		}
-
 	}
-
 	return submission, &breakdown, answersMap, nil
-
 }
 
 func BuildSubmissionCheckResponse(db *gorm.DB, req SubmissionCheckRequest) (*SubmissionPayload, error) {

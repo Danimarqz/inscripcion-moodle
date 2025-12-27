@@ -82,7 +82,9 @@ func (h *AdminController) listOfficialResults(w http.ResponseWriter, r *http.Req
 	offset := parseOffsetParam(r.URL.Query().Get("offset"))
 	orderBy := sanitizeOfficialResultsOrderBy(r.URL.Query().Get("order_by"))
 	orderDir := sanitizeOrderDir(r.URL.Query().Get("order_dir"))
-	results, err := h.service.ListOfficialResults(uint(examID), limit, offset, orderBy, orderDir)
+	resultType := r.URL.Query().Get("type")
+	
+	results, err := h.service.ListOfficialResults(uint(examID), limit, offset, resultType, orderBy, orderDir)
 	if err != nil {
 		http.Error(w, "failed to load official results", http.StatusInternalServerError)
 		return

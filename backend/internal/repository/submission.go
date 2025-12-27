@@ -12,11 +12,11 @@ import (
 
 type SubmissionRepository interface {
 	FindByID(ctx context.Context, db *gorm.DB, submissionID uint) (*models.UserExamSubmission, error)
-	List(ctx context.Context, db *gorm.DB, examID uint, limit, offset int, search, order string, moodleSynced *bool) ([]models.UserExamSubmission, error)
-	Count(ctx context.Context, db *gorm.DB, examID uint, moodleSynced *bool) (int64, error)
+	List(ctx context.Context, db *gorm.DB, examID uint, limit, offset int, search, order string, moodleSynced *bool, resultType *string) ([]models.UserExamSubmission, error)
+	Count(ctx context.Context, db *gorm.DB, examID uint, moodleSynced *bool, resultType *string) (int64, error)
 	Delete(ctx context.Context, db *gorm.DB, submissionID uint) error
 	DeleteByExamID(ctx context.Context, db *gorm.DB, examID uint) error
-	GetAverageScore(ctx context.Context, db *gorm.DB, examID uint) (*float64, error)
+	GetAverageScore(ctx context.Context, db *gorm.DB, examID uint, moodleSynced *bool, resultType *string) (*float64, error)
 	Update(ctx context.Context, db *gorm.DB, submission *models.UserExamSubmission) error
 	SaveAnswer(ctx context.Context, db *gorm.DB, answer *models.UserAnswer) error
 	CreateAnswer(ctx context.Context, db *gorm.DB, answer *models.UserAnswer) error
@@ -36,7 +36,7 @@ func (r *submissionRepository) FindByID(ctx context.Context, db *gorm.DB, submis
 	return &submission, nil
 }
 
-func (r *submissionRepository) List(ctx context.Context, db *gorm.DB, examID uint, limit, offset int, search, order string, moodleSynced *bool) ([]models.UserExamSubmission, error) {
+func (r *submissionRepository) List(ctx context.Context, db *gorm.DB, examID uint, limit, offset int, search, order string, moodleSynced *bool, resultType *string) ([]models.UserExamSubmission, error) {
 	var subs []models.UserExamSubmission
 	query := db.WithContext(ctx).Preload("User").Preload("Answers").
 		Where("exam_id = ?", examID)
@@ -49,6 +49,10 @@ func (r *submissionRepository) List(ctx context.Context, db *gorm.DB, examID uin
 		} else {
 			query = query.Where("exam_user.moodle_id IS NULL")
 		}
+	}
+
+	if resultType != nil && *resultType != "" {
+		query = query.Where("user_exam_submission.selected_result_type = ?", *resultType)
 	}
 
 	if sanitized := strings.TrimSpace(search); sanitized != "" {
@@ -81,10 +85,10 @@ func (r *submissionRepository) List(ctx context.Context, db *gorm.DB, examID uin
 	return subs, nil
 }
 
-func (r *submissionRepository) Count(ctx context.Context, db *gorm.DB, examID uint, moodleSynced *bool) (int64, error) {
+func (r *submissionRepository) Count(ctx context.Context, db *gorm.DB, examID uint, moodleSynced *bool, resultType *string) (int64, error) {
 	var total int64
 	query := db.WithContext(ctx).Model(&models.UserExamSubmission{}).Where("exam_id = ?", examID)
-	
+
 	if moodleSynced != nil {
 		query = query.Joins("LEFT JOIN exam_user ON exam_user.id = user_exam_submission.user_id")
 		if *moodleSynced {
@@ -93,7 +97,11 @@ func (r *submissionRepository) Count(ctx context.Context, db *gorm.DB, examID ui
 			query = query.Where("exam_user.moodle_id IS NULL")
 		}
 	}
-	
+
+	if resultType != nil && *resultType != "" {
+		query = query.Where("selected_result_type = ?", *resultType)
+	}
+
 	err := query.Count(&total).Error
 	return total, err
 }
@@ -132,12 +140,24 @@ func (r *submissionRepository) DeleteByExamID(ctx context.Context, db *gorm.DB, 
 	})
 }
 
-func (r *submissionRepository) GetAverageScore(ctx context.Context, db *gorm.DB, examID uint) (*float64, error) {
+func (r *submissionRepository) GetAverageScore(ctx context.Context, db *gorm.DB, examID uint, moodleSynced *bool, resultType *string) (*float64, error) {
 	var avg sql.NullFloat64
-	if err := db.WithContext(ctx).Model(&models.UserExamSubmission{}).
-		Select("AVG(score)").
-		Where("exam_id = ? AND score IS NOT NULL", examID).
-		Row().Scan(&avg); err != nil {
+	query := db.WithContext(ctx).Model(&models.UserExamSubmission{}).Where("exam_id = ? AND score IS NOT NULL", examID)
+
+	if moodleSynced != nil {
+		query = query.Joins("LEFT JOIN exam_user ON exam_user.id = user_exam_submission.user_id")
+		if *moodleSynced {
+			query = query.Where("exam_user.moodle_id IS NOT NULL")
+		} else {
+			query = query.Where("exam_user.moodle_id IS NULL")
+		}
+	}
+
+	if resultType != nil && *resultType != "" {
+		query = query.Where("selected_result_type = ?", *resultType)
+	}
+
+	if err := query.Select("AVG(score)").Row().Scan(&avg); err != nil {
 		return nil, err
 	}
 	if avg.Valid {

@@ -76,6 +76,9 @@ export default function SubmissionList({
                 <p className="text-xs text-brand-yellow mt-2 opacity-90">
                   Enviado el {new Date(submission.submitted_at).toLocaleString()}
                 </p>
+                <p className="text-xs text-brand-pink-soft mt-1">
+                  Tipo: <span className="text-white">{submission.selected_result_type || 'General'}</span>
+                </p>
                 <span
                   className={`mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold ${marketingBadgeClass}`}
                 >
