@@ -85,6 +85,7 @@ func (h *AdminController) RegisterRoutes(r chi.Router) {
 		r.Delete("/exams/{exam_id}/delete", h.deleteExam)
 		r.Get("/exams/{exam_id}", h.getExam)
 		r.Get("/results", h.listSubmissions)
+		r.Get("/results/{submission_id}", h.getSubmission)
 		r.Put("/results/{submission_id}", h.updateSubmission)
 		r.Delete("/results/{submission_id}", h.deleteSubmission)
 		r.Get("/results/emails", h.downloadSubmissionEmails)

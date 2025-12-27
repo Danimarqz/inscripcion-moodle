@@ -7,6 +7,7 @@ import {
   fetchSubmissionEmailList,
   getExamById,
   getExamSubmissions,
+  getSubmission,
   sendSubmissionEmails,
   syncMoodleUsers,
   type SubmissionEmailAttachmentPayload,
@@ -58,8 +59,8 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
   const [loading, setLoading] = useState<boolean>(true); // Start loading immediately since we only mount when ID exists
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [editing, setEditing] = useState<EditingState | null>(null);
-  const [saving, setSaving] = useState<boolean>(false);
+  const [editingStates, setEditingStates] = useState<Record<number, EditingState>>({});
+  const [savingIds, setSavingIds] = useState<Record<number, boolean>>({});
   const [filterMoodleUsers, setFilterMoodleUsers] = useState(false);
 
   const [downloadingEmails, setDownloadingEmails] = useState(false);
@@ -145,7 +146,9 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
       setLoading(true);
       setError(null);
       setFeedback(null);
-      setEditing(null);
+      // Removed setEditing(null) to preserve edits across page loads if desired, or clear it if strict.
+      // Keeping it simple: changing filters clears edits to avoid confusion.
+      setEditingStates({});
 
       try {
         const response = await getExamSubmissions(examId, token, {
@@ -160,7 +163,6 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
         });
 
         if (!mounted) return;
-        console.log(response)
         setSubmissions(response.submissions);
         
         if (needsStats) {
@@ -217,7 +219,6 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
     filterMoodleUsers,
     filterType,
     refreshTrigger, 
-    // needsStats removed to prevent loop
   ]);
 
   // Debounce Search
@@ -245,24 +246,46 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
 
 
   // Handler Copies (Simplified references)
-  function startEditing(submission: AdminSubmission) {
-    const initialAnswers: Record<number, AnswerOption> = {};
-    submission.answers.forEach((answer) => {
-       const normalizedAnswer = (answer.answer ?? '').toUpperCase();
-       const castAnswer = normalizedAnswer as AnswerOption;
-       initialAnswers[answer.question_id] = ANSWER_OPTIONS.includes(castAnswer) ? castAnswer : ANSWER_OPTIONS[0];
+  async function startEditing(submission: AdminSubmission) {
+    if (editingStates[submission.id]) return; // Already editing
+
+    // Optional: set loading indicator for this specific item if we wanted to be fancy.
+    // For now global feedback is okay-ish but multiple loading messages would race.
+    // Let's use a local trick or just rely on the UI not blocking others.
+    
+    try {
+      const fullSubmission = await getSubmission(submission.id, token);
+      
+      const initialAnswers: Record<number, AnswerOption> = {};
+      fullSubmission.answers.forEach((answer) => {
+         const normalizedAnswer = (answer.answer ?? '').toUpperCase();
+         const castAnswer = normalizedAnswer as AnswerOption;
+         initialAnswers[answer.question_id] = ANSWER_OPTIONS.includes(castAnswer) ? castAnswer : ANSWER_OPTIONS[0];
+      });
+      const user = fullSubmission.user;
+      
+      setEditingStates((prev) => ({
+        ...prev,
+        [submission.id]: {
+            submissionId: fullSubmission.id,
+            name: fullSubmission.name || user?.name || '',
+            surname: fullSubmission.surname || user?.surname || '',
+            email: fullSubmission.email ?? user?.email ?? '',
+            dni: fullSubmission.dni || user?.dni || '',
+            answers: initialAnswers,
+        }
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  function cancelEditing(submissionId: number) {
+    setEditingStates((prev) => {
+        const next = { ...prev };
+        delete next[submissionId];
+        return next;
     });
-    const user = submission.user;
-    setEditing({
-      submissionId: submission.id,
-      name: submission.name || user?.name || '',
-      surname: submission.surname || user?.surname || '',
-      email: submission.email ?? user?.email ?? '',
-      dni: submission.dni || user?.dni || '',
-      answers: initialAnswers,
-    });
-    setFeedback(null);
-    setError(null);
   }
 
   async function handleDelete(submissionId: number) {
@@ -283,26 +306,42 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
     }
   };
 
-  function updateEditingField<K extends keyof Omit<EditingState, 'answers' | 'submissionId'>>(field: K, value: EditingState[K]) {
-    if (!editing) return;
-    setEditing({ ...editing, [field]: value });
-  }
-
-  function updateAnswer(questionId: number, value: string) {
-    if (!editing) return;
-    const upper = value.toUpperCase();
-    const normalized = upper as AnswerOption;
-    if (!ANSWER_OPTIONS.includes(normalized)) return;
-    setEditing({
-      ...editing,
-      answers: { ...editing.answers, [questionId]: normalized },
+  function updateEditingField<K extends keyof Omit<EditingState, 'answers' | 'submissionId'>>(submissionId: number, field: K, value: EditingState[K]) {
+    setEditingStates((prev) => {
+        const current = prev[submissionId];
+        if (!current) return prev;
+        return {
+            ...prev,
+            [submissionId]: { ...current, [field]: value }
+        };
     });
   }
 
-  async function handleSave() {
+  function updateAnswer(submissionId: number, questionId: number, value: string) {
+    const upper = value.toUpperCase();
+    const normalized = upper as AnswerOption;
+    if (!ANSWER_OPTIONS.includes(normalized)) return;
+
+    setEditingStates((prev) => {
+        const current = prev[submissionId];
+        if (!current) return prev;
+        return {
+            ...prev,
+            [submissionId]: {
+                ...current,
+                answers: { ...current.answers, [questionId]: normalized }
+            }
+        };
+    });
+  }
+
+  async function handleSave(submissionId: number) {
+    const editing = editingStates[submissionId];
     if (!editing) return;
+    
     setError(null);
     setFeedback(null);
+    
     const trimmedName = editing.name.trim();
     const trimmedSurname = editing.surname.trim();
     const trimmedEmail = editing.email.trim().toLowerCase();
@@ -322,7 +361,7 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
 
     if (answersPayload.length !== questions.length) { setError('No se pudieron obtener todas las preguntas del examen.'); return; }
 
-    setSaving(true);
+    setSavingIds((prev) => ({ ...prev, [submissionId]: true }));
     try {
       await updateSubmissionAttempt(
         editing.submissionId,
@@ -331,12 +370,18 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
       );
       setNeedsStats(true); 
       setRefreshTrigger((prev) => prev + 1);
-      setEditing(null);
+      
+      // Remove from editing states on success
+      setEditingStates((prev) => {
+        const next = { ...prev };
+        delete next[submissionId];
+        return next;
+      });
       setFeedback('Intento actualizado correctamente.');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setSaving(false);
+      setSavingIds((prev) => ({ ...prev, [submissionId]: false }));
     }
   }
 
@@ -527,17 +572,17 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
                   <PaginationControls currentPage={currentPage} totalPages={totalPages} onPrev={handlePrevPage} onNext={handleNextPage} />
                   <SubmissionList
                     submissions={submissions}
-                    editing={editing}
+                    editingStates={editingStates}
                     questions={questions}
                     selectedExamName={selectedExamName}
                     answerOptions={ANSWER_OPTIONS}
                     onStartEditing={startEditing}
-                    onCancelEditing={() => setEditing(null)}
+                    onCancelEditing={cancelEditing}
                     onDelete={handleDelete}
                     onUpdateField={updateEditingField}
                     onUpdateAnswer={updateAnswer}
                     onSave={handleSave}
-                    saving={saving}
+                    savingIds={savingIds}
                   />
                   <PaginationControls currentPage={currentPage} totalPages={totalPages} onPrev={handlePrevPage} onNext={handleNextPage} />
                 </>

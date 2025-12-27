@@ -193,6 +193,25 @@ func (h *AdminController) sendSubmissionEmails(w http.ResponseWriter, r *http.Re
 	writeJSON(w, map[string]int{"sent": len(validRecipients)})
 }
 
+func (h *AdminController) getSubmission(w http.ResponseWriter, r *http.Request) {
+	submissionIDStr := chi.URLParam(r, "submission_id")
+	submissionID, err := strconv.ParseUint(submissionIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid submission id", http.StatusBadRequest)
+		return
+	}
+	submission, err := h.service.GetSubmission(uint(submissionID))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			http.Error(w, "Intento no encontrado", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to load submission", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, submission)
+}
+
 func (h *AdminController) updateSubmission(w http.ResponseWriter, r *http.Request) {
 	submissionIDStr := chi.URLParam(r, "submission_id")
 	submissionID, err := strconv.ParseUint(submissionIDStr, 10, 64)

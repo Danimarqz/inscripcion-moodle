@@ -204,6 +204,10 @@ func (s *Service) DeleteSubmission(submissionID uint) (examID uint, err error) {
 	return submission.ExamID, nil
 }
 
+func (s *Service) GetSubmission(submissionID uint) (*models.UserExamSubmission, error) {
+	return s.submissionRepo.FindByID(context.Background(), s.db, submissionID)
+}
+
 func (s *Service) UpdateSubmission(submissionID uint, req SubmissionUpdateRequest) (*models.UserExamSubmission, error) {
 	submission, err := s.submissionRepo.FindByID(context.Background(), s.db, submissionID)
 	if err != nil {

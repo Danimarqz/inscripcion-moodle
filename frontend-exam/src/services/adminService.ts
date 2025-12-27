@@ -270,6 +270,16 @@ export async function deleteOfficialResult(id: number, token: string): Promise<v
   });
 }
 
+export async function getSubmission(
+  submissionId: number,
+  token: string,
+): Promise<AdminSubmission> {
+  return request<AdminSubmission>(`/admin/results/${submissionId}`, {
+    method: 'GET',
+    token,
+  });
+}
+
 export async function updateSubmissionAttempt(
   submissionId: number,
   payload: SubmissionUpdatePayload,

@@ -388,7 +388,7 @@ export default function ExamPage({
         {!hasPreviousSubmission && (
           <div className="mt-6 mb-6">
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Tipo de alumno
+              Tipo de convocatoria
             </label>
             <select
               value={resultType}

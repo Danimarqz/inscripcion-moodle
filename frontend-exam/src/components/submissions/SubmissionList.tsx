@@ -3,25 +3,26 @@ import type { AnswerOption, EditingState } from './types';
 
 interface SubmissionListProps {
   submissions: AdminSubmission[];
-  editing: EditingState | null;
+  editingStates: Record<number, EditingState>;
   questions: QuestionEdit[];
   selectedExamName: string;
   answerOptions: readonly AnswerOption[];
   onStartEditing: (submission: AdminSubmission) => void;
-  onCancelEditing: () => void;
+  onCancelEditing: (submissionId: number) => void;
   onDelete: (submissionId: number) => void;
   onUpdateField: <K extends keyof Omit<EditingState, 'answers' | 'submissionId'>>(
+    submissionId: number,
     field: K,
     value: EditingState[K],
   ) => void;
-  onUpdateAnswer: (questionId: number, value: string) => void;
-  onSave: () => Promise<void> | void;
-  saving: boolean;
+  onUpdateAnswer: (submissionId: number, questionId: number, value: string) => void;
+  onSave: (submissionId: number) => Promise<void> | void;
+  savingIds: Record<number, boolean>;
 }
 
 export default function SubmissionList({
   submissions,
-  editing,
+  editingStates,
   questions,
   selectedExamName,
   answerOptions,
@@ -31,7 +32,7 @@ export default function SubmissionList({
   onUpdateField,
   onUpdateAnswer,
   onSave,
-  saving,
+  savingIds,
 }: SubmissionListProps) {
   return (
     <ul className="list-none p-0 space-y-6">
@@ -49,7 +50,9 @@ export default function SubmissionList({
           ? 'bg-brand-yellow-soft text-brand-yellow border border-brand-yellow-soft'
           : 'bg-brand-pink-soft text-brand-pink border border-brand-pink-soft';
 
-        const isEditingThisSubmission = editing?.submissionId === submission.id;
+        const editingState = editingStates[submission.id];
+        const isEditing = !!editingState;
+        const isSaving = savingIds[submission.id] || false;
 
         return (
           <li
@@ -105,7 +108,7 @@ export default function SubmissionList({
                 </div>
               </div>
               <div className="flex gap-3 mt-4 md:mt-0 flex-wrap">
-                {!editing ? (
+                {!isEditing ? (
                   <button
                     className="py-2 px-4 rounded bg-brand-pink text-dark-200 hover:bg-brand-yellow transition-colors cursor-pointer"
                     onClick={() => onStartEditing(submission)}
@@ -115,7 +118,7 @@ export default function SubmissionList({
                 ) : (
                   <button
                     className="py-2 px-4 rounded border border-brand-pink-soft text-brand-pink hover:bg-brand-pink-soft transition-colors cursor-pointer"
-                    onClick={onCancelEditing}
+                    onClick={() => onCancelEditing(submission.id)}
                   >
                     Cancelar
                   </button>
@@ -128,7 +131,7 @@ export default function SubmissionList({
                 </button>
               </div>
             </div>
-            {isEditingThisSubmission && editing && (
+            {isEditing && editingState && (
               <div className="mt-6 border-t border-brand-blue-soft pt-6">
                 <h3 className="text-xl font-semibold mb-4 text-brand-pink">
                   Editar intento ({selectedExamName})
@@ -138,9 +141,10 @@ export default function SubmissionList({
                     <span className="text-sm font-semibold text-brand-blue">Nombre</span>
                     <input
                       type="text"
-                      value={editing.name}
+                      value={editingState.name}
                       onInput={(event) =>
                         onUpdateField(
+                          submission.id,
                           'name',
                           (event.currentTarget as HTMLInputElement).value,
                         )
@@ -152,9 +156,10 @@ export default function SubmissionList({
                     <span className="text-sm font-semibold text-brand-blue">Apellidos</span>
                     <input
                       type="text"
-                      value={editing.surname}
+                      value={editingState.surname}
                       onInput={(event) =>
                         onUpdateField(
+                          submission.id,
                           'surname',
                           (event.currentTarget as HTMLInputElement).value,
                         )
@@ -166,9 +171,10 @@ export default function SubmissionList({
                     <span className="text-sm font-semibold text-brand-blue">Email</span>
                     <input
                       type="email"
-                      value={editing.email}
+                      value={editingState.email}
                       onInput={(event) =>
                         onUpdateField(
+                          submission.id,
                           'email',
                           (event.currentTarget as HTMLInputElement).value,
                         )
@@ -180,9 +186,10 @@ export default function SubmissionList({
                     <span className="text-sm font-semibold text-brand-blue">DNI/NIE</span>
                     <input
                       type="text"
-                      value={editing.dni}
+                      value={editingState.dni}
                       onInput={(event) =>
                         onUpdateField(
+                          submission.id,
                           'dni',
                           (event.currentTarget as HTMLInputElement).value,
                         )
@@ -206,10 +213,11 @@ export default function SubmissionList({
                         )}
                       </div>
                       <select
-                        value={editing.answers[question.id ?? -1] || 'A'}
+                        value={editingState.answers[question.id ?? -1] || 'A'}
                         onChange={(event) =>
                           question.id !== undefined &&
                           onUpdateAnswer(
+                            submission.id,
                             question.id,
                             (event.currentTarget as HTMLSelectElement).value as AnswerOption,
                           )
@@ -228,10 +236,10 @@ export default function SubmissionList({
                 <div className="flex flex-wrap gap-3 mt-6">
                   <button
                     className="py-2 px-4 rounded bg-brand-blue text-white font-semibold hover:bg-[#12b2d4] transition-colors cursor-pointer disabled:opacity-60"
-                    onClick={onSave}
-                    disabled={saving}
+                    onClick={() => onSave(submission.id)}
+                    disabled={isSaving}
                   >
-                    {saving ? 'Guardando...' : 'Guardar cambios'}
+                    {isSaving ? 'Guardando...' : 'Guardar cambios'}
                   </button>
                 </div>
               </div>

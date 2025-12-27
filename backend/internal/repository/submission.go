@@ -38,7 +38,7 @@ func (r *submissionRepository) FindByID(ctx context.Context, db *gorm.DB, submis
 
 func (r *submissionRepository) List(ctx context.Context, db *gorm.DB, examID uint, limit, offset int, search, order string, moodleSynced *bool, resultType *string) ([]models.UserExamSubmission, error) {
 	var subs []models.UserExamSubmission
-	query := db.WithContext(ctx).Preload("User").Preload("Answers").
+	query := db.WithContext(ctx).Preload("User").
 		Where("exam_id = ?", examID)
 
 	query = query.Joins("LEFT JOIN exam_user ON exam_user.id = user_exam_submission.user_id")
