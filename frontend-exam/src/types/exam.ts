@@ -180,6 +180,14 @@ export type CreateOfficialResultPayload = {
   nombre: string;
 };
 
+export type EditOfficialResultPayload = {
+  dni?: string;
+  apellido_1?: string;
+  apellido_2?: string | null;
+  nombre?: string;
+};
+
+
 export type AdminOfficialResultsResponse = {
   results: ExamOfficialResult[];
   total: number;

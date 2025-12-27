@@ -23,6 +23,7 @@ import EmailComposer from './submissions/EmailComposer';
 import PaginationSettings from './submissions/PaginationSettings';
 import PaginationControls from './submissions/PaginationControls';
 import SubmissionList from './submissions/SubmissionList';
+import ConfirmModal from './modals/ConfirmModal';
 import { ANSWER_OPTIONS } from './submissions/types';
 import type { AnswerOption, EditingState, SubmissionOrderBy, SubmissionOrderDir } from './submissions/types';
 
@@ -81,6 +82,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   const [orderDir, setOrderDir] = useState<SubmissionOrderDir>('desc');
   const [pageLimit, setPageLimit] = useState(25);
   const [pageInput, setPageInput] = useState(1);
+  const [subDeleteId, setSubDeleteId] = useState<number | null>(null);
   const resetFilters = useCallback(() => {
     setCurrentPage(1);
     setNeedsStats(true);
@@ -289,11 +291,13 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
   }
 
   async function handleDelete(submissionId: number) {
-    if (!selectedExamId) return;
-    if (!confirm('Seguro que quieres eliminar este intento?')) return;
+    setSubDeleteId(submissionId);
+  }
 
+  const confirmSubDelete = async () => {
+    if (subDeleteId === null || !selectedExamId) return;
     try {
-      await deleteSubmissionAttempt(submissionId, token);
+      await deleteSubmissionAttempt(subDeleteId, token);
       if (selectedExamId) {
         const examNumericId = Number(selectedExamId);
           if (!Number.isNaN(examNumericId)) {
@@ -312,8 +316,10 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
       setFeedback('Intento eliminado correctamente.');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubDeleteId(null);
     }
-  }
+  };
 
   function updateEditingField<K extends keyof Omit<EditingState, 'answers' | 'submissionId'>>(
     field: K,
@@ -710,6 +716,16 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
           onSend={handleSendEmails}
         />
       )}
+
+      <ConfirmModal
+        isOpen={subDeleteId !== null}
+        title="Eliminar Intento"
+        message="¿Estás seguro de que quieres eliminar este intento de examen? Esta acción es irreversible."
+        confirmText="Eliminar"
+        isDanger={true}
+        onConfirm={confirmSubDelete}
+        onClose={() => setSubDeleteId(null)}
+      />
     </section>
   );
 }

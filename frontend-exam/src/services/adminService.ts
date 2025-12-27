@@ -8,6 +8,7 @@ import type {
   ExamOfficialResult,
   AdminOfficialResultsResponse,
   CreateOfficialResultPayload,
+  EditOfficialResultPayload,
   ImportOfficialResultsSummary,
   SubmissionUpdatePayload,
   SyncMoodleUsersResponse,
@@ -236,6 +237,25 @@ export async function createOfficialResult(
     method: 'POST',
     token,
     body: JSON.stringify(payload),
+  });
+}
+
+export async function updateOfficialResult(
+  id: number,
+  payload: EditOfficialResultPayload,
+  token: string,
+): Promise<ExamOfficialResult> {
+  return request<ExamOfficialResult>(`/admin/exams/results/official/${id}`, {
+    method: 'PUT',
+    token,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteOfficialResult(id: number, token: string): Promise<void> {
+  return request<void>(`/admin/exams/results/official/${id}`, {
+    method: 'DELETE',
+    token,
   });
 }
 

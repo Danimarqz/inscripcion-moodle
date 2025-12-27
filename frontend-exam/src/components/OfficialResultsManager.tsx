@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import type { Exam, ExamOfficialResult, ImportOfficialResultsSummary } from '../types/exam';
-import { getOfficialResults } from '../services/adminService';
+import { getOfficialResults, deleteOfficialResult, updateOfficialResult } from '../services/adminService';
 import { useAsyncTask } from '../hooks/useAsyncTask';
 import OfficialResultImport from './official-results/OfficialResultImport';
 import OfficialResultForm from './official-results/OfficialResultForm';
 import OfficialResultsTable from './official-results/OfficialResultsTable';
+import type { EditOfficialResultPayload } from '../types/exam';
+import ConfirmModal from './modals/ConfirmModal';
 
 interface OfficialResultsManagerProps {
   exams: Exam[];
@@ -30,6 +32,7 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [pageSize, setPageSize] = useState<number>(100);
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const selectedExamName = useMemo(() => {
     const numericId = Number(selectedExamId);
@@ -133,6 +136,34 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
     await refreshResults();
   };
 
+  const handleUpdateResult = async (id: number, payload: EditOfficialResultPayload) => {
+    try {
+      await updateOfficialResult(id, payload, token);
+      setFeedback('Registro actualizado correctamente.');
+      await refreshResults();
+    } catch (err) {
+      setResultsError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleDeleteResult = (id: number) => {
+    setDeleteId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (deleteId === null) return;
+    try {
+      await deleteOfficialResult(deleteId, token);
+      setFeedback('Registro eliminado correctamente.');
+      await refreshResults();
+    } catch (err) {
+      setResultsError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeleteId(null);
+    }
+  };
+
+
   return (
     <section className="mt-8 space-y-6">
       <label className="block mb-4">
@@ -186,6 +217,7 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
       <OfficialResultImport
         examId={selectedExamId}
         token={token}
+        hasResults={results.length > 0 || totalResults > 0}
         onSuccess={handleImportSuccess}
         onError={(msg) => {
           setSummary(null);
@@ -225,10 +257,20 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
           }}
           onPageChange={setCurrentPage}
           onSort={handleSort}
+          onUpdate={handleUpdateResult}
+          onDelete={handleDeleteResult}
         />
       )}
+
+      <ConfirmModal
+        isOpen={deleteId !== null}
+        title="Eliminar Registro"
+        message="¿Estás seguro de que quieres eliminar este registro oficial? Esta acción no se puede deshacer."
+        confirmText="Eliminar"
+        isDanger={true}
+        onConfirm={confirmDelete}
+        onClose={() => setDeleteId(null)}
+      />
     </section>
   );
 }
-
-

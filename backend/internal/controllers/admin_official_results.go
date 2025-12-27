@@ -9,19 +9,20 @@ import (
 	"github.com/go-chi/chi/v5"
 	"gorm.io/gorm"
 
+	"github.com/inscripcion-moodle/go-backend/internal/constants"
 	"github.com/inscripcion-moodle/go-backend/internal/services/admin"
 )
 
 func (h *AdminController) createOfficialResult(w http.ResponseWriter, r *http.Request) {
 	examID, err := strconv.ParseUint(chi.URLParam(r, "exam_id"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid exam id", http.StatusBadRequest)
+		http.Error(w, constants.InvalidExamID, http.StatusBadRequest)
 		return
 	}
 
 	var payload admin.CreateOfficialResultRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		http.Error(w, constants.InvalidRequest, http.StatusBadRequest)
 		return
 	}
 
@@ -29,7 +30,7 @@ func (h *AdminController) createOfficialResult(w http.ResponseWriter, r *http.Re
 	if err != nil {
 		switch {
 		case errors.Is(err, gorm.ErrRecordNotFound):
-			http.Error(w, "exam not found", http.StatusNotFound)
+			http.Error(w, constants.ExamNotFound, http.StatusNotFound)
 		case errors.Is(err, admin.ErrInvalidOfficialResult):
 			http.Error(w, err.Error(), http.StatusBadRequest)
 		case errors.Is(err, admin.ErrOfficialResultExists):
@@ -46,7 +47,7 @@ func (h *AdminController) createOfficialResult(w http.ResponseWriter, r *http.Re
 func (h *AdminController) importOfficialResults(w http.ResponseWriter, r *http.Request) {
 	examID, err := strconv.ParseUint(chi.URLParam(r, "exam_id"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid exam id", http.StatusBadRequest)
+		http.Error(w, constants.InvalidExamID, http.StatusBadRequest)
 		return
 	}
 	if err := r.ParseMultipartForm(32 << 20); err != nil && err != http.ErrNotMultipart {
@@ -74,7 +75,7 @@ func (h *AdminController) importOfficialResults(w http.ResponseWriter, r *http.R
 func (h *AdminController) listOfficialResults(w http.ResponseWriter, r *http.Request) {
 	examID, err := strconv.ParseUint(chi.URLParam(r, "exam_id"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid exam id", http.StatusBadRequest)
+		http.Error(w, constants.InvalidExamID, http.StatusBadRequest)
 		return
 	}
 	limit := parseLimitParam(r.URL.Query().Get("limit"))
@@ -88,3 +89,52 @@ func (h *AdminController) listOfficialResults(w http.ResponseWriter, r *http.Req
 	}
 	writeJSON(w, results)
 }
+
+func (h *AdminController) updateOfficialResult(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, constants.InvalidRequest, http.StatusBadRequest)
+		return
+	}
+
+	var payload admin.EditOfficialResultRequest
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, constants.InvalidRequest, http.StatusBadRequest)
+		return
+	}
+
+	result, err := h.service.UpdateOfficialResult(uint(id), payload)
+	if err != nil {
+		switch {
+		case errors.Is(err, admin.ErrOfficialResultNotFound):
+			http.Error(w, err.Error(), http.StatusNotFound)
+		case errors.Is(err, admin.ErrInvalidOfficialResult):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		default:
+			http.Error(w, "failed to update official result", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	writeJSON(w, result)
+}
+
+func (h *AdminController) deleteOfficialResult(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, constants.InvalidRequest, http.StatusBadRequest)
+		return
+	}
+
+	if err := h.service.DeleteOfficialResult(uint(id)); err != nil {
+		if errors.Is(err, admin.ErrOfficialResultNotFound) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else {
+			http.Error(w, "failed to delete official result", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+

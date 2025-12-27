@@ -12,8 +12,11 @@ import (
 type OfficialResultRepository interface {
 	Create(ctx context.Context, db *gorm.DB, result *models.ExamOfficialResult) error
 	FindByExamAndDNI(ctx context.Context, db *gorm.DB, examID uint, dni string) (*models.ExamOfficialResult, error)
+	FindByID(ctx context.Context, db *gorm.DB, id uint) (*models.ExamOfficialResult, error)
 	List(ctx context.Context, db *gorm.DB, examID uint, offset, limit int, order string) ([]models.ExamOfficialResult, int64, error)
 	DeleteByExamID(ctx context.Context, db *gorm.DB, examID uint) error
+	Update(ctx context.Context, db *gorm.DB, result *models.ExamOfficialResult) error
+	Delete(ctx context.Context, db *gorm.DB, id uint) error
 }
 
 type officialResultRepository struct{}
@@ -40,6 +43,16 @@ func (r *officialResultRepository) FindByExamAndDNI(ctx context.Context, db *gor
 	}
 	return &result, nil
 }
+
+func (r *officialResultRepository) FindByID(ctx context.Context, db *gorm.DB, id uint) (*models.ExamOfficialResult, error) {
+	var result models.ExamOfficialResult
+	err := db.WithContext(ctx).First(&result, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 
 func (r *officialResultRepository) List(ctx context.Context, db *gorm.DB, examID uint, offset, limit int, order string) ([]models.ExamOfficialResult, int64, error) {
 	var results []models.ExamOfficialResult
@@ -74,3 +87,18 @@ func (r *officialResultRepository) List(ctx context.Context, db *gorm.DB, examID
 func (r *officialResultRepository) DeleteByExamID(ctx context.Context, db *gorm.DB, examID uint) error {
 	return db.WithContext(ctx).Where("exam_id = ?", examID).Delete(&models.ExamOfficialResult{}).Error
 }
+
+func (r *officialResultRepository) Update(ctx context.Context, db *gorm.DB, result *models.ExamOfficialResult) error {
+	result.Nombre = helpers.NormalizeName(result.Nombre)
+	result.Apellido1 = helpers.NormalizeName(result.Apellido1)
+	if result.Apellido2 != nil {
+		normalizedApellido2 := helpers.NormalizeName(*result.Apellido2)
+		result.Apellido2 = &normalizedApellido2
+	}
+	return db.WithContext(ctx).Save(result).Error
+}
+
+func (r *officialResultRepository) Delete(ctx context.Context, db *gorm.DB, id uint) error {
+	return db.WithContext(ctx).Delete(&models.ExamOfficialResult{}, id).Error
+}
+

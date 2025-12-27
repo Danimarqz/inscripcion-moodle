@@ -19,6 +19,10 @@ var (
 	ErrQuestionNotFound      = errors.New("la pregunta no pertenece al examen")
 	ErrOfficialResultExists  = errors.New("ya existe un resultado oficial con ese DNI para este examen")
 	ErrInvalidOfficialResult = errors.New("datos de resultado oficial invalidos")
+	ErrOfficialResultNotFound = errors.New("resultado oficial no encontrado")
+	ErrExamNotFound          = errors.New("el examen no existe")
+	ErrExamNoQuestions       = errors.New("el examen debe tener al menos una pregunta")
+	ErrInvalidOption         = errors.New("opcion de respuesta no valida")
 )
 
 type Service struct {
@@ -47,7 +51,7 @@ func (s *Service) GetExam(examID uint) (*models.Exam, error) {
 	exam, err := s.examRepo.FindExamByID(context.Background(), s.db, examID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("examen %d no existe: %w", examID, err)
+			return nil, ErrExamNotFound
 		}
 		return nil, err
 	}
@@ -56,7 +60,7 @@ func (s *Service) GetExam(examID uint) (*models.Exam, error) {
 
 func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 	if len(req.Questions) == 0 {
-		return nil, errors.New("el examen debe tener al menos una pregunta")
+		return nil, ErrExamNoQuestions
 	}
 
 	exists, err := s.examRepo.CountByName(context.Background(), s.db, req.Name)
@@ -108,7 +112,7 @@ func createQuestions(inputs []QuestionInput) ([]models.Question, error) {
 
 		normalizedOption := strings.ToUpper(strings.TrimSpace(input.CorrectOption))
 		if normalizedOption == "" {
-			return nil, errors.New("opcion de respuesta no valida")
+			return nil, ErrInvalidOption
 		}
 
 		model := models.Question{
@@ -457,7 +461,7 @@ func (s *Service) CreateOfficialResult(examID uint, req CreateOfficialResultRequ
 	nombre := strings.ToUpper(strings.TrimSpace(req.Nombre))
 
 	if dni == "" || apellido1 == "" || nombre == "" {
-		return nil, fmt.Errorf("%w: DNI, apellido 1 y nombre son obligatorios", ErrInvalidOfficialResult)
+		return nil, ErrInvalidOfficialResult
 	}
 
 	apellido2Raw := strings.ToUpper(strings.TrimSpace(req.Apellido2))
@@ -502,6 +506,57 @@ func (s *Service) CreateOfficialResult(examID uint, req CreateOfficialResultRequ
 	// If needed we can do FindByExamAndDNI again or rely on GORM filling ID. 
 	// For consistency let's just return the struct as GORM fills ID.
 	return &newResult, nil
+}
+
+func (s *Service) UpdateOfficialResult(id uint, req EditOfficialResultRequest) (*models.ExamOfficialResult, error) {
+	result, err := s.officialRepo.FindByID(context.Background(), s.db, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrOfficialResultNotFound
+		}
+		return nil, err
+	}
+
+	if req.Apellido1 != nil {
+		val := strings.ToUpper(strings.TrimSpace(*req.Apellido1))
+		if val == "" {
+			return nil, ErrInvalidOfficialResult
+		}
+		result.Apellido1 = val
+	}
+	if req.Apellido2 != nil {
+		val := strings.ToUpper(strings.TrimSpace(*req.Apellido2))
+		if val == "" {
+			result.Apellido2 = nil
+		} else {
+			result.Apellido2 = &val
+		}
+	}
+	if req.Nombre != nil {
+		val := strings.ToUpper(strings.TrimSpace(*req.Nombre))
+		if val == "" {
+			return nil, ErrInvalidOfficialResult
+		}
+		result.Nombre = val
+	}
+
+	if err := s.officialRepo.Update(context.Background(), s.db, result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (s *Service) DeleteOfficialResult(id uint) error {
+	_, err := s.officialRepo.FindByID(context.Background(), s.db, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrOfficialResultNotFound
+		}
+		return err
+	}
+
+	return s.officialRepo.Delete(context.Background(), s.db, id)
 }
 
 func activeQuestions(questions []models.Question) []models.Question {

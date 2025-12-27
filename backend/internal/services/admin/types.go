@@ -61,3 +61,11 @@ type CreateOfficialResultRequest struct {
 	Apellido2 string `json:"apellido_2,omitempty"`
 	Nombre    string `json:"nombre"`
 }
+
+type EditOfficialResultRequest struct {
+	DNI       *string `json:"dni,omitempty"`
+	Apellido1 *string `json:"apellido_1,omitempty"`
+	Apellido2 *string `json:"apellido_2,omitempty"`
+	Nombre    *string `json:"nombre,omitempty"`
+}
+

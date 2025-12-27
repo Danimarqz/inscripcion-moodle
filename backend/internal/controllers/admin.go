@@ -93,6 +93,8 @@ func (h *AdminController) RegisterRoutes(r chi.Router) {
 		r.Post("/moodle/sync-users", h.syncMoodleUsers)
 		r.Get("/exams/{exam_id}/results/official", h.listOfficialResults)
 		r.Post("/exams/{exam_id}/results/official", h.createOfficialResult)
+		r.Put("/exams/results/official/{id}", h.updateOfficialResult)
+		r.Delete("/exams/results/official/{id}", h.deleteOfficialResult)
 		r.Post("/exams/{exam_id}/results/import", h.importOfficialResults)
 	})
 }

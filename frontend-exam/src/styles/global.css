@@ -10,6 +10,12 @@
   background-color: #13151a !important;
 }
 
+button, 
+a,
+[role="button"] {
+  cursor: pointer;
+}
+
 @layer components {
   .btn-brand {
     @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 font-semibold text-white tracking-wide transition-all duration-300 hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed;
