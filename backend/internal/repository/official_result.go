@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/inscripcion-moodle/go-backend/internal/helpers"
 	"github.com/inscripcion-moodle/go-backend/internal/models"
 	"gorm.io/gorm"
 )
@@ -22,6 +23,12 @@ func NewOfficialResultRepository() OfficialResultRepository {
 }
 
 func (r *officialResultRepository) Create(ctx context.Context, db *gorm.DB, result *models.ExamOfficialResult) error {
+	result.Nombre = helpers.NormalizeName(result.Nombre)
+	result.Apellido1 = helpers.NormalizeName(result.Apellido1)
+	if result.Apellido2 != nil {
+		normalizedApellido2 := helpers.NormalizeName(*result.Apellido2)
+		result.Apellido2 = &normalizedApellido2
+	}
 	return db.WithContext(ctx).Create(result).Error
 }
 

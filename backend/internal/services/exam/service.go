@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"unicode"
 
-	"golang.org/x/text/unicode/norm"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 
@@ -41,26 +39,6 @@ func NormalizeDNI(value string) string {
 	return strings.ToUpper(strings.TrimSpace(value))
 }
 
-func normalizeName(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return ""
-	}
-	// Remove accents and normalize spacing, uppercase result for strict compares.
-	decomposed := norm.NFD.String(trimmed)
-	var b strings.Builder
-	for _, r := range decomposed {
-		if unicode.Is(unicode.Mn, r) {
-			continue
-		}
-		if unicode.IsSpace(r) {
-			b.WriteRune(' ')
-			continue
-		}
-		b.WriteRune(unicode.ToUpper(r))
-	}
-	return strings.Join(strings.Fields(b.String()), " ")
-}
 
 func extractDigits(value string) string {
 	var b strings.Builder
@@ -470,8 +448,8 @@ func CheckOfficialResultMatch(db *gorm.DB, req OfficialResultMatchRequest) (bool
 		return false, ErrExamNotFound
 	}
 
-	name := normalizeName(req.Name)
-	surname := normalizeName(req.Surname)
+	name := helpers.NormalizeName(req.Name)
+	surname := helpers.NormalizeName(req.Surname)
 	if name == "" || surname == "" {
 		return false, nil
 	}
@@ -481,18 +459,21 @@ func CheckOfficialResultMatch(db *gorm.DB, req OfficialResultMatchRequest) (bool
 		return false, nil
 	}
 
+	// Buscamos registros que contengan los 4 dígitos centrales en el campo dni_masked.
+	pattern := "%" + centerDigits + "%"
+
 	var results []models.ExamOfficialResult
-	if err := db.Where("exam_id = ?", req.ExamID).Find(&results).Error; err != nil {
+	if err := db.Where("exam_id = ? AND dni_masked LIKE ?", req.ExamID, pattern).Find(&results).Error; err != nil {
 		return false, err
 	}
 
 	for _, res := range results {
-		resName := normalizeName(res.Nombre)
+		resName := helpers.NormalizeName(res.Nombre)
 		surnameParts := []string{res.Apellido1}
 		if res.Apellido2 != nil {
 			surnameParts = append(surnameParts, *res.Apellido2)
 		}
-		resSurname := normalizeName(strings.TrimSpace(strings.Join(surnameParts, " ")))
+		resSurname := helpers.NormalizeName(strings.TrimSpace(strings.Join(surnameParts, " ")))
 		if resName == "" || resSurname == "" {
 			continue
 		}
@@ -502,6 +483,7 @@ func CheckOfficialResultMatch(db *gorm.DB, req OfficialResultMatchRequest) (bool
 		if resSurname != surname {
 			continue
 		}
+		// Doble check por seguridad, aunque el LIKE ya debería haber filtrado la mayoría
 		if middleFourDigits(res.DniMasked) == centerDigits {
 			return true, nil
 		}

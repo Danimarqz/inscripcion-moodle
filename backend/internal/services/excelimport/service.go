@@ -12,12 +12,11 @@ import (
 	"github.com/xuri/excelize/v2"
 	"gorm.io/gorm"
 
+	"github.com/inscripcion-moodle/go-backend/internal/helpers"
 	"github.com/inscripcion-moodle/go-backend/internal/models"
 )
 
 var isHeaderRegex = regexp.MustCompile(`^[a-zA-Z\s]+$`)
-var cleanNameRegex = regexp.MustCompile(`[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]`)
-var multipleSpacesRegex = regexp.MustCompile(`\s+`)
 
 type Service struct {
 	repo ExamRepository
@@ -161,9 +160,7 @@ func (s *Service) storeOfficialResults(ctx context.Context, examID uint, rows *e
 }
 
 func cleanNameField(s string) string {
-	cleaned := cleanNameRegex.ReplaceAllString(s, "")
-	cleaned = multipleSpacesRegex.ReplaceAllString(cleaned, " ")
-	return strings.TrimSpace(cleaned)
+	return helpers.NormalizeName(s)
 }
 
 func parseOfficialResultRow(examID uint, row []string) (models.ExamOfficialResult, bool) {
