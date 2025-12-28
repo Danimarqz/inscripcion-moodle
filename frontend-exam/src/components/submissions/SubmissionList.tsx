@@ -75,7 +75,7 @@ export default function SubmissionList({
                   <span className="px-3 py-1 rounded-full border border-brand-yellow-soft text-brand-yellow">
                     Percentil: {submission.percentile ?? 'N/A'}
                   </span>
-                  <span className="px-3 py-1 rounded-full border border-purple-500/30 text-purple-400">
+                  <span className="px-3 py-1 rounded-full border border-brand-pink-soft text-brand-pink">
                     Méritos: {submission.merits ?? 0}
                   </span>
                 </div>

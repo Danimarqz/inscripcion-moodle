@@ -441,9 +441,6 @@ export default function ExamPage({
                  name="merits"
                  className="w-full px-4 py-3 rounded-lg bg-[#1f2229] border border-[#555] text-white focus:ring-2 focus:ring-brand-pink focus:border-transparent transition-all"
                />
-               <p className="text-xs text-gray-400 mt-1">
-                 Esta puntuación se guarda como referencia pero NO afecta a la nota ni al percentil.
-               </p>
             </div>
 
             <div className="mt-8 space-top-3 text-sm">
