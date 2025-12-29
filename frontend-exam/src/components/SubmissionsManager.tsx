@@ -565,7 +565,6 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
             downloadingAnalysis={downloadingAnalysis}
           />
        </>
-
        {error && <p className="text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mb-4">{error}</p>}
        {feedback && <p className="text-green-400 bg-green-400/10 border border-green-500 p-4 rounded-md mb-4">{feedback}</p>}
        

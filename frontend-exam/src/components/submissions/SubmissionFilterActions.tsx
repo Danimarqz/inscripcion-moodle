@@ -40,18 +40,6 @@ export default function SubmissionFilterActions({
       </label>
       <button
         type="button"
-        onClick={onDownloadEmails}
-        disabled={downloadingEmails}
-        className={`px-4 py-2 rounded text-white transition-colors ${
-          downloadingEmails
-            ? 'bg-[#1c2230] opacity-60 cursor-progress border border-[#444]'
-            : 'bg-brand-pink hover:bg-[#ff8b6d] border border-brand-pink-soft cursor-pointer'
-        }`}
-        >
-        {downloadingEmails ? 'Generando lista...' : 'Descargar emails (.txt)'}
-      </button>
-      <button
-        type="button"
         onClick={onComposeEmails}
         disabled={composingEmails}
         className={`px-4 py-2 rounded text-white transition-colors ${
@@ -64,15 +52,27 @@ export default function SubmissionFilterActions({
       </button>
       <button
         type="button"
+        onClick={onDownloadEmails}
+        disabled={downloadingEmails}
+        className={`px-4 py-2 rounded text-white transition-colors ${
+          downloadingEmails
+            ? 'bg-[#1c2230] opacity-60 cursor-progress border border-[#444]'
+            : 'bg-brand-yellow hover:bg-brand-yellow-soft border border-brand-yellow-soft cursor-pointer'
+        }`}
+        >
+        {downloadingEmails ? 'Generando lista...' : 'Descargar emails'}
+      </button>
+      <button
+        type="button"
         onClick={onDownloadAnalysis}
         disabled={downloadingAnalysis}
         className={`px-4 py-2 rounded text-white transition-colors ${
           downloadingAnalysis
             ? 'bg-[#1c2230] opacity-60 cursor-progress border border-[#444]'
-            : 'bg-green-600 hover:bg-green-500 border border-green-400 cursor-pointer'
+            : 'bg-brand-pink hover:bg-[#ff8b6d] border border-brand-pink-soft cursor-pointer'
         }`}
       >
-        {downloadingAnalysis ? 'Generando...' : 'Descargar Análisis (.xlsx)'}
+        {downloadingAnalysis ? 'Generando...' : 'Descargar Análisis'}
       </button>
       {downloadMessage && <p className="text-xs text-brand-blue w-full md:w-auto">{downloadMessage}</p>}
       {downloadError && <p className="text-xs text-brand-pink w-full md:w-auto">{downloadError}</p>}
