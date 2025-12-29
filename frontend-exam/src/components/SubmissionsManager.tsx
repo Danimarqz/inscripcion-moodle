@@ -4,6 +4,7 @@ import type { AdminSubmission, AdminSubmissionsResponse, Exam, QuestionEdit } fr
 import {
   deleteSubmissionAttempt,
   downloadSubmissionEmails,
+  downloadSubmissionsAnalysis,
   fetchSubmissionEmailList,
   getExamById,
   getExamSubmissions,
@@ -64,6 +65,7 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
   const [filterMoodleUsers, setFilterMoodleUsers] = useState(false);
 
   const [downloadingEmails, setDownloadingEmails] = useState(false);
+  const [downloadingAnalysis, setDownloadingAnalysis] = useState(false);
   const [downloadMessage, setDownloadMessage] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
@@ -414,6 +416,32 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
     }
   }
 
+  async function handleDownloadAnalysis() {
+    setDownloadMessage(null);
+    setDownloadError(null);
+    setDownloadingAnalysis(true);
+    try {
+      const blob = await downloadSubmissionsAnalysis(examId, token, {
+        search: searchTerm,
+        moodleSynced: filterMoodleUsers ? true : undefined,
+        type: filterType,
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `analysis_exam_${examId}.xlsx`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+      setDownloadMessage('Análisis descargado correctamente.');
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDownloadingAnalysis(false);
+    }
+  }
+
   const readFileAsBase64 = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -533,6 +561,8 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
             composingEmails={emailLoading || emailSending}
             composeMessage={emailComposeMessage}
             composeError={emailComposeModalError}
+            onDownloadAnalysis={handleDownloadAnalysis}
+            downloadingAnalysis={downloadingAnalysis}
           />
        </>
 

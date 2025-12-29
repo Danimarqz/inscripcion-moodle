@@ -255,6 +255,43 @@ func (h *AdminController) deleteSubmission(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, map[string]string{"detail": "Intento eliminado correctamente"})
 }
 
+func (h *AdminController) downloadSubmissionsAnalysis(w http.ResponseWriter, r *http.Request) {
+	examIDStr := chi.URLParam(r, "exam_id")
+	if examIDStr == "" {
+		http.Error(w, "exam_id required", http.StatusBadRequest)
+		return
+	}
+	examID, err := strconv.ParseUint(examIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid exam id", http.StatusBadRequest)
+		return
+	}
+
+	search := strings.TrimSpace(r.URL.Query().Get("search"))
+	orderBy := sanitizeOrderBy(r.URL.Query().Get("order_by"))
+	orderDir := sanitizeOrderDir(r.URL.Query().Get("order_dir"))
+	moodleSynced := parseOptionalBool(r.URL.Query().Get("moodle_synced"))
+	resultType := r.URL.Query().Get("type")
+	var resultTypePtr *string
+	if resultType != "" {
+		resultTypePtr = &resultType
+	}
+
+	buf, err := h.service.ExportSubmissionsAnalysis(uint(examID), search, orderBy, orderDir, moodleSynced, resultTypePtr)
+	if err != nil {
+		log.Printf("failed to export submissions analysis: %v", err)
+		http.Error(w, "failed to generate analysis", http.StatusInternalServerError)
+		return
+	}
+
+	filename := fmt.Sprintf("analysis_exam_%d.xlsx", examID)
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	if _, err := w.Write(buf.Bytes()); err != nil {
+		log.Printf("failed to write analysis response: %v", err)
+	}
+}
+
 func parseSubmissionEmailFilters(r *http.Request) (uint, string, string, string, *bool, error) {
 	examIDStr := r.URL.Query().Get("exam_id")
 	if examIDStr == "" {

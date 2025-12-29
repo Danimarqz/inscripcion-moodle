@@ -163,6 +163,20 @@ export async function downloadSubmissionEmails(
   return response.text();
 }
 
+export async function downloadSubmissionsAnalysis(
+  examId: number,
+  token: string,
+  options: FetchSubmissionsOptions = {},
+): Promise<Blob> {
+  const params = buildParams(examId, options);
+  const API_URL = import.meta.env.PUBLIC_API_URL;
+  const response = await fetch(`${API_URL}/admin/exams/${examId}/results/analysis?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Error downloading analysis');
+  return response.blob();
+}
+
 export async function sendSubmissionEmails(
   payload: SendSubmissionEmailsPayload,
   token: string,

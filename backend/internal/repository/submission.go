@@ -12,7 +12,7 @@ import (
 
 type SubmissionRepository interface {
 	FindByID(ctx context.Context, db *gorm.DB, submissionID uint) (*models.UserExamSubmission, error)
-	List(ctx context.Context, db *gorm.DB, examID uint, limit, offset int, search, order string, moodleSynced *bool, resultType *string) ([]models.UserExamSubmission, error)
+	List(ctx context.Context, db *gorm.DB, examID uint, includeAnswers bool, limit, offset int, search, order string, moodleSynced *bool, resultType *string) ([]models.UserExamSubmission, error)
 	Count(ctx context.Context, db *gorm.DB, examID uint, moodleSynced *bool, resultType *string) (int64, error)
 	Delete(ctx context.Context, db *gorm.DB, submissionID uint) error
 	DeleteByExamID(ctx context.Context, db *gorm.DB, examID uint) error
@@ -36,10 +36,14 @@ func (r *submissionRepository) FindByID(ctx context.Context, db *gorm.DB, submis
 	return &submission, nil
 }
 
-func (r *submissionRepository) List(ctx context.Context, db *gorm.DB, examID uint, limit, offset int, search, order string, moodleSynced *bool, resultType *string) ([]models.UserExamSubmission, error) {
+func (r *submissionRepository) List(ctx context.Context, db *gorm.DB, examID uint, includeAnswers bool, limit, offset int, search, order string, moodleSynced *bool, resultType *string) ([]models.UserExamSubmission, error) {
 	var subs []models.UserExamSubmission
 	query := db.WithContext(ctx).Preload("User").
 		Where("exam_id = ?", examID)
+	
+	if includeAnswers {
+		query = query.Preload("Answers")
+	}
 
 	query = query.Joins("LEFT JOIN exam_user ON exam_user.id = user_exam_submission.user_id")
 

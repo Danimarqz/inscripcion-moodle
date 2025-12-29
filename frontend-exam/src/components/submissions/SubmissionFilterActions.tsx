@@ -9,6 +9,8 @@ interface SubmissionFilterActionsProps {
   composingEmails: boolean;
   composeMessage: string | null;
   composeError: string | null;
+  onDownloadAnalysis: () => void;
+  downloadingAnalysis: boolean;
 }
 
 export default function SubmissionFilterActions({
@@ -22,6 +24,8 @@ export default function SubmissionFilterActions({
   composingEmails,
   composeMessage,
   composeError,
+  onDownloadAnalysis,
+  downloadingAnalysis,
 }: SubmissionFilterActionsProps) {
   return (
     <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -57,6 +61,18 @@ export default function SubmissionFilterActions({
         }`}
       >
         {composingEmails ? 'Cargando... ' : 'Enviar emails'}
+      </button>
+      <button
+        type="button"
+        onClick={onDownloadAnalysis}
+        disabled={downloadingAnalysis}
+        className={`px-4 py-2 rounded text-white transition-colors ${
+          downloadingAnalysis
+            ? 'bg-[#1c2230] opacity-60 cursor-progress border border-[#444]'
+            : 'bg-green-600 hover:bg-green-500 border border-green-400 cursor-pointer'
+        }`}
+      >
+        {downloadingAnalysis ? 'Generando...' : 'Descargar Análisis (.xlsx)'}
       </button>
       {downloadMessage && <p className="text-xs text-brand-blue w-full md:w-auto">{downloadMessage}</p>}
       {downloadError && <p className="text-xs text-brand-pink w-full md:w-auto">{downloadError}</p>}
