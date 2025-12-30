@@ -21,6 +21,18 @@ Este proyecto es una aplicación web completa que consta de dos partes principal
 *   **Resultados y Percentiles:** Cálculo en tiempo real de puntuaciones y percentiles.
 *   **Caché de Alto Rendimiento:** Uso de Redis para cachear preguntas y resultados públicos, reduciendo la carga en base de datos.
 
+## Novedades Recientes (Dic 2025)
+
+### Optimización y Backend
+*   **Carga Diferida (Lazy Loading):** Optimización masiva en `/admin/results`. Las respuestas de los estudiantes ahora se cargan solo bajo demanda al editar, reduciendo el tamaño de la respuesta inicial y mejorando la velocidad.
+*   **Exportación Excel:** Solucionados problemas en el reporte de fallos y respuestas correctas para un análisis más preciso.
+*   **Configuración:** Manejo dinámico del remitente SMTP en los mensajes de error.
+
+### Experiencia de Usuario (Frontend)
+*   **Identidad Visual:** Actualización de estilos, destacando los méritos con el color `brand-pink`.
+*   **Usabilidad:** Implementación global de `cursor-pointer` en todos los elementos interactivos para una navegación más intuitiva.
+*   **Feedback:** Nuevas pantallas de "estado vacío" que comunican claramente cuando no hay resultados o intentos registrados.
+
 ## Estructura del Proyecto
 
 ```
