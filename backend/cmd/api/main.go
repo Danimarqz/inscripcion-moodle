@@ -27,5 +27,10 @@ func main() {
 	if err := srv.Start(ctx); err != nil {
 		log.Fatalf("server shutdown: %v", err)
 	}
+
+	if err := context.Cause(ctx); err != nil {
+		log.Printf("shutdown cause: %v", err)
+	}
+
 	log.Println("server stopped")
 }

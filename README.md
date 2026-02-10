@@ -67,7 +67,7 @@ inscripcion-moodle/
 ## Requisitos
 
 *   **Backend:**
-    *   Go 1.25+
+    *   Go 1.26+
     *   Redis (para caché y rate limiting)
     *   Servidor SMTP (para envío de correos)
 *   **Frontend (Exams):**

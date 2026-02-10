@@ -1,6 +1,6 @@
 module github.com/inscripcion-moodle/go-backend
 
-go 1.25.3
+go 1.26
 
 require (
 	github.com/glebarez/sqlite v1.11.0

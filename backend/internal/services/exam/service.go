@@ -314,14 +314,14 @@ func createSubmission(tx *gorm.DB, req SubmitExamRequest, userID uint) (*models.
 		return nil, nil, nil, err
 	}
 
-	scorePtr := helpers.Ptr(breakdown.Score)
+	scorePtr := new(breakdown.Score)
 
 	submission := &models.UserExamSubmission{
 		UserID:             userID,
 		ExamID:             req.ExamID,
 		Score:              scorePtr,
 		Merits:             req.Merits,
-		Percentile:         helpers.Ptr(0.0),
+		Percentile:         new(0.0),
 		SelectedResultType: req.ResultType,
 	}
 
@@ -492,8 +492,8 @@ func buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submission *models.U
 		}
 
 		if breakdownData != nil {
-			payload.CorrectAnswers = helpers.Ptr(breakdownData.CorrectAnswers)
-			payload.TotalQuestions = helpers.Ptr(breakdownData.TotalQuestions)
+			payload.CorrectAnswers = new(breakdownData.CorrectAnswers)
+			payload.TotalQuestions = new(breakdownData.TotalQuestions)
 		}
 	}
 
@@ -517,7 +517,7 @@ func getSubmissionPositionData(tx *gorm.DB, submission *models.UserExamSubmissio
 	}
 	totalSubmissions := int(total)
 	if totalSubmissions == 0 || submission.Score == nil {
-		return nil, helpers.Ptr(totalSubmissions), nil
+		return nil, new(totalSubmissions), nil
 	}
 
 	var better int64
@@ -527,7 +527,7 @@ func getSubmissionPositionData(tx *gorm.DB, submission *models.UserExamSubmissio
 		return nil, nil, err
 	}
 	position := int(better) + 1
-	return helpers.Ptr(position), helpers.Ptr(totalSubmissions), nil
+	return new(position), new(totalSubmissions), nil
 }
 
 func fetchScoreBreakdownFromDB(tx *gorm.DB, examID, submissionID uint) (*ScoreBreakdown, error) {
@@ -591,15 +591,15 @@ func buildAnswersReview(tx *gorm.DB, exam *models.Exam, submission *models.UserE
 		selected, has := answerMap[question.ID]
 		var selectedPtr *string
 		if has {
-			selectedPtr = helpers.Ptr(selected)
+			selectedPtr = new(selected)
 		}
 		var correctPtr *string
 		if question.CorrectOption != "" {
-			correctPtr = helpers.Ptr(strings.ToUpper(question.CorrectOption))
+			correctPtr = new(strings.ToUpper(question.CorrectOption))
 		}
 		review = append(review, AnswerReview{
 			QuestionID:     question.ID,
-			QuestionLabel:  helpers.Ptr(question.Name),
+			QuestionLabel:  new(question.Name),
 			SelectedOption: selectedPtr,
 			CorrectOption:  correctPtr,
 			IsCorrect:      has && correctPtr != nil && selectedPtr != nil && strings.EqualFold(*selectedPtr, *correctPtr),
