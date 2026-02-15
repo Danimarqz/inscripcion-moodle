@@ -99,8 +99,9 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 }
 
 func createQuestions(inputs []QuestionInput) ([]models.Question, error) {
-	nameGen := newQuestionNameGenerator(nil)
 	questions := make([]models.Question, 0, len(inputs))
+	
+	count := 1
 
 	for _, input := range inputs {
 		isActive := true
@@ -111,6 +112,9 @@ func createQuestions(inputs []QuestionInput) ([]models.Question, error) {
 		if input.IsCancelled != nil {
 			isCancelled = *input.IsCancelled
 		}
+		
+		name := count
+		count++
 
 		normalizedOption := strings.ToUpper(strings.TrimSpace(input.CorrectOption))
 		if normalizedOption == "" {
@@ -119,7 +123,7 @@ func createQuestions(inputs []QuestionInput) ([]models.Question, error) {
 
 		model := models.Question{
 			ID:            0,
-			Name:          nameGen.Next(input.Name),
+			Name:          name,
 			IsActive:      isActive,
 			IsCancelled:   isCancelled,
 			CorrectOption: normalizedOption,
@@ -157,16 +161,38 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 		exam.ValidatedTribunal = *req.ValidatedTribunal
 	}
 
-	questions, err := s.updateQuestions(exam.ID, exam.Questions, req.Questions)
+	// 1. Identify questions to delete
+	inputQuestionIDs := make(map[uint]struct{})
+	for _, q := range req.Questions {
+		if q.ID != nil {
+			inputQuestionIDs[*q.ID] = struct{}{}
+		}
+	}
+
+	toDelete := []uint{}
+	for _, q := range exam.Questions {
+		if _, found := inputQuestionIDs[q.ID]; !found {
+			toDelete = append(toDelete, q.ID)
+		}
+	}
+
+	if len(toDelete) > 0 {
+		if err := s.questionRepo.DeleteQuestions(context.Background(), s.db, toDelete); err != nil {
+			return nil, err
+		}
+	}
+
+	// 2. Update remaining questions and create new ones
+	updatedQuestions, err := s.mergeQuestions(exam.ID, exam.Questions, req.Questions)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(activeQuestions(questions)) == 0 {
+	if len(activeQuestions(updatedQuestions)) == 0 {
 		return nil, ErrActiveQuestions
 	}
 
-	exam.Questions = questions
+	exam.Questions = updatedQuestions
 	if err := s.examRepo.UpdateExam(context.Background(), s.db, exam); err != nil {
 		return nil, err
 	}
@@ -175,8 +201,33 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 }
 
 func (s *Service) updateQuestions(examID uint, existing []models.Question, inputs []QuestionInput) ([]models.Question, error) {
-	nameGen := newQuestionNameGenerator(questionNames(existing))
-	return s.mergeQuestions(examID, existing, inputs, nameGen)
+	return s.mergeQuestions(examID, existing, inputs)
+}
+
+func splitQuestionInputs(inputs []QuestionInput) (active []QuestionInput, reserve []QuestionInput) {
+	for _, q := range inputs {
+		isActive := true
+		if q.IsActive != nil {
+			isActive = *q.IsActive
+		}
+		if isActive {
+			active = append(active, q)
+		} else {
+			reserve = append(reserve, q)
+		}
+	}
+	return
+}
+
+func splitQuestions(questions []models.Question) (active []models.Question, reserve []models.Question) {
+	for _, q := range questions {
+		if q.IsActive {
+			active = append(active, q)
+		} else {
+			reserve = append(reserve, q)
+		}
+	}
+	return
 }
 
 func (s *Service) DeleteExam(examID uint) error {
@@ -582,70 +633,24 @@ func activeQuestions(questions []models.Question) []models.Question {
 	return out
 }
 
-
-
-type questionNameGenerator struct {
-	used map[int]struct{}
-	next int
-}
-
-func newQuestionNameGenerator(existing []int) *questionNameGenerator {
-	used := map[int]struct{}{}
-	max := 0
-	for _, v := range existing {
-		if v > 0 {
-			used[v] = struct{}{}
-			if v > max {
-				max = v
-			}
-		}
-	}
-	return &questionNameGenerator{
-		used: used,
-		next: max + 1,
-	}
-}
-
-func (g *questionNameGenerator) Next(preferred *int) int {
-	if preferred != nil && *preferred > 0 {
-		if _, ok := g.used[*preferred]; !ok {
-			g.used[*preferred] = struct{}{}
-			return *preferred
-		}
-	}
-
-	for {
-		candidate := g.next
-		g.next++
-		if _, ok := g.used[candidate]; !ok {
-			g.used[candidate] = struct{}{}
-			return candidate
-		}
-	}
-}
-
-func questionNames(questions []models.Question) []int {
-	names := make([]int, 0, len(questions))
-	for _, q := range questions {
-		if q.Name > 0 {
-			names = append(names, q.Name)
-		}
-	}
-	return names
-}
-
-func (s *Service) mergeQuestions(examID uint, existing []models.Question, inputs []QuestionInput, nameGen *questionNameGenerator) ([]models.Question, error) {
+func (s *Service) mergeQuestions(examID uint, existing []models.Question, inputs []QuestionInput) ([]models.Question, error) {
 	existingMap := map[uint]*models.Question{}
 	for i := range existing {
 		existingMap[existing[i].ID] = &existing[i]
 	}
 
 	questions := make([]models.Question, 0, len(inputs))
+	count := 1
+
 	for _, input := range inputs {
 		var model models.Question
 		if input.ID != nil {
 			existingQuestion, ok := existingMap[*input.ID]
 			if !ok {
+				// The question was deleted in step 1, but passed here? 
+				// Should not happen if inputs are correct.
+				// If ID is valid but not in DB (deleted by someone else?), treat as error or new?
+				// Treating as error safe.
 				return nil, ErrQuestionNotFound
 			}
 			model = *existingQuestion
@@ -653,7 +658,6 @@ func (s *Service) mergeQuestions(examID uint, existing []models.Question, inputs
 			model = models.Question{ExamID: examID}
 		}
 
-		model.Name = nameGen.Next(input.Name)
 		model.CorrectOption = strings.ToUpper(strings.TrimSpace(input.CorrectOption))
 		model.IsActive = true
 		model.IsCancelled = false
@@ -664,6 +668,10 @@ func (s *Service) mergeQuestions(examID uint, existing []models.Question, inputs
 			model.IsCancelled = *input.IsCancelled
 		}
 		model.ExamID = examID
+		
+		// Assign Name strictly sequential globally
+		model.Name = count
+		count++
 
 		questions = append(questions, model)
 	}

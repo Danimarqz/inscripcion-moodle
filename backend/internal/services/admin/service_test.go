@@ -62,6 +62,11 @@ func (m *MockQuestionRepository) DeleteByExamID(ctx context.Context, db *gorm.DB
 	return args.Error(0)
 }
 
+func (m *MockQuestionRepository) DeleteQuestions(ctx context.Context, db *gorm.DB, questionIDs []uint) error {
+	args := m.Called(ctx, db, questionIDs)
+	return args.Error(0)
+}
+
 func TestService_ListExams(t *testing.T) {
 	mockRepo := new(MockExamRepository)
 	service := New(nil, mockRepo, nil, nil, nil) // passing nil for questionRepo
