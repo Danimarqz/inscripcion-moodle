@@ -85,6 +85,8 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 		ShowPercentile:    req.ShowPercentile,
 		ShowScoreFull:     req.ShowScoreFull,
 		ValidatedTribunal: req.ValidatedTribunal,
+		SubtractsPoints:   req.SubtractsPoints,
+		PenaltyValue:      req.PenaltyValue,
 		Questions:         questions,
 	}
 
@@ -159,6 +161,12 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 	}
 	if req.ValidatedTribunal != nil {
 		exam.ValidatedTribunal = *req.ValidatedTribunal
+	}
+	if req.SubtractsPoints != nil {
+		exam.SubtractsPoints = *req.SubtractsPoints
+	}
+	if req.PenaltyValue != nil {
+		exam.PenaltyValue = req.PenaltyValue
 	}
 
 	// 1. Identify questions to delete

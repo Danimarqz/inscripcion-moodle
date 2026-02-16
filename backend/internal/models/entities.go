@@ -10,6 +10,8 @@ type Exam struct {
 	ShowPercentile    bool                 `gorm:"column:show_percentile" json:"show_percentile"`
 	ShowScoreFull     bool                 `gorm:"column:show_score_full" json:"show_score_full"`
 	ValidatedTribunal bool                 `gorm:"column:validated_tribunal" json:"validated_tribunal"`
+	SubtractsPoints   bool                 `gorm:"column:subtracts_points" json:"subtracts_points"`
+	PenaltyValue      *float64             `gorm:"column:penalty_value" json:"penalty_value"`
 	Questions         []Question           `gorm:"foreignKey:ExamID" json:"questions"`
 	Submissions       []UserExamSubmission `gorm:"foreignKey:ExamID" json:"submissions"`
 }

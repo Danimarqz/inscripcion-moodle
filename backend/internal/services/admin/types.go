@@ -17,6 +17,8 @@ type CreateExamRequest struct {
 	ShowPercentile    bool            `json:"show_percentile"`
 	ShowScoreFull     bool            `json:"show_score_full"`
 	ValidatedTribunal bool            `json:"validated_tribunal"`
+	SubtractsPoints   bool            `json:"subtracts_points"`
+	PenaltyValue      *float64        `json:"penalty_value,omitempty"`
 	Questions         []QuestionInput `json:"questions"`
 }
 
@@ -27,6 +29,8 @@ type EditExamRequest struct {
 	ShowPercentile    *bool           `json:"show_percentile,omitempty"`
 	ShowScoreFull     *bool           `json:"show_score_full,omitempty"`
 	ValidatedTribunal *bool           `json:"validated_tribunal,omitempty"`
+	SubtractsPoints   *bool           `json:"subtracts_points,omitempty"`
+	PenaltyValue      *float64        `json:"penalty_value,omitempty"`
 	Questions         []QuestionInput `json:"questions"`
 }
 

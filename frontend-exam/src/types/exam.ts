@@ -7,6 +7,8 @@ export type Exam = {
   show_percentile?: boolean;
   show_score_full?: boolean;
   validated_tribunal?: boolean;
+  subtracts_points?: boolean;
+  penalty_value?: number;
 };
 export type ExamOut = {
   score?: number | null;
@@ -130,6 +132,8 @@ export type ExamCreateWithQuestions = {
   show_percentile?: boolean;
   show_score_full?: boolean;
   validated_tribunal?: boolean;
+  subtracts_points?: boolean;
+  penalty_value?: number;
   questions: QuestionCreate[];
 };
 
@@ -149,6 +153,8 @@ export type ExamEdit = {
   show_percentile?: boolean;
   show_score_full?: boolean;
   validated_tribunal?: boolean;
+  subtracts_points?: boolean;
+  penalty_value?: number;
   questions: QuestionEdit[];
 };
 

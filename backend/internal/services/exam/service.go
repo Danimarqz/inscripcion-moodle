@@ -309,7 +309,11 @@ func createSubmission(tx *gorm.DB, req SubmitExamRequest, userID uint) (*models.
 		answersMap[question.ID] = value
 	}
 
-	breakdown, err := CalculateScoreBreakdown(activeQuestions, answersMap)
+	penalty := 0.0
+	if exam.PenaltyValue != nil {
+		penalty = *exam.PenaltyValue
+	}
+	breakdown, err := CalculateScoreBreakdown(activeQuestions, answersMap, exam.SubtractsPoints, penalty)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -434,23 +438,34 @@ func CheckOfficialResultMatch(db *gorm.DB, req OfficialResultMatchRequest) (bool
 	return false, nil
 }
 
-func CalculateScoreBreakdown(questions []models.Question, answers map[uint]string) (ScoreBreakdown, error) {
+func CalculateScoreBreakdown(questions []models.Question, answers map[uint]string, subtracts bool, penalty float64) (ScoreBreakdown, error) {
 	total := 0
 	correct := 0
+	incorrect := 0
 	for _, question := range questions {
 		if !question.IsActive || question.IsCancelled {
 			continue
 		}
 		total++
 		selected := strings.ToUpper(strings.TrimSpace(answers[question.ID]))
-		if selected != "" && strings.EqualFold(selected, question.CorrectOption) {
-			correct++
+		if selected != "" {
+			if strings.EqualFold(selected, question.CorrectOption) {
+				correct++
+			} else {
+				incorrect++
+			}
 		}
 	}
 	if total == 0 {
 		return ScoreBreakdown{}, errors.New("el examen no tiene preguntas activas no anuladas configuradas")
 	}
-	score := float64(correct) / float64(total) * 100
+
+	netCorrect := float64(correct)
+	if subtracts && penalty > 0 {
+		netCorrect -= float64(incorrect) * penalty
+	}
+
+	score := netCorrect / float64(total) * 100
 	return ScoreBreakdown{
 		Score:          score,
 		CorrectAnswers: correct,
@@ -484,7 +499,7 @@ func buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submission *models.U
 			breakdownCopy := *breakdown
 			breakdownData = &breakdownCopy
 		} else {
-			data, err := fetchScoreBreakdownFromDB(tx, exam.ID, submission.ID)
+			data, err := fetchScoreBreakdownFromDB(tx, exam, submission.ID)
 			if err != nil {
 				return nil, err
 			}
@@ -530,9 +545,9 @@ func getSubmissionPositionData(tx *gorm.DB, submission *models.UserExamSubmissio
 	return new(position), new(totalSubmissions), nil
 }
 
-func fetchScoreBreakdownFromDB(tx *gorm.DB, examID, submissionID uint) (*ScoreBreakdown, error) {
+func fetchScoreBreakdownFromDB(tx *gorm.DB, exam *models.Exam, submissionID uint) (*ScoreBreakdown, error) {
 	var questions []models.Question
-	if err := tx.Where("exam_id = ? AND is_active = 1 AND is_cancelled = 0", examID).Find(&questions).Error; err != nil {
+	if err := tx.Where("exam_id = ? AND is_active = 1 AND is_cancelled = 0", exam.ID).Find(&questions).Error; err != nil {
 		return nil, err
 	}
 	if len(questions) == 0 {
@@ -549,7 +564,11 @@ func fetchScoreBreakdownFromDB(tx *gorm.DB, examID, submissionID uint) (*ScoreBr
 		answerMap[ans.QuestionID] = ans.Answer
 	}
 
-	breakdown, err := CalculateScoreBreakdown(questions, answerMap)
+	penalty := 0.0
+	if exam.PenaltyValue != nil {
+		penalty = *exam.PenaltyValue
+	}
+	breakdown, err := CalculateScoreBreakdown(questions, answerMap, exam.SubtractsPoints, penalty)
 	if err != nil {
 		return nil, err
 	}
@@ -610,11 +629,63 @@ func buildAnswersReview(tx *gorm.DB, exam *models.Exam, submission *models.UserE
 }
 
 func recalculateScores(tx *gorm.DB, examID uint) error {
+	var exam models.Exam
+	if err := tx.First(&exam, examID).Error; err != nil {
+		return err
+	}
+
+	penalty := 0.0
+	if exam.PenaltyValue != nil {
+		penalty = *exam.PenaltyValue
+	}
+	// Logic:
+	// 1. Calculate points for each submission: 
+	//    SUM( CASE WHEN Correct THEN 1 WHEN Incorrect AND Subtracts THEN -Penalty ELSE 0 END )
+	// 2. Divide by TotalQuestions in Exam (Not just answered).
+	// To get TotalQuestions, we can use a subquery or join.
+	// 
+	// Improved SQL:
+	// UPDATE user_exam_submission u
+	// JOIN (
+	//   SELECT submission_id, 
+	//          (SUM(CASE WHEN is_correct THEN 1 WHEN is_incorrect AND ? THEN -? ELSE 0 END) / ?) * 100 as new_score
+	//   FROM (
+	//     SELECT ua.submission_id,
+	//            (UPPER(ua.answer) = q.correct_option) as is_correct,
+	//            (UPPER(ua.answer) != q.correct_option AND ua.answer != '') as is_incorrect
+	//     FROM user_answer ua
+	//     JOIN question q ON q.id = ua.question_id
+	//     WHERE q.exam_id = ? AND q.is_active = 1 AND NOT q.is_cancelled
+	//   ) calc
+	//   GROUP BY submission_id
+	// ) scores ON u.id = scores.submission_id
+	// SET u.score = scores.new_score
+	// WHERE u.exam_id = ?
+
+	var totalQuestions int64
+	if err := tx.Model(&models.Question{}).
+		Where("exam_id = ? AND is_active = 1 AND is_cancelled = 0", examID).
+		Count(&totalQuestions).Error; err != nil {
+		return err
+	}
+
+	if totalQuestions == 0 {
+		return nil // No questions, cannot calculate score
+	}
+
 	const scoreSQL = `
 UPDATE user_exam_submission AS u
 JOIN (
     SELECT ua.submission_id,
-           ROUND(SUM(CASE WHEN UPPER(ua.answer) = q.correct_option THEN 1 ELSE 0 END) / COUNT(q.id) * 100, 2) AS base_score
+           ROUND(
+             SUM(
+               CASE 
+                 WHEN UPPER(ua.answer) = q.correct_option THEN 1 
+                 WHEN ? AND UPPER(ua.answer) != '' THEN -? 
+                 ELSE 0 
+               END
+             ) / ? * 100, 
+           2) AS base_score
     FROM user_answer ua
     JOIN question q ON q.id = ua.question_id
     WHERE q.exam_id = ?
@@ -624,7 +695,9 @@ JOIN (
 ) AS t ON u.id = t.submission_id
 SET u.score = t.base_score
 WHERE u.exam_id = ?`
-	if err := tx.Exec(scoreSQL, examID, examID).Error; err != nil {
+
+	// Params: subtracts (bool), penalty (float), totalQuestions (int), examID, examID
+	if err := tx.Exec(scoreSQL, exam.SubtractsPoints, penalty, totalQuestions, examID, examID).Error; err != nil {
 		return err
 	}
 

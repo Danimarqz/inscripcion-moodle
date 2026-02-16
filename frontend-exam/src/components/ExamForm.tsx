@@ -32,6 +32,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
   const [showPercentile, setShowPercentile] = useState(false);
   const [showScoreFull, setShowScoreFull] = useState(false);
   const [validatedTribunal, setValidatedTribunal] = useState(false);
+  const [subtractsPoints, setSubtractsPoints] = useState(false);
+  const [penaltyValue, setPenaltyValue] = useState(0);
 
   useEffect(() => {
     if (authenticating) return;
@@ -59,6 +61,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setShowPercentile(false);
       setShowScoreFull(false);
       setValidatedTribunal(false);
+      setSubtractsPoints(false);
+      setPenaltyValue(0);
       setAll([{ ...DEFAULT_QUESTION }]);
       setError(null);
       return;
@@ -73,6 +77,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setShowPercentile(Boolean(examData.show_percentile));
       setShowScoreFull(Boolean(examData.show_score_full));
       setValidatedTribunal(Boolean(examData.validated_tribunal));
+      setSubtractsPoints(Boolean(examData.subtracts_points));
+      setPenaltyValue(examData.penalty_value ?? 0);
 
       const normalizedQuestions = (examData.questions.length
         ? examData.questions
@@ -131,6 +137,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
       show_percentile: showPercentile,
       show_score_full: showScoreFull,
       validated_tribunal: validatedTribunal,
+      subtracts_points: subtractsPoints,
+      penalty_value: subtractsPoints ? penaltyValue : 0,
       questions: questions.map((q) => ({
         id: 'id' in q ? q.id : undefined,
         correct_option: q.correct_option.toUpperCase(),
@@ -346,6 +354,44 @@ export default function ExamForm({ examId }: ExamFormProps) {
               Al activarlo, los alumnos ver&aacute;n qu&eacute; marcaron frente a la respuesta oficial cuando consulten su nota.
             </p>
           </div>
+        </div>
+      </fieldset>
+
+      <fieldset className="mb-6 border border-[#444] rounded-lg p-4" disabled={isBusy}>
+        <legend className="font-bold text-brand-pink px-2">Configuración de corrección</legend>
+        <div className="flex flex-col gap-4">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={subtractsPoints}
+              onChange={(e) => {
+                const checked = e.currentTarget.checked;
+                setSubtractsPoints(checked);
+                if (!checked) setPenaltyValue(0);
+                else if (penaltyValue === 0) setPenaltyValue(0.25);
+              }}
+              className="mr-1"
+              disabled={isBusy}
+            />
+            <span className="font-bold text-brand-pink">Las preguntas mal contestadas restan puntos</span>
+          </label>
+          
+          {subtractsPoints && (
+             <label className="flex items-center gap-2 ml-6">
+               <span className="text-white">Cantidad a restar por fallo:</span>
+               <select
+                 value={penaltyValue}
+                 onChange={(e) => setPenaltyValue(parseFloat(e.currentTarget.value))}
+                 className="px-3 py-1 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+                 disabled={isBusy}
+               >
+                 <option value={0}>0</option>
+                 <option value={0.25}>0.25</option>
+                 <option value={0.33333333}>0.33 (1/3)</option>
+                 <option value={0.5}>0.5</option>
+               </select>
+             </label>
+          )}
         </div>
       </fieldset>
 
