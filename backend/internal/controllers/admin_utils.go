@@ -115,14 +115,4 @@ func (h *AdminController) invalidateExamCaches(examID uint) {
 	ctx := context.Background()
 	_ = h.cache.Del(ctx, examsCacheKey)
 	_ = h.cache.Del(ctx, fmt.Sprintf("%s:%d", questionsCachePrefix, examID))
-
-	// Invalidate check cache
-	setKey := fmt.Sprintf("%s:%d:set", submissionCachePrefix, examID)
-	keys, err := h.cache.SMembers(ctx, setKey)
-	if err == nil {
-		for _, key := range keys {
-			_ = h.cache.Del(ctx, key)
-		}
-		_ = h.cache.Del(ctx, setKey)
-	}
 }

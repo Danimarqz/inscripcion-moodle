@@ -18,6 +18,8 @@ interface SubmissionListProps {
   onUpdateAnswer: (submissionId: number, questionId: number, value: string) => void;
   onSave: (submissionId: number) => Promise<void> | void;
   savingIds: Record<number, boolean>;
+  maxScore?: number;
+  secondaryMaxScores?: string;
 }
 
 export default function SubmissionList({
@@ -33,6 +35,8 @@ export default function SubmissionList({
   onUpdateAnswer,
   onSave,
   savingIds,
+  maxScore,
+  secondaryMaxScores,
 }: SubmissionListProps) {
   return (
     <ul className="list-none p-0 space-y-6">
@@ -72,6 +76,20 @@ export default function SubmissionList({
                   <span className="px-3 py-1 rounded-full border border-brand-blue-soft text-brand-blue">
                     Nota: {submission.score ?? 'N/A'}
                   </span>
+                  {(() => {
+                    const score = submission.score;
+                    if (typeof score !== 'number' || !secondaryMaxScores) return null;
+                    const bases = secondaryMaxScores.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n) && n > 0);
+                    const actualMaxScore = maxScore || 100;
+                    return bases.map(base => {
+                        const converted = (score / actualMaxScore) * base;
+                        return (
+                            <span key={base} className="px-3 py-1 rounded-full border border-brand-blue-soft text-brand-blue/80 text-[10px]">
+                                Base {base}: {converted.toFixed(2)}
+                            </span>
+                        );
+                    });
+                  })()}
                   <span className="px-3 py-1 rounded-full border border-brand-yellow-soft text-brand-yellow">
                     Percentil: {submission.percentile ?? 'N/A'}
                   </span>

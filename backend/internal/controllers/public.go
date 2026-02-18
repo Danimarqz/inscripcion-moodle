@@ -2,8 +2,6 @@ package controllers
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,7 +26,6 @@ import (
 const (
 	examsCacheKey         = "public:exams"
 	questionsCachePrefix  = "public:questions"
-	submissionCachePrefix = "public:check"
 	moodleSyncTimeout     = 15 * time.Second
 )
 
@@ -98,7 +95,6 @@ func (h *PublicController) SubmitExam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.invalidateCheckCacheForExam(req.ExamID)
 	h.scheduleMoodleSync(req.Email, req.DNI)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -156,29 +152,16 @@ func (h *PublicController) CheckSubmission(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	ctx := r.Context()
-	cacheKey := h.submissionCacheKey(req.ExamID, req.Email, req.DNI)
-
-	payload, err := h.cache.GetOrSet(ctx, cacheKey, h.cacheTTL, func() ([]byte, error) {
-		payload, err := examservice.BuildSubmissionCheckResponse(h.db, req)
-		if err != nil {
-			return nil, err
-		}
-		return json.Marshal(payload)
-	})
-
+	payload, err := examservice.BuildSubmissionCheckResponse(h.db, req)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
 
-	submissionSetKey := h.submissionSetKey(req.ExamID)
-	if err := h.cache.SAdd(ctx, submissionSetKey, cacheKey); err != nil {
-		log.Printf("failed to add to cache set: %v", err)
-	}
-
 	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write(payload)
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		log.Printf("failed to encode response: %v", err)
+	}
 }
 
 func (h *PublicController) CheckOfficialResultMatch(w http.ResponseWriter, r *http.Request) {
@@ -218,33 +201,6 @@ func (h *PublicController) questionsCacheKey(examID uint) string {
 	return fmt.Sprintf("%s:%d", questionsCachePrefix, examID)
 }
 
-func (h *PublicController) submissionCacheKey(examID uint, email, dni string) string {
-	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
-	normalizedDNI := strings.ToUpper(strings.TrimSpace(dni))
-	fingerprint := fmt.Sprintf("%d:%s:%s", examID, normalizedEmail, normalizedDNI)
-	sum := sha256.Sum256([]byte(fingerprint))
-	return fmt.Sprintf("%s:%d:%s", submissionCachePrefix, examID, hex.EncodeToString(sum[:]))
-}
-
-func (h *PublicController) submissionSetKey(examID uint) string {
-	return fmt.Sprintf("%s:%d:set", submissionCachePrefix, examID)
-}
-
-func (h *PublicController) invalidateCheckCacheForExam(examID uint) {
-	if h.cache == nil {
-		return
-	}
-	ctx := context.Background()
-	setKey := h.submissionSetKey(examID)
-	keys, err := h.cache.SMembers(ctx, setKey)
-	if err != nil {
-		return
-	}
-	for _, key := range keys {
-		_ = h.cache.Del(ctx, key)
-	}
-	_ = h.cache.Del(ctx, setKey)
-}
 
 func (h *PublicController) handleError(w http.ResponseWriter, err error) {
 	status := http.StatusBadRequest

@@ -9,6 +9,8 @@ export type Exam = {
   validated_tribunal?: boolean;
   subtracts_points?: boolean;
   penalty_value?: number;
+  max_score?: number;
+  secondary_max_scores?: string;
 };
 export type ExamOut = {
   score?: number | null;
@@ -19,6 +21,8 @@ export type ExamOut = {
   total_questions?: number | null;
   message?: string | null;
   answers_review?: AnswerReview[] | null;
+  max_score?: number | null;
+  secondary_max_scores?: string | null;
 };
 
 export type Question = {
@@ -134,6 +138,8 @@ export type ExamCreateWithQuestions = {
   validated_tribunal?: boolean;
   subtracts_points?: boolean;
   penalty_value?: number;
+  max_score?: number;
+  secondary_max_scores?: string;
   questions: QuestionCreate[];
 };
 
@@ -155,6 +161,8 @@ export type ExamEdit = {
   validated_tribunal?: boolean;
   subtracts_points?: boolean;
   penalty_value?: number;
+  max_score?: number;
+  secondary_max_scores?: string;
   questions: QuestionEdit[];
 };
 
@@ -234,6 +242,8 @@ export type ExamUiState = {
   submissionMessage: string | null;
   resultError: string | null;
   answersReview: AnswerReview[] | null;
+  maxScore: number | null;
+  secondaryMaxScores: string | null;
 };
 
 export type ExamResultPayload = {
@@ -245,6 +255,8 @@ export type ExamResultPayload = {
   totalQuestions: number | null;
   message: string;
   answersReview: AnswerReview[] | null;
+  max_score?: number | null;
+  secondary_max_scores?: string | null;
 };
 
 export type ExamUiAction =

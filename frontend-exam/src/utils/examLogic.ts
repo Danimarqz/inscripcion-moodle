@@ -110,5 +110,7 @@ export function buildResultPayload(
     totalQuestions: nextTotalQuestions,
     message,
     answersReview: review,
+    max_score: config.showScore ? result.max_score : undefined,
+    secondary_max_scores: config.showScore ? result.secondary_max_scores : undefined,
   };
 }

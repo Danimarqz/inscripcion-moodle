@@ -19,6 +19,8 @@ type CreateExamRequest struct {
 	ValidatedTribunal bool            `json:"validated_tribunal"`
 	SubtractsPoints   bool            `json:"subtracts_points"`
 	PenaltyValue      *float64        `json:"penalty_value,omitempty"`
+	MaxScore          *float64        `json:"max_score,omitempty"`
+	SecondaryMaxScores string         `json:"secondary_max_scores,omitempty"`
 	Questions         []QuestionInput `json:"questions"`
 }
 
@@ -31,6 +33,8 @@ type EditExamRequest struct {
 	ValidatedTribunal *bool           `json:"validated_tribunal,omitempty"`
 	SubtractsPoints   *bool           `json:"subtracts_points,omitempty"`
 	PenaltyValue      *float64        `json:"penalty_value,omitempty"`
+	MaxScore          *float64        `json:"max_score,omitempty"`
+	SecondaryMaxScores *string        `json:"secondary_max_scores,omitempty"`
 	Questions         []QuestionInput `json:"questions"`
 }
 

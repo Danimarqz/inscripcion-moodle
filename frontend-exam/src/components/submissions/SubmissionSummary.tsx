@@ -12,6 +12,8 @@ interface SubmissionSummaryProps {
   percentile: number | null;
   position: number | null;
   totalSubmissions: number | null;
+  maxScore?: number | null;
+  secondaryMaxScores?: string | null;
 }
 
 export default function SubmissionSummary({
@@ -26,6 +28,8 @@ export default function SubmissionSummary({
   percentile,
   position,
   totalSubmissions,
+  maxScore,
+  secondaryMaxScores,
 }: SubmissionSummaryProps) {
   const trimmedMessage = message.trim();
   if (!trimmedMessage) return null;
@@ -45,6 +49,21 @@ export default function SubmissionSummary({
             <p className="text-xs uppercase tracking-widest text-green-400/80">Puntuaci�n</p>
             <p className="text-2xl font-bold text-green-200">{score}</p>
           </div>
+        )}
+        {showScore && typeof score === 'number' && typeof secondaryMaxScores === 'string' && (
+          (() => {
+            const bases = secondaryMaxScores.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n) && n > 0);
+            const actualMaxScore = maxScore || 100;
+            return bases.map(base => {
+              const converted = (score / actualMaxScore) * base;
+              return (
+                <div key={base} className="flex-1 min-w-[180px] rounded-xl bg-[#1f2a24] border border-green-500/30 p-4">
+                   <p className="text-xs uppercase tracking-widest text-green-400/80">Nota sobre {base}</p>
+                   <p className="text-2xl font-bold text-green-200">{converted.toFixed(2)}</p>
+                </div>
+              );
+            });
+          })()
         )}
         {showScoreFull && typeof correctAnswers === 'number' && typeof totalQuestions === 'number' && (
           <div className="flex-1 min-w-[180px] rounded-xl bg-[#1f252a] border border-teal-500/30 p-4">

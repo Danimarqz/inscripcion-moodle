@@ -87,6 +87,8 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 		ValidatedTribunal: req.ValidatedTribunal,
 		SubtractsPoints:   req.SubtractsPoints,
 		PenaltyValue:      req.PenaltyValue,
+		MaxScore:          req.MaxScore,
+		SecondaryMaxScores: req.SecondaryMaxScores,
 		Questions:         questions,
 	}
 
@@ -168,6 +170,12 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 	if req.PenaltyValue != nil {
 		exam.PenaltyValue = req.PenaltyValue
 	}
+	if req.MaxScore != nil {
+		exam.MaxScore = req.MaxScore
+	}
+	if req.SecondaryMaxScores != nil {
+		exam.SecondaryMaxScores = *req.SecondaryMaxScores
+	}
 
 	// 1. Identify questions to delete
 	inputQuestionIDs := make(map[uint]struct{})
@@ -205,38 +213,16 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 		return nil, err
 	}
 
+	// Recalculate scores if penalty configuration, max score, or questions have changed
+	if req.SubtractsPoints != nil || req.PenaltyValue != nil || req.MaxScore != nil || len(req.Questions) > 0 {
+		if err := s.examRepo.RecalculateScores(context.Background(), s.db, exam.ID); err != nil {
+			return nil, fmt.Errorf("failed to recalculate scores: %w", err)
+		}
+	}
+
 	return exam, nil
 }
 
-func (s *Service) updateQuestions(examID uint, existing []models.Question, inputs []QuestionInput) ([]models.Question, error) {
-	return s.mergeQuestions(examID, existing, inputs)
-}
-
-func splitQuestionInputs(inputs []QuestionInput) (active []QuestionInput, reserve []QuestionInput) {
-	for _, q := range inputs {
-		isActive := true
-		if q.IsActive != nil {
-			isActive = *q.IsActive
-		}
-		if isActive {
-			active = append(active, q)
-		} else {
-			reserve = append(reserve, q)
-		}
-	}
-	return
-}
-
-func splitQuestions(questions []models.Question) (active []models.Question, reserve []models.Question) {
-	for _, q := range questions {
-		if q.IsActive {
-			active = append(active, q)
-		} else {
-			reserve = append(reserve, q)
-		}
-	}
-	return
-}
 
 func (s *Service) DeleteExam(examID uint) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {

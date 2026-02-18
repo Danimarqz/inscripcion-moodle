@@ -53,6 +53,11 @@ func (m *MockExamRepository) CountByName(ctx context.Context, db *gorm.DB, name 
 	return args.Get(0).(int64), args.Error(1)
 }
 
+func (m *MockExamRepository) RecalculateScores(ctx context.Context, db *gorm.DB, examID uint) error {
+	args := m.Called(ctx, db, examID)
+	return args.Error(0)
+}
+
 type MockQuestionRepository struct {
 	mock.Mock
 }

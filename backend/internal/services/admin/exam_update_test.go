@@ -26,8 +26,8 @@ func TestService_UpdateExam_DeleteQuestions(t *testing.T) {
 	}
 
 	// Request updates only Q101 and Q103. Q102 should be deleted.
-	reqQ1 := QuestionInput{ID: uintPtr(101), Name: intPtr(1), CorrectOption: "A"}
-	reqQ3 := QuestionInput{ID: uintPtr(103), Name: intPtr(3), CorrectOption: "B"}
+	reqQ1 := QuestionInput{ID: new(uint(101)), Name: new(1), CorrectOption: "A"}
+	reqQ3 := QuestionInput{ID: new(uint(103)), Name: new(3), CorrectOption: "B"}
 	req := EditExamRequest{
 		Questions: []QuestionInput{reqQ1, reqQ3},
 	}
@@ -35,6 +35,7 @@ func TestService_UpdateExam_DeleteQuestions(t *testing.T) {
 	mockExamRepo.On("FindExamByID", mock.Anything, mock.Anything, examID).Return(exam, nil)
 	mockQuestionRepo.On("DeleteQuestions", mock.Anything, mock.Anything, []uint{102}).Return(nil)
 	mockExamRepo.On("UpdateExam", mock.Anything, mock.Anything, mock.AnythingOfType("*models.Exam")).Return(nil)
+	mockExamRepo.On("RecalculateScores", mock.Anything, mock.Anything, examID).Return(nil)
 
 	updatedExam, err := service.UpdateExam(examID, req)
 
@@ -64,13 +65,14 @@ func TestService_UpdateExam_Numbering_SEQ_Renumbering(t *testing.T) {
 	// Update sends same questions. System should renumber 1, 3 -> 1, 2.
 	req := EditExamRequest{
 		Questions: []QuestionInput{
-			{ID: uintPtr(201), Name: intPtr(1), CorrectOption: "A"}, 
-			{ID: uintPtr(203), Name: intPtr(3), CorrectOption: "B"},
+			{ID: new(uint(201)), Name: new(1), CorrectOption: "A"}, 
+			{ID: new(uint(203)), Name: new(3), CorrectOption: "B"},
 		},
 	}
 
 	mockExamRepo.On("FindExamByID", mock.Anything, mock.Anything, examID).Return(exam, nil)
 	mockExamRepo.On("UpdateExam", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mockExamRepo.On("RecalculateScores", mock.Anything, mock.Anything, examID).Return(nil)
 
 	updatedExam, err := service.UpdateExam(examID, req)
 	assert.NoError(t, err)
@@ -98,14 +100,15 @@ func TestService_UpdateExam_Numbering_NewQuestion(t *testing.T) {
 	// Add new question. Should get 3.
 	req := EditExamRequest{
 		Questions: []QuestionInput{
-			{ID: uintPtr(301), Name: intPtr(1), CorrectOption: "A"},
-			{ID: uintPtr(302), Name: intPtr(2), CorrectOption: "B"},
+			{ID: new(uint(301)), Name: new(1), CorrectOption: "A"},
+			{ID: new(uint(302)), Name: new(2), CorrectOption: "B"},
 			{Name: nil, CorrectOption: "C"}, // New
 		},
 	}
 
 	mockExamRepo.On("FindExamByID", mock.Anything, mock.Anything, examID).Return(exam, nil)
 	mockExamRepo.On("UpdateExam", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mockExamRepo.On("RecalculateScores", mock.Anything, mock.Anything, examID).Return(nil)
 
 	updatedExam, err := service.UpdateExam(examID, req)
 	assert.NoError(t, err)
@@ -143,15 +146,16 @@ func TestService_UpdateExam_ActiveReserveSeparation(t *testing.T) {
 	// 4. New Reserve      -> Name 4
 	req := EditExamRequest{
 		Questions: []QuestionInput{
-			{ID: uintPtr(401), Name: intPtr(1), IsActive: boolPtr(true), CorrectOption: "A"}, // Active
-			{IsActive: boolPtr(true), CorrectOption: "C"}, // New Active
-			{ID: uintPtr(402), Name: intPtr(1), IsActive: boolPtr(false), CorrectOption: "B"}, // Reserve
-			{IsActive: boolPtr(false), CorrectOption: "D"}, // New Reserve
+			{ID: new(uint(401)), Name: new(1), IsActive: new(true), CorrectOption: "A"}, // Active
+			{IsActive: new(true), CorrectOption: "C"}, // New Active
+			{ID: new(uint(402)), Name: new(1), IsActive: new(false), CorrectOption: "B"}, // Reserve
+			{IsActive: new(false), CorrectOption: "D"}, // New Reserve
 		},
 	}
 
 	mockExamRepo.On("FindExamByID", mock.Anything, mock.Anything, examID).Return(exam, nil)
 	mockExamRepo.On("UpdateExam", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mockExamRepo.On("RecalculateScores", mock.Anything, mock.Anything, examID).Return(nil)
 
 	updatedExam, err := service.UpdateExam(examID, req)
 	assert.NoError(t, err)
@@ -179,9 +183,10 @@ func TestService_UpdateExam_ActiveReserveSeparation(t *testing.T) {
 }
 
 
-func uintPtr(v uint) *uint { return &v }
-func intPtr(v int) *int { return &v }
-func boolPtr(v bool) *bool { return &v }
+// Helper functions uintPtr, intPtr, boolPtr removed in favor of Go 1.26 new(value) syntax
+// func uintPtr(v uint) *uint { return &v }
+// func intPtr(v int) *int { return &v }
+// func boolPtr(v bool) *bool { return &v }
 
 func findQuestionByID(qs []models.Question, id uint) models.Question {
 	for _, q := range qs {

@@ -63,6 +63,7 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
   const [editingStates, setEditingStates] = useState<Record<number, EditingState>>({});
   const [savingIds, setSavingIds] = useState<Record<number, boolean>>({});
   const [filterMoodleUsers, setFilterMoodleUsers] = useState(false);
+  const [examConfig, setExamConfig] = useState<{ maxScore?: number; secondaryMaxScores?: string } | null>(null);
 
   const [downloadingEmails, setDownloadingEmails] = useState(false);
   const [downloadingAnalysis, setDownloadingAnalysis] = useState(false);
@@ -185,6 +186,10 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
               const examData = await getExamById(examId, token);
               if (mounted) {
                 setQuestions(examData.questions ?? []);
+                setExamConfig({
+                    maxScore: examData.max_score,
+                    secondaryMaxScores: examData.secondary_max_scores
+                });
               }
             } catch (qErr) {
                console.error("Failed to load questions", qErr);
@@ -603,6 +608,8 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
                     submissions={submissions}
                     editingStates={editingStates}
                     questions={questions}
+                    maxScore={examConfig?.maxScore}
+                    secondaryMaxScores={examConfig?.secondaryMaxScores}
                     selectedExamName={selectedExamName}
                     answerOptions={ANSWER_OPTIONS}
                     onStartEditing={startEditing}

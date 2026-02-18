@@ -66,6 +66,8 @@ export default function ExamPage({
     correctAnswers,
     totalQuestions,
     answersReview,
+    maxScore,
+    secondaryMaxScores,
   } = examUiState;
 
   const { questions, loading, error: questionsError } = useExamQuestions(examId);
@@ -343,6 +345,8 @@ export default function ExamPage({
         percentile={latestPercentile}
         position={position}
         totalSubmissions={totalSubmissions}
+        maxScore={maxScore}
+        secondaryMaxScores={secondaryMaxScores}
       />
     ) : null;
 

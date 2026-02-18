@@ -14,6 +14,8 @@ export const examUiInitialState: ExamUiState = {
   submissionMessage: null,
   resultError: null,
   answersReview: null,
+  maxScore: null,
+  secondaryMaxScores: null,
 };
 
 export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action) => {
@@ -33,6 +35,8 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         correctAnswers: null,
         totalQuestions: null,
         answersReview: null,
+        maxScore: null,
+        secondaryMaxScores: null,
       };
     case 'CHECK_SUCCESS':
       return {
@@ -47,6 +51,8 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         submissionMessage: action.payload.message,
         resultError: null,
         answersReview: action.payload.answersReview,
+        maxScore: action.payload.max_score ?? null,
+        secondaryMaxScores: action.payload.secondary_max_scores ?? null,
       };
     case 'CHECK_ERROR':
       return {
@@ -61,6 +67,8 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         submissionMessage: null,
         resultError: action.payload ?? null,
         answersReview: null,
+        maxScore: null,
+        secondaryMaxScores: null,
       };
     case 'SUBMIT_SUCCESS':
       return {
@@ -75,6 +83,8 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         submissionMessage: action.payload.message,
         resultError: null,
         answersReview: action.payload.answersReview,
+        maxScore: action.payload.max_score ?? null,
+        secondaryMaxScores: action.payload.secondary_max_scores ?? null,
       };
     case 'SUBMIT_ERROR':
       return {
@@ -90,6 +100,8 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         submissionMessage: null,
         resultError: action.payload ?? null,
         answersReview: null,
+        maxScore: null,
+        secondaryMaxScores: null,
       };
     default:
       return state;

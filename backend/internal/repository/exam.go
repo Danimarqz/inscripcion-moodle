@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/inscripcion-moodle/go-backend/internal/models"
 	"gorm.io/gorm"
@@ -15,6 +16,7 @@ type ExamRepository interface {
 	UpdateExam(ctx context.Context, db *gorm.DB, exam *models.Exam) error
 	DeleteExam(ctx context.Context, db *gorm.DB, examID uint) error
 	CountByName(ctx context.Context, db *gorm.DB, name string) (int64, error)
+	RecalculateScores(ctx context.Context, db *gorm.DB, examID uint) error
 }
 
 type examRepository struct{}
@@ -67,4 +69,81 @@ func (r *examRepository) CountByName(ctx context.Context, db *gorm.DB, name stri
 	var count int64
 	err := db.WithContext(ctx).Model(&models.Exam{}).Where("name = ?", name).Count(&count).Error
 	return count, err
+}
+
+func (r *examRepository) RecalculateScores(ctx context.Context, db *gorm.DB, examID uint) error {
+	var exam models.Exam
+	if err := db.WithContext(ctx).First(&exam, examID).Error; err != nil {
+		return err
+	}
+
+	penalty := 0.0
+	if exam.PenaltyValue != nil {
+		penalty = *exam.PenaltyValue
+	}
+
+	maxScore := 100.0
+	if exam.MaxScore != nil {
+		maxScore = *exam.MaxScore
+	}
+
+	var totalQuestions int64
+	if err := db.WithContext(ctx).Model(&models.Question{}).
+		Where("exam_id = ? AND is_active = 1 AND is_cancelled = 0", examID).
+		Count(&totalQuestions).Error; err != nil {
+		return err
+	}
+
+	if totalQuestions == 0 {
+		return nil // No questions, cannot calculate score
+	}
+	
+	fmt.Printf("DEBUG: Recalculating scores for exam %d. Subtracts: %v, Penalty: %f, TotalQuestions: %d\n", examID, exam.SubtractsPoints, penalty, totalQuestions)
+
+const scoreSQL = `
+UPDATE user_exam_submission AS u
+JOIN (
+    SELECT ua.submission_id,
+           ROUND(
+             SUM(
+               CASE 
+                 WHEN q.id IS NOT NULL AND TRIM(UPPER(ua.answer)) = TRIM(UPPER(q.correct_option)) THEN 1.0 
+                 WHEN ? AND q.id IS NOT NULL AND TRIM(UPPER(ua.answer)) != '' THEN -? 
+                 ELSE 0.0 
+               END
+             ) / ? * ?, 
+           2) AS base_score
+    FROM user_answer ua
+    LEFT JOIN question q ON q.id = ua.question_id 
+        AND q.exam_id = ?
+        AND q.is_active = 1
+        AND NOT q.is_cancelled
+    GROUP BY ua.submission_id
+) AS t ON u.id = t.submission_id
+SET u.score = t.base_score
+WHERE u.exam_id = ?`
+
+	if err := db.WithContext(ctx).Exec(scoreSQL, exam.SubtractsPoints, penalty, float64(totalQuestions), maxScore, examID, examID).Error; err != nil {
+		fmt.Printf("ERROR: RecalculateScores SQL failed: %v\n", err)
+		return err
+	}
+
+	const percentileSQL = `
+UPDATE user_exam_submission AS u
+JOIN (
+    SELECT
+        id,
+        exam_id,
+        ROUND(CUME_DIST() OVER (PARTITION BY exam_id ORDER BY score ASC) * 100, 2) AS pct
+    FROM user_exam_submission
+    WHERE exam_id = ? AND score IS NOT NULL
+) ranked ON ranked.id = u.id
+SET u.percentile = ranked.pct
+WHERE u.exam_id = ?`
+	
+	if err := db.WithContext(ctx).Exec(percentileSQL, examID, examID).Error; err != nil {
+		fmt.Printf("ERROR: RecalculatePercentiles SQL failed: %v\n", err)
+		return err
+	}
+	return nil
 }

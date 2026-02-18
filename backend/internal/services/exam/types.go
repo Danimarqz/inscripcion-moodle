@@ -44,6 +44,8 @@ type SubmissionPayload struct {
 	CorrectAnswers   *int           `json:"correct_answers"`
 	TotalQuestions   *int           `json:"total_questions"`
 	AnswersReview    []AnswerReview `json:"answers_review,omitempty"`
+	MaxScore         *float64       `json:"max_score,omitempty"`
+	SecondaryMaxScores string       `json:"secondary_max_scores,omitempty"`
 }
 
 type AnswerReview struct {

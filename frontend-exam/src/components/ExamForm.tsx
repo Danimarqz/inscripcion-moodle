@@ -34,6 +34,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
   const [validatedTribunal, setValidatedTribunal] = useState(false);
   const [subtractsPoints, setSubtractsPoints] = useState(false);
   const [penaltyValue, setPenaltyValue] = useState(0);
+  const [maxScore, setMaxScore] = useState(100);
+  const [secondaryMaxScores, setSecondaryMaxScores] = useState('');
 
   useEffect(() => {
     if (authenticating) return;
@@ -63,6 +65,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setValidatedTribunal(false);
       setSubtractsPoints(false);
       setPenaltyValue(0);
+      setMaxScore(100);
+      setSecondaryMaxScores('');
       setAll([{ ...DEFAULT_QUESTION }]);
       setError(null);
       return;
@@ -79,6 +83,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setValidatedTribunal(Boolean(examData.validated_tribunal));
       setSubtractsPoints(Boolean(examData.subtracts_points));
       setPenaltyValue(examData.penalty_value ?? 0);
+      setMaxScore(examData.max_score ?? 100);
+      setSecondaryMaxScores(examData.secondary_max_scores ?? '');
 
       const normalizedQuestions = (examData.questions.length
         ? examData.questions
@@ -139,6 +145,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
       validated_tribunal: validatedTribunal,
       subtracts_points: subtractsPoints,
       penalty_value: subtractsPoints ? penaltyValue : 0,
+      max_score: maxScore,
+      secondary_max_scores: secondaryMaxScores,
       questions: questions.map((q) => ({
         id: 'id' in q ? q.id : undefined,
         correct_option: q.correct_option.toUpperCase(),
@@ -387,11 +395,45 @@ export default function ExamForm({ examId }: ExamFormProps) {
                >
                  <option value={0}>0</option>
                  <option value={0.25}>0.25</option>
-                 <option value={0.33333333}>0.33 (1/3)</option>
+                 <option value={0.33333333}>0.33</option>
                  <option value={0.5}>0.5</option>
                </select>
              </label>
           )}
+        </div>
+      </fieldset>
+
+
+      <fieldset className="mb-6 border border-[#444] rounded-lg p-4" disabled={isBusy}>
+        <legend className="font-bold text-brand-pink px-2">Configuración de puntuación</legend>
+        <div className="flex flex-col gap-4">
+          <label className="block text-brand-pink font-bold">
+            Puntuación máxima (Base):
+            <input
+              type="number"
+              value={maxScore}
+              onInput={(e) => setMaxScore(parseFloat((e.target as HTMLInputElement).value))}
+              className="w-full mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+              min="1"
+            />
+            <span className="text-xs text-gray-400 block mt-1">
+              Por defecto es 100. Cambia esto si quieres que el examen sea sobre 10, 60, etc.
+            </span>
+          </label>
+
+          <label className="block text-brand-pink font-bold">
+            Otras bases para mostrar (opcional):
+            <input
+              type="text"
+              value={secondaryMaxScores}
+              onInput={(e) => setSecondaryMaxScores((e.target as HTMLInputElement).value)}
+              className="w-full mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+              placeholder="Ej: 10,60"
+            />
+            <span className="text-xs text-gray-400 block mt-1">
+              Separa con comas. Ej: "10,60" mostrará también la nota sobre 10 y sobre 60.
+            </span>
+          </label>
         </div>
       </fieldset>
 
