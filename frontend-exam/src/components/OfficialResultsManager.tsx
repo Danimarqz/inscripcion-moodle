@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import type { Exam, ExamOfficialResult, ImportOfficialResultsSummary } from '../types/exam';
-import { getOfficialResults, deleteOfficialResult, updateOfficialResult } from '../services/adminService';
+import {
+  getOfficialResults,
+  deleteOfficialResult,
+  updateOfficialResult,
+  syncOfficialResultsMoodle,
+} from '../services/adminService';
 import { useAsyncTask } from '../hooks/useAsyncTask';
 import OfficialResultImport from './official-results/OfficialResultImport';
 import OfficialResultForm from './official-results/OfficialResultForm';
@@ -25,6 +30,7 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
   } = useAsyncTask();
   const [feedback, setFeedback] = useState<string | null>(null);
   const [summary, setSummary] = useState<ImportOfficialResultsSummary | null>(null);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   const [sortBy, setSortBy] = useState<'dni' | 'nombre' | 'apellidos' | 'usuario' | 'creado'>(
     'apellidos',
@@ -225,6 +231,41 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
           setResultsError(msg);
         }}
       />
+
+      {selectedExamId && (results.length > 0 || totalResults > 0) && (
+        <div className="flex justify-end mt-4">
+          <button
+            onClick={async () => {
+              if (isSyncing) return;
+              setIsSyncing(true);
+              setResultsError(null);
+              setFeedback(null);
+              setSummary(null);
+              try {
+                const res = await syncOfficialResultsMoodle(Number(selectedExamId), token);
+                setFeedback(
+                  `Sincronización Moodle iniciada: ${res.matched} usuarios cruzados con DNI, ${res.synced} usuarios enviados a sincronización.`,
+                );
+                await refreshResults();
+              } catch (err) {
+                setResultsError(
+                  err instanceof Error ? err.message : 'Error al sincronizar con Moodle',
+                );
+              } finally {
+                setIsSyncing(false);
+              }
+            }}
+            disabled={isSyncing}
+            className={`px-4 py-2 font-semibold rounded-md transition-colors ${
+              isSyncing
+                ? 'bg-gray-600 cursor-not-allowed opacity-70 text-gray-300'
+                : 'bg-brand-pink hover:bg-brand-pink/90 text-white'
+            }`}
+          >
+            {isSyncing ? 'Sincronizando...' : 'Sincronizar con Moodle'}
+          </button>
+        </div>
+      )}
 
       {!selectedExamId && (
         <p className="text-sm text-brand-blue">

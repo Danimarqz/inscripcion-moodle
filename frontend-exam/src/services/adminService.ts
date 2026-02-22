@@ -195,6 +195,19 @@ export async function syncMoodleUsers(token: string): Promise<SyncMoodleUsersRes
   });
 }
 
+export async function syncOfficialResultsMoodle(
+  examId: number,
+  token: string,
+): Promise<{ matched: number; synced: number }> {
+  return request<{ matched: number; synced: number }>(
+    `/admin/exams/${examId}/results/official/sync-moodle`,
+    {
+      method: 'POST',
+      token,
+    },
+  );
+}
+
 export type FetchOfficialResultsOptions = {
   limit: number;
   offset: number;

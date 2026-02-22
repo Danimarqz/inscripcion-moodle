@@ -33,7 +33,7 @@ type AdminController struct {
 	cache        *cache.Cache
 	auth         *auth.Service
 	service      *admin.Service
-	excelImport    excelImportService
+	excelImport  excelImportService
 	moodleClient *moodle.Client
 	cfg          *config.Config
 }
@@ -55,13 +55,12 @@ type genericError struct {
 	Message string `json:"message"`
 }
 
-
 func NewAdminController(db *gorm.DB, cacheClient *redis.Client, authService *auth.Service, cfg *config.Config) *AdminController {
 	examRepo := repository.NewExamRepository()
 	subRepo := repository.NewSubmissionRepository()
 	officialRepo := repository.NewOfficialResultRepository()
 	questionRepo := repository.NewQuestionRepository()
-	
+
 	return &AdminController{
 		db:           db,
 		cache:        cache.New(cacheClient),
@@ -97,6 +96,7 @@ func (h *AdminController) RegisterRoutes(r chi.Router) {
 		r.Put("/exams/results/official/{id}", h.updateOfficialResult)
 		r.Delete("/exams/results/official/{id}", h.deleteOfficialResult)
 		r.Post("/exams/{exam_id}/results/import", h.importOfficialResults)
+		r.Post("/exams/{exam_id}/results/official/sync-moodle", h.syncOfficialResultsMoodle)
 		r.Get("/exams/{exam_id}/results/analysis", h.downloadSubmissionsAnalysis)
 	})
 }
