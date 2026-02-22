@@ -214,6 +214,8 @@ export type FetchOfficialResultsOptions = {
   orderBy: 'dni' | 'nombre' | 'apellidos' | 'usuario' | 'creado';
   orderDir: 'asc' | 'desc';
   type?: string;
+  search?: string;
+  hasUser?: boolean;
 };
 
 export async function getOfficialResults(
@@ -229,6 +231,12 @@ export async function getOfficialResults(
   });
   if (options.type) {
     params.append('type', options.type);
+  }
+  if (options.search) {
+    params.append('search', options.search);
+  }
+  if (options.hasUser !== undefined) {
+    params.append('has_user', String(options.hasUser));
   }
 
   const query = params.toString();

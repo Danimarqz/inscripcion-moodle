@@ -13,7 +13,7 @@ type OfficialResultRepository interface {
 	Create(ctx context.Context, db *gorm.DB, result *models.ExamOfficialResult) error
 	FindByExamAndDNI(ctx context.Context, db *gorm.DB, examID uint, dni string) (*models.ExamOfficialResult, error)
 	FindByID(ctx context.Context, db *gorm.DB, id uint) (*models.ExamOfficialResult, error)
-	List(ctx context.Context, db *gorm.DB, examID uint, resultType string, offset, limit int, order string) ([]models.ExamOfficialResult, int64, error)
+	List(ctx context.Context, db *gorm.DB, examID uint, resultType, search string, hasUser *bool, offset, limit int, order string) ([]models.ExamOfficialResult, int64, error)
 	DeleteByExamID(ctx context.Context, db *gorm.DB, examID uint) error
 	Update(ctx context.Context, db *gorm.DB, result *models.ExamOfficialResult) error
 	Delete(ctx context.Context, db *gorm.DB, id uint) error
@@ -53,15 +53,33 @@ func (r *officialResultRepository) FindByID(ctx context.Context, db *gorm.DB, id
 	return &result, nil
 }
 
-
-func (r *officialResultRepository) List(ctx context.Context, db *gorm.DB, examID uint, resultType string, offset, limit int, order string) ([]models.ExamOfficialResult, int64, error) {
+func (r *officialResultRepository) List(ctx context.Context, db *gorm.DB, examID uint, resultType, search string, hasUser *bool, offset, limit int, order string) ([]models.ExamOfficialResult, int64, error) {
 	var results []models.ExamOfficialResult
 	var total int64
 
 	query := db.WithContext(ctx).Model(&models.ExamOfficialResult{}).Where("exam_id = ?", examID)
-	
+
 	if resultType != "" && resultType != "all" {
 		query = query.Where("result_type = ?", resultType)
+	}
+
+	if hasUser != nil {
+		if *hasUser {
+			query = query.Where("user_id IS NOT NULL")
+		} else {
+			query = query.Where("user_id IS NULL")
+		}
+	}
+
+	if sanitized := strings.TrimSpace(search); sanitized != "" {
+		like := "%" + strings.ToLower(sanitized) + "%"
+		query = query.Where(
+			"LOWER(nombre) LIKE ? OR "+
+				"LOWER(apellido_1) LIKE ? OR "+
+				"LOWER(COALESCE(apellido_2, '')) LIKE ? OR "+
+				"LOWER(dni_masked) LIKE ?",
+			like, like, like, like,
+		)
 	}
 
 	if strings.Contains(strings.ToLower(order), "exam_user.") {
@@ -105,4 +123,3 @@ func (r *officialResultRepository) Update(ctx context.Context, db *gorm.DB, resu
 func (r *officialResultRepository) Delete(ctx context.Context, db *gorm.DB, id uint) error {
 	return db.WithContext(ctx).Delete(&models.ExamOfficialResult{}, id).Error
 }
-

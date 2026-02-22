@@ -16,15 +16,15 @@ import (
 )
 
 var (
-	ErrExamNameConflict      = errors.New("ya existe un examen con ese nombre")
-	ErrActiveQuestions       = errors.New("el examen debe tener al menos una pregunta activa no anulada")
-	ErrQuestionNotFound      = errors.New("la pregunta no pertenece al examen")
-	ErrOfficialResultExists  = errors.New("ya existe un resultado oficial con ese DNI para este examen")
-	ErrInvalidOfficialResult = errors.New("datos de resultado oficial invalidos")
+	ErrExamNameConflict       = errors.New("ya existe un examen con ese nombre")
+	ErrActiveQuestions        = errors.New("el examen debe tener al menos una pregunta activa no anulada")
+	ErrQuestionNotFound       = errors.New("la pregunta no pertenece al examen")
+	ErrOfficialResultExists   = errors.New("ya existe un resultado oficial con ese DNI para este examen")
+	ErrInvalidOfficialResult  = errors.New("datos de resultado oficial invalidos")
 	ErrOfficialResultNotFound = errors.New("resultado oficial no encontrado")
-	ErrExamNotFound          = errors.New("el examen no existe")
-	ErrExamNoQuestions       = errors.New("el examen debe tener al menos una pregunta")
-	ErrInvalidOption         = errors.New("opcion de respuesta no valida")
+	ErrExamNotFound           = errors.New("el examen no existe")
+	ErrExamNoQuestions        = errors.New("el examen debe tener al menos una pregunta")
+	ErrInvalidOption          = errors.New("opcion de respuesta no valida")
 )
 
 type Service struct {
@@ -79,17 +79,17 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 	}
 
 	exam := &models.Exam{
-		Name:              req.Name,
-		IsActive:          req.IsActive,
-		ShowScore:         req.ShowScore,
-		ShowPercentile:    req.ShowPercentile,
-		ShowScoreFull:     req.ShowScoreFull,
-		ValidatedTribunal: req.ValidatedTribunal,
-		SubtractsPoints:   req.SubtractsPoints,
-		PenaltyValue:      req.PenaltyValue,
-		MaxScore:          req.MaxScore,
+		Name:               req.Name,
+		IsActive:           req.IsActive,
+		ShowScore:          req.ShowScore,
+		ShowPercentile:     req.ShowPercentile,
+		ShowScoreFull:      req.ShowScoreFull,
+		ValidatedTribunal:  req.ValidatedTribunal,
+		SubtractsPoints:    req.SubtractsPoints,
+		PenaltyValue:       req.PenaltyValue,
+		MaxScore:           req.MaxScore,
 		SecondaryMaxScores: req.SecondaryMaxScores,
-		Questions:         questions,
+		Questions:          questions,
 	}
 
 	if len(activeQuestions(questions)) == 0 {
@@ -104,7 +104,7 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 
 func createQuestions(inputs []QuestionInput) ([]models.Question, error) {
 	questions := make([]models.Question, 0, len(inputs))
-	
+
 	count := 1
 
 	for _, input := range inputs {
@@ -116,7 +116,7 @@ func createQuestions(inputs []QuestionInput) ([]models.Question, error) {
 		if input.IsCancelled != nil {
 			isCancelled = *input.IsCancelled
 		}
-		
+
 		name := count
 		count++
 
@@ -222,7 +222,6 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 
 	return exam, nil
 }
-
 
 func (s *Service) DeleteExam(examID uint) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
@@ -331,7 +330,7 @@ func (s *Service) updateAnswersFromSubmission(submission *models.UserExamSubmiss
 
 func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats bool, search, orderBy, orderDir string, moodleSynced *bool, resultType *string) (*ListSubmissionsResult, error) {
 	orderClause := buildSubmissionOrder(strings.TrimSpace(orderBy), strings.TrimSpace(orderDir))
-	
+
 	subs, err := s.submissionRepo.List(context.Background(), s.db, examID, false, limit, offset, search, orderClause, moodleSynced, resultType)
 	if err != nil {
 		return nil, err
@@ -493,9 +492,9 @@ func buildOfficialResultsOrder(orderBy, orderDir string) string {
 	}
 }
 
-func (s *Service) ListOfficialResults(examID uint, limit, offset int, resultType, orderBy, orderDir string) (*OfficialResultsList, error) {
+func (s *Service) ListOfficialResults(examID uint, limit, offset int, resultType, search string, hasUser *bool, orderBy, orderDir string) (*OfficialResultsList, error) {
 	orderClause := buildOfficialResultsOrder(orderBy, orderDir)
-	results, total, err := s.officialRepo.List(context.Background(), s.db, examID, resultType, offset, limit, orderClause)
+	results, total, err := s.officialRepo.List(context.Background(), s.db, examID, resultType, search, hasUser, offset, limit, orderClause)
 	if err != nil {
 		return nil, err
 	}
@@ -547,7 +546,7 @@ func (s *Service) CreateOfficialResult(examID uint, req CreateOfficialResultRequ
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
-	
+
 	if req.ResultType != "" {
 		newResult.ResultType = req.ResultType
 	}
@@ -556,9 +555,9 @@ func (s *Service) CreateOfficialResult(examID uint, req CreateOfficialResultRequ
 		return nil, err
 	}
 
-	// We might need to reload if triggers/db sets fields, or just return what we created. 
-	// The repo helper Create likely doesn't preload user. 
-	// If needed we can do FindByExamAndDNI again or rely on GORM filling ID. 
+	// We might need to reload if triggers/db sets fields, or just return what we created.
+	// The repo helper Create likely doesn't preload user.
+	// If needed we can do FindByExamAndDNI again or rely on GORM filling ID.
 	// For consistency let's just return the struct as GORM fills ID.
 	return &newResult, nil
 }
@@ -641,7 +640,7 @@ func (s *Service) mergeQuestions(examID uint, existing []models.Question, inputs
 		if input.ID != nil {
 			existingQuestion, ok := existingMap[*input.ID]
 			if !ok {
-				// The question was deleted in step 1, but passed here? 
+				// The question was deleted in step 1, but passed here?
 				// Should not happen if inputs are correct.
 				// If ID is valid but not in DB (deleted by someone else?), treat as error or new?
 				// Treating as error safe.
@@ -662,7 +661,7 @@ func (s *Service) mergeQuestions(examID uint, existing []models.Question, inputs
 			model.IsCancelled = *input.IsCancelled
 		}
 		model.ExamID = examID
-		
+
 		// Assign Name strictly sequential globally
 		model.Name = count
 		count++
@@ -680,11 +679,11 @@ func (s *Service) ExportSubmissionsAnalysis(examID uint, search, orderBy, orderD
 	}
 
 	// 2. Fetch Submissions (Filtered, NO Pagination)
-	// We pass -1 as limit to indicate "no limit" if the repository supports it, 
-	// or we can reuse List but with a very large limit. 
-	// Let's assume the repository needs a slight adjustment or we just pass a huge number. 
+	// We pass -1 as limit to indicate "no limit" if the repository supports it,
+	// or we can reuse List but with a very large limit.
+	// Let's assume the repository needs a slight adjustment or we just pass a huge number.
 	// Based on previous code, List takes limit and offset.
-	const maxLimit = 1000000 
+	const maxLimit = 1000000
 	orderClause := buildSubmissionOrder(orderBy, orderDir)
 	submissions, err := s.submissionRepo.List(context.Background(), s.db, examID, true, maxLimit, 0, search, orderClause, moodleSynced, resultType)
 	if err != nil {
@@ -699,8 +698,8 @@ func (s *Service) ExportSubmissionsAnalysis(examID uint, search, orderBy, orderD
 	// Let's sort questions by Name for the chart.
 	sortedQuestions := make([]models.Question, len(exam.Questions))
 	copy(sortedQuestions, exam.Questions)
-	// Simple bubble sort or just rely on database order if it was sorted. 
-	// Usually database returns them in insertion order or ID order. 
+	// Simple bubble sort or just rely on database order if it was sorted.
+	// Usually database returns them in insertion order or ID order.
 	// Let's ensure they are sorted by Name (number).
 	for i := 0; i < len(sortedQuestions); i++ {
 		for j := i + 1; j < len(sortedQuestions); j++ {
@@ -731,12 +730,12 @@ func (s *Service) ExportSubmissionsAnalysis(examID uint, search, orderBy, orderD
 				continue
 			}
 			userAns, ok := userAnswers[q.ID]
-			// Condition for failure: 
+			// Condition for failure:
 			// 1. User answered BUT it is different from CorrectOption
 			// OR
-			// 2. User did NOT answer (blank) - Is this a failure? Usually yes in "failures analysis". 
+			// 2. User did NOT answer (blank) - Is this a failure? Usually yes in "failures analysis".
 			// Let's assume strict matching: if userAns != CorrectOption => Failure (including empty).
-			
+
 			normalizedUserAns := strings.ToUpper(strings.TrimSpace(userAns))
 			normalizedCorrect := strings.ToUpper(strings.TrimSpace(q.CorrectOption))
 
@@ -748,7 +747,7 @@ func (s *Service) ExportSubmissionsAnalysis(examID uint, search, orderBy, orderD
 
 	// 4. Generate Excel
 	f := excelize.NewFile()
-	
+
 	// --- Sheet 1: Estadísticas (Chart) ---
 	sheetStats := "Estadísticas"
 	f.SetSheetName("Sheet1", sheetStats)
@@ -777,11 +776,11 @@ func (s *Service) ExportSubmissionsAnalysis(examID uint, search, orderBy, orderD
 
 	// Create Chart
 	// We need to determine the range of data
-	// Note: We might have skipped some, so let's track the actual written rows if needed. 
+	// Note: We might have skipped some, so let's track the actual written rows if needed.
 	// For simplicity, let's assume all active questions are in sortedQuestions and we write them continuously.
-	// Actually the loop above writes based on index `i` which corresponds to sortedQuestions. 
+	// Actually the loop above writes based on index `i` which corresponds to sortedQuestions.
 	// If we skip, we leave holes? No, we should use a counter.
-	
+
 	currentRow := 2
 	for _, q := range sortedQuestions {
 		if !q.IsActive || q.IsCancelled {
@@ -833,7 +832,7 @@ func (s *Service) ExportSubmissionsAnalysis(examID uint, search, orderBy, orderD
 	for _, q := range sortedQuestions {
 		headers = append(headers, fmt.Sprintf("P%d (Correcta: %s)", q.Name, q.CorrectOption))
 	}
-	
+
 	for i, h := range headers {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
 		f.SetCellValue(sheetData, cell, h)
@@ -842,20 +841,24 @@ func (s *Service) ExportSubmissionsAnalysis(examID uint, search, orderBy, orderD
 	// Rows
 	for i, sub := range submissions {
 		row := i + 2
-		
+
 		f.SetCellValue(sheetData, fmt.Sprintf("A%d", row), sub.ID)
 		f.SetCellValue(sheetData, fmt.Sprintf("B%d", row), sub.User.Name)
 		f.SetCellValue(sheetData, fmt.Sprintf("C%d", row), sub.User.Surname)
 		f.SetCellValue(sheetData, fmt.Sprintf("D%d", row), sub.User.Email)
 		f.SetCellValue(sheetData, fmt.Sprintf("E%d", row), sub.User.DNI)
-		
+
 		score := 0.0
-		if sub.Score != nil { score = *sub.Score }
+		if sub.Score != nil {
+			score = *sub.Score
+		}
 
 		f.SetCellValue(sheetData, fmt.Sprintf("F%d", row), score)
-		
+
 		percentile := 0.0
-		if sub.Percentile != nil { percentile = *sub.Percentile }
+		if sub.Percentile != nil {
+			percentile = *sub.Percentile
+		}
 		f.SetCellValue(sheetData, fmt.Sprintf("G%d", row), percentile)
 
 		f.SetCellValue(sheetData, fmt.Sprintf("H%d", row), sub.SubmittedAt.Format("2006-01-02 15:04:05"))

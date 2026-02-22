@@ -40,6 +40,10 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [typeFilter, setTypeFilter] = useState<string>('');
+  const [hasUserFilter, setHasUserFilter] = useState<string>('');
+
   const selectedExamName = useMemo(() => {
     const numericId = Number(selectedExamId);
     return exams.find((exam) => exam.id === numericId)?.name ?? '';
@@ -49,6 +53,9 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
     setCurrentPage(1);
     setSummary(null);
     setTotalResults(0);
+    setSearchTerm('');
+    setTypeFilter('');
+    setHasUserFilter('');
   }, [selectedExamId]);
 
   useEffect(() => {
@@ -78,6 +85,9 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
           offset,
           orderBy: sortBy,
           orderDir: sortDirection,
+          search: searchTerm,
+          type: typeFilter,
+          hasUser: hasUserFilter ? hasUserFilter === 'true' : undefined,
         });
         setResults(data.results);
         setTotalResults(data.total);
@@ -92,7 +102,7 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
       setResults([]);
       setTotalResults(0);
     });
-  }, [run, selectedExamId, token, sortBy, sortDirection, pageSize, currentPage]);
+  }, [run, selectedExamId, token, sortBy, sortDirection, pageSize, currentPage, searchTerm, typeFilter, hasUserFilter]);
 
   function handleSelectExam(event: Event) {
     const value = (event.target as HTMLSelectElement).value;
@@ -109,6 +119,9 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
         offset: 0,
         orderBy: sortBy,
         orderDir: sortDirection,
+        search: searchTerm,
+        type: typeFilter,
+        hasUser: hasUserFilter ? hasUserFilter === 'true' : undefined,
       });
       setResults(refreshed.results);
       setTotalResults(refreshed.total);
@@ -232,8 +245,60 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
         }}
       />
 
+
+
+      {!selectedExamId && (
+        <p className="text-sm text-brand-blue">
+          Selecciona un examen para ver los resultados oficiales.
+        </p>
+      )}
+
+      {selectedExamId && resultsLoading && (
+        <p className="text-brand-yellow">Cargando resultados oficiales...</p>
+      )}
+
+      {selectedExamId && !resultsLoading && results.length === 0 && !resultsError && (
+        <p className="text-sm text-brand-pink">
+          No se encontraron resultados oficiales.
+        </p>
+      )}
+
       {selectedExamId && (results.length > 0 || totalResults > 0) && (
-        <div className="flex justify-end mt-4">
+        <div className="flex flex-col lg:flex-row gap-4 mb-4 bg-[#1f2229] p-4 rounded-md border border-[#444] items-center">
+          <input
+            type="text"
+            placeholder="Buscar por Nombre, Apellidos o DNI..."
+            value={searchTerm}
+            onChange={(e) => {
+               setSearchTerm((e.target as HTMLInputElement).value);
+               setCurrentPage(1);
+            }}
+            className="flex-1 w-full lg:w-auto px-3 py-2 rounded-md bg-[#2d313b] text-white border border-[#555] focus:outline-none focus:border-brand-blue"
+          />
+          <select
+            value={typeFilter}
+            onChange={(e) => {
+                setTypeFilter((e.target as HTMLSelectElement).value);
+                setCurrentPage(1);
+            }}
+            className="w-full lg:w-auto px-3 py-2 rounded-md bg-[#2d313b] text-white border border-[#555] focus:outline-none focus:border-brand-blue"
+          >
+            <option value="">Cualquier tipo</option>
+            <option value="General">General</option>
+            <option value="Discapacidad">Discapacidad</option>
+          </select>
+          <select
+            value={hasUserFilter}
+            onChange={(e) => {
+                setHasUserFilter((e.target as HTMLSelectElement).value);
+                setCurrentPage(1);
+            }}
+            className="w-full lg:w-auto px-3 py-2 rounded-md bg-[#2d313b] text-white border border-[#555] focus:outline-none focus:border-brand-blue"
+          >
+            <option value="">Cualquier vínculo</option>
+            <option value="true">Vinculados a usuario</option>
+            <option value="false">No vinculados</option>
+          </select>
           <button
             onClick={async () => {
               if (isSyncing) return;
@@ -256,31 +321,15 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
               }
             }}
             disabled={isSyncing}
-            className={`px-4 py-2 font-semibold rounded-md transition-colors ${
+            className={`w-full lg:w-auto px-4 py-2 font-semibold rounded-md transition-colors lg:ml-auto ${
               isSyncing
                 ? 'bg-gray-600 cursor-not-allowed opacity-70 text-gray-300'
                 : 'bg-brand-pink hover:bg-brand-pink/90 text-white'
             }`}
           >
-            {isSyncing ? 'Sincronizando...' : 'Sincronizar con Moodle'}
+            {isSyncing ? 'Sincronizando...' : 'Sincronizar Moodle'}
           </button>
         </div>
-      )}
-
-      {!selectedExamId && (
-        <p className="text-sm text-brand-blue">
-          Selecciona un examen para ver los resultados oficiales.
-        </p>
-      )}
-
-      {selectedExamId && resultsLoading && (
-        <p className="text-brand-yellow">Cargando resultados oficiales...</p>
-      )}
-
-      {selectedExamId && !resultsLoading && results.length === 0 && !resultsError && (
-        <p className="text-sm text-brand-pink">
-          No hay resultados oficiales importados para este examen.
-        </p>
       )}
 
       {selectedExamId && !resultsLoading && results.length > 0 && (

@@ -83,8 +83,14 @@ func (h *AdminController) listOfficialResults(w http.ResponseWriter, r *http.Req
 	orderBy := sanitizeOfficialResultsOrderBy(r.URL.Query().Get("order_by"))
 	orderDir := sanitizeOrderDir(r.URL.Query().Get("order_dir"))
 	resultType := r.URL.Query().Get("type")
-	
-	results, err := h.service.ListOfficialResults(uint(examID), limit, offset, resultType, orderBy, orderDir)
+	search := r.URL.Query().Get("search")
+	var hasUser *bool
+	if hasUserStr := r.URL.Query().Get("has_user"); hasUserStr != "" {
+		val := parseBoolParam(hasUserStr, false)
+		hasUser = &val
+	}
+
+	results, err := h.service.ListOfficialResults(uint(examID), limit, offset, resultType, search, hasUser, orderBy, orderDir)
 	if err != nil {
 		http.Error(w, "failed to load official results", http.StatusInternalServerError)
 		return
@@ -139,4 +145,3 @@ func (h *AdminController) deleteOfficialResult(w http.ResponseWriter, r *http.Re
 
 	w.WriteHeader(http.StatusNoContent)
 }
-
