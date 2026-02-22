@@ -4,9 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
-
-	"github.com/go-chi/chi/v5"
 
 	"github.com/inscripcion-moodle/go-backend/internal/services/admin"
 )
@@ -38,7 +35,7 @@ func (h *AdminController) createExam(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AdminController) updateExam(w http.ResponseWriter, r *http.Request) {
-	examID, err := strconv.ParseUint(chi.URLParam(r, "exam_id"), 10, 64)
+	examID, err := parseUintURLParam(r, "exam_id")
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		writeJSON(w, genericError{Message: "invalid exam id"})
@@ -60,7 +57,7 @@ func (h *AdminController) updateExam(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AdminController) deleteExam(w http.ResponseWriter, r *http.Request) {
-	examID, err := strconv.ParseUint(chi.URLParam(r, "exam_id"), 10, 64)
+	examID, err := parseUintURLParam(r, "exam_id")
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		writeJSON(w, genericError{Message: "invalid exam id"})
@@ -76,7 +73,7 @@ func (h *AdminController) deleteExam(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AdminController) getExam(w http.ResponseWriter, r *http.Request) {
-	examID, err := strconv.ParseUint(chi.URLParam(r, "exam_id"), 10, 64)
+	examID, err := parseUintURLParam(r, "exam_id")
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		writeJSON(w, genericError{Message: "invalid exam id"})

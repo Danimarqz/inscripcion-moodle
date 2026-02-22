@@ -7,10 +7,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
 	"gorm.io/gorm"
 
 	"github.com/inscripcion-moodle/go-backend/internal/services/admin"
@@ -36,12 +34,7 @@ type adminEmailAttachmentRequest struct {
 }
 
 func (h *AdminController) listSubmissions(w http.ResponseWriter, r *http.Request) {
-	examIDStr := r.URL.Query().Get("exam_id")
-	if examIDStr == "" {
-		http.Error(w, "exam_id required", http.StatusBadRequest)
-		return
-	}
-	examID, err := strconv.ParseUint(examIDStr, 10, 64)
+	examID, err := parseUintQueryParam(r, "exam_id")
 	if err != nil {
 		http.Error(w, "invalid exam id", http.StatusBadRequest)
 		return
@@ -194,8 +187,7 @@ func (h *AdminController) sendSubmissionEmails(w http.ResponseWriter, r *http.Re
 }
 
 func (h *AdminController) getSubmission(w http.ResponseWriter, r *http.Request) {
-	submissionIDStr := chi.URLParam(r, "submission_id")
-	submissionID, err := strconv.ParseUint(submissionIDStr, 10, 64)
+	submissionID, err := parseUintURLParam(r, "submission_id")
 	if err != nil {
 		http.Error(w, "invalid submission id", http.StatusBadRequest)
 		return
@@ -213,8 +205,7 @@ func (h *AdminController) getSubmission(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *AdminController) updateSubmission(w http.ResponseWriter, r *http.Request) {
-	submissionIDStr := chi.URLParam(r, "submission_id")
-	submissionID, err := strconv.ParseUint(submissionIDStr, 10, 64)
+	submissionID, err := parseUintURLParam(r, "submission_id")
 	if err != nil {
 		http.Error(w, "invalid submission id", http.StatusBadRequest)
 		return
@@ -237,7 +228,7 @@ func (h *AdminController) updateSubmission(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *AdminController) deleteSubmission(w http.ResponseWriter, r *http.Request) {
-	submissionID, err := strconv.ParseUint(chi.URLParam(r, "submission_id"), 10, 64)
+	submissionID, err := parseUintURLParam(r, "submission_id")
 	if err != nil {
 		http.Error(w, "invalid submission id", http.StatusBadRequest)
 		return
@@ -256,12 +247,7 @@ func (h *AdminController) deleteSubmission(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *AdminController) downloadSubmissionsAnalysis(w http.ResponseWriter, r *http.Request) {
-	examIDStr := chi.URLParam(r, "exam_id")
-	if examIDStr == "" {
-		http.Error(w, "exam_id required", http.StatusBadRequest)
-		return
-	}
-	examID, err := strconv.ParseUint(examIDStr, 10, 64)
+	examID, err := parseUintURLParam(r, "exam_id")
 	if err != nil {
 		http.Error(w, "invalid exam id", http.StatusBadRequest)
 		return
@@ -293,11 +279,7 @@ func (h *AdminController) downloadSubmissionsAnalysis(w http.ResponseWriter, r *
 }
 
 func parseSubmissionEmailFilters(r *http.Request) (uint, string, string, string, *bool, error) {
-	examIDStr := r.URL.Query().Get("exam_id")
-	if examIDStr == "" {
-		return 0, "", "", "", nil, fmt.Errorf("exam_id required")
-	}
-	examID, err := strconv.ParseUint(examIDStr, 10, 64)
+	examID, err := parseUintQueryParam(r, "exam_id")
 	if err != nil {
 		return 0, "", "", "", nil, fmt.Errorf("invalid exam id")
 	}

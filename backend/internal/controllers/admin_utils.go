@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/inscripcion-moodle/go-backend/internal/models"
 )
 
@@ -115,4 +116,28 @@ func (h *AdminController) invalidateExamCaches(examID uint) {
 	ctx := context.Background()
 	_ = h.cache.Del(ctx, examsCacheKey)
 	_ = h.cache.Del(ctx, fmt.Sprintf("%s:%d", questionsCachePrefix, examID))
+}
+
+func parseUintURLParam(r *http.Request, param string) (uint, error) {
+	valStr := chi.URLParam(r, param)
+	if valStr == "" {
+		return 0, fmt.Errorf("param %s is required", param)
+	}
+	val, err := strconv.ParseUint(valStr, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s", param)
+	}
+	return uint(val), nil
+}
+
+func parseUintQueryParam(r *http.Request, param string) (uint, error) {
+	valStr := r.URL.Query().Get(param)
+	if valStr == "" {
+		return 0, fmt.Errorf("query param %s is required", param)
+	}
+	val, err := strconv.ParseUint(valStr, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s", param)
+	}
+	return uint(val), nil
 }

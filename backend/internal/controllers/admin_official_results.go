@@ -4,9 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
 
-	"github.com/go-chi/chi/v5"
 	"gorm.io/gorm"
 
 	"github.com/inscripcion-moodle/go-backend/internal/constants"
@@ -14,7 +12,7 @@ import (
 )
 
 func (h *AdminController) createOfficialResult(w http.ResponseWriter, r *http.Request) {
-	examID, err := strconv.ParseUint(chi.URLParam(r, "exam_id"), 10, 64)
+	examID, err := parseUintURLParam(r, "exam_id")
 	if err != nil {
 		http.Error(w, constants.InvalidExamID, http.StatusBadRequest)
 		return
@@ -45,7 +43,7 @@ func (h *AdminController) createOfficialResult(w http.ResponseWriter, r *http.Re
 }
 
 func (h *AdminController) importOfficialResults(w http.ResponseWriter, r *http.Request) {
-	examID, err := strconv.ParseUint(chi.URLParam(r, "exam_id"), 10, 64)
+	examID, err := parseUintURLParam(r, "exam_id")
 	if err != nil {
 		http.Error(w, constants.InvalidExamID, http.StatusBadRequest)
 		return
@@ -73,7 +71,7 @@ func (h *AdminController) importOfficialResults(w http.ResponseWriter, r *http.R
 }
 
 func (h *AdminController) listOfficialResults(w http.ResponseWriter, r *http.Request) {
-	examID, err := strconv.ParseUint(chi.URLParam(r, "exam_id"), 10, 64)
+	examID, err := parseUintURLParam(r, "exam_id")
 	if err != nil {
 		http.Error(w, constants.InvalidExamID, http.StatusBadRequest)
 		return
@@ -99,7 +97,7 @@ func (h *AdminController) listOfficialResults(w http.ResponseWriter, r *http.Req
 }
 
 func (h *AdminController) updateOfficialResult(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	id, err := parseUintURLParam(r, "id")
 	if err != nil {
 		http.Error(w, constants.InvalidRequest, http.StatusBadRequest)
 		return
@@ -128,7 +126,7 @@ func (h *AdminController) updateOfficialResult(w http.ResponseWriter, r *http.Re
 }
 
 func (h *AdminController) deleteOfficialResult(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	id, err := parseUintURLParam(r, "id")
 	if err != nil {
 		http.Error(w, constants.InvalidRequest, http.StatusBadRequest)
 		return

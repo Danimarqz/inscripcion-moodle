@@ -4,10 +4,8 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/inscripcion-moodle/go-backend/internal/helpers"
 	"github.com/inscripcion-moodle/go-backend/internal/models"
 	"github.com/inscripcion-moodle/go-backend/internal/services/moodle"
@@ -93,8 +91,7 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 		return
 	}
 
-	examIDStr := chi.URLParam(r, "exam_id")
-	examID, err := strconv.ParseUint(examIDStr, 10, 32)
+	examID, err := parseUintURLParam(r, "exam_id")
 	if err != nil {
 		http.Error(w, "invalid exam ID", http.StatusBadRequest)
 		return

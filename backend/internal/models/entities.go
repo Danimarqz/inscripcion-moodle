@@ -1,21 +1,24 @@
 package models
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type Exam struct {
-	ID                uint                 `gorm:"column:id;primaryKey" json:"id"`
-	Name              string               `gorm:"column:name" json:"name"`
-	IsActive          bool                 `gorm:"column:is_active" json:"is_active"`
-	ShowScore         bool                 `gorm:"column:show_score" json:"show_score"`
-	ShowPercentile    bool                 `gorm:"column:show_percentile" json:"show_percentile"`
-	ShowScoreFull     bool                 `gorm:"column:show_score_full" json:"show_score_full"`
-	ValidatedTribunal bool                 `gorm:"column:validated_tribunal" json:"validated_tribunal"`
-	SubtractsPoints   bool                 `gorm:"column:subtracts_points" json:"subtracts_points"`
-	PenaltyValue      *float64             `gorm:"column:penalty_value" json:"penalty_value"`
-	MaxScore          *float64             `gorm:"column:max_score;default:100.0" json:"max_score"`
-	SecondaryMaxScores string              `gorm:"column:secondary_max_scores" json:"secondary_max_scores"`
-	Questions         []Question           `gorm:"foreignKey:ExamID" json:"questions"`
-	Submissions       []UserExamSubmission `gorm:"foreignKey:ExamID" json:"submissions"`
+	ID                 uint                 `gorm:"column:id;primaryKey" json:"id"`
+	Name               string               `gorm:"column:name" json:"name"`
+	IsActive           bool                 `gorm:"column:is_active" json:"is_active"`
+	ShowScore          bool                 `gorm:"column:show_score" json:"show_score"`
+	ShowPercentile     bool                 `gorm:"column:show_percentile" json:"show_percentile"`
+	ShowScoreFull      bool                 `gorm:"column:show_score_full" json:"show_score_full"`
+	ValidatedTribunal  bool                 `gorm:"column:validated_tribunal" json:"validated_tribunal"`
+	SubtractsPoints    bool                 `gorm:"column:subtracts_points" json:"subtracts_points"`
+	PenaltyValue       *float64             `gorm:"column:penalty_value" json:"penalty_value"`
+	MaxScore           *float64             `gorm:"column:max_score;default:100.0" json:"max_score"`
+	SecondaryMaxScores string               `gorm:"column:secondary_max_scores" json:"secondary_max_scores"`
+	Questions          []Question           `gorm:"foreignKey:ExamID" json:"questions"`
+	Submissions        []UserExamSubmission `gorm:"foreignKey:ExamID" json:"submissions"`
 }
 
 func (Exam) TableName() string {
@@ -52,9 +55,9 @@ func (ExamUser) TableName() string {
 }
 
 type UserExamSubmission struct {
-	ID          uint         `gorm:"column:id;primaryKey" json:"id"`
-	UserID      uint         `gorm:"column:user_id;index:idx_user_exam_submission_user_id" json:"user_id"`
-	ExamID      uint         `gorm:"column:exam_id;index:idx_user_exam_submission_exam_id" json:"exam_id"`
+	ID                 uint         `gorm:"column:id;primaryKey" json:"id"`
+	UserID             uint         `gorm:"column:user_id;index:idx_user_exam_submission_user_id" json:"user_id"`
+	ExamID             uint         `gorm:"column:exam_id;index:idx_user_exam_submission_exam_id" json:"exam_id"`
 	Score              *float64     `gorm:"column:score" json:"score"`
 	Merits             *float64     `gorm:"column:merits" json:"merits"`
 	Percentile         *float64     `gorm:"column:percentile" json:"percentile"`
@@ -106,6 +109,24 @@ type ExamOfficialResult struct {
 
 func (ExamOfficialResult) TableName() string {
 	return "exam_official_result"
+}
+
+func (e *ExamOfficialResult) Normalize() {
+	e.DniMasked = strings.ToUpper(strings.TrimSpace(e.DniMasked))
+	e.Apellido1 = strings.ToUpper(strings.TrimSpace(e.Apellido1))
+	if e.Apellido2 != nil {
+		val := strings.ToUpper(strings.TrimSpace(*e.Apellido2))
+		if val == "" {
+			e.Apellido2 = nil
+		} else {
+			e.Apellido2 = &val
+		}
+	}
+	e.Nombre = strings.ToUpper(strings.TrimSpace(e.Nombre))
+}
+
+func (e *ExamOfficialResult) IsValid() bool {
+	return e.DniMasked != "" && e.Apellido1 != "" && e.Nombre != ""
 }
 
 type ExcelImportResult struct {
