@@ -21,7 +21,18 @@ Este proyecto es una aplicación web completa que consta de dos partes principal
 *   **Resultados y Percentiles:** Cálculo en tiempo real de puntuaciones y percentiles.
 *   **Caché de Alto Rendimiento:** Uso de Redis para cachear preguntas y resultados públicos, reduciendo la carga en base de datos.
 
-## Novedades Recientes (Dic 2025)
+## Novedades Recientes (Feb 2026)
+
+### Rendimiento y Escalabilidad
+*   **Concurrencia Avanzada (Go 1.26):** Actualización del backend a Go 1.26. Implementación de *worker pools* con canales y *goroutines* para optimizar drásticamente el envío de emails, sincronización con Moodle e importación masiva de Excel.
+*   **Protección y Caché Redis:** Nueva capa de seguridad usando Redis para cachear intentos fallidos de login de administradores, protegiendo la base de datos de ataques y sobrecargas.
+
+### Funcionalidades Core
+*   **Sistema de Penalizaciones de Exámenes:** Soporte completo (API y Panel Admin) para configurar penalizaciones dinámicas (ej. 0.25, 0.33, 0.5 puntos por respuesta incorrecta) y visualización de notas sobre bases secundarias.
+*   **Buscador Avanzado de Resultados:** Nueva funcionalidad de filtrado multicriterio (DNI, Nombre, Apellidos, Tipo de Inscripción) para gestionar cómodamente los Resultados Oficiales publicados.
+*   **Sincronización Inteligente de Usuarios Moodle:** Mejora sustancial en la lógica de emparejamiento y sincronización asíncrona de usuarios entre los sistemas, contemplando nombres parciales, apellidos y DNI para evitar duplicados.
+
+## Novedades Anteriores (Dic 2025)
 
 ### Optimización y Backend
 *   **Carga Diferida (Lazy Loading):** Optimización masiva en `/admin/results`. Las respuestas de los estudiantes ahora se cargan solo bajo demanda al editar, reduciendo el tamaño de la respuesta inicial y mejorando la velocidad.
