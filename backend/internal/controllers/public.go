@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,9 +25,9 @@ import (
 )
 
 const (
-	examsCacheKey         = "public:exams"
-	questionsCachePrefix  = "public:questions"
-	moodleSyncTimeout     = 15 * time.Second
+	examsCacheKey        = "public:exams"
+	questionsCachePrefix = "public:questions"
+	moodleSyncTimeout    = 15 * time.Second
 )
 
 type QuestionStub struct {
@@ -152,16 +153,34 @@ func (h *PublicController) CheckSubmission(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	normalizedEmail := strings.ToLower(strings.TrimSpace(req.Email))
+	normalizedDNI := examservice.NormalizeDNI(req.DNI)
+	cacheKeyHash := sha256.Sum256(fmt.Appendf(nil, "%d:%s:%s", req.ExamID, normalizedEmail, normalizedDNI))
+	cacheKey := fmt.Sprintf("check_sub:%x", cacheKeyHash)
+
+	if cachedData, ok := h.cache.Get(r.Context(), cacheKey); ok {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(cachedData)
+		return
+	}
+
 	payload, err := examservice.BuildSubmissionCheckResponse(h.db, req)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(payload); err != nil {
+	respBytes, err := json.Marshal(payload)
+	if err != nil {
 		log.Printf("failed to encode response: %v", err)
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
 	}
+
+	h.cache.Set(r.Context(), cacheKey, respBytes, 1*time.Minute)
+
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(respBytes)
 }
 
 func (h *PublicController) CheckOfficialResultMatch(w http.ResponseWriter, r *http.Request) {
@@ -181,6 +200,18 @@ func (h *PublicController) CheckOfficialResultMatch(w http.ResponseWriter, r *ht
 		return
 	}
 
+	normalizedName := examservice.NormalizeDNI(req.Name)
+	normalizedSurname := examservice.NormalizeDNI(req.Surname)
+	normalizedDNI := examservice.NormalizeDNI(req.DNI)
+	cacheKeyHash := sha256.Sum256(fmt.Appendf(nil, "%d:%s:%s:%s", req.ExamID, normalizedName, normalizedSurname, normalizedDNI))
+	cacheKey := fmt.Sprintf("match_oficial:%x", cacheKeyHash)
+
+	if cachedData, ok := h.cache.Get(r.Context(), cacheKey); ok {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(cachedData)
+		return
+	}
+
 	match, err := examservice.CheckOfficialResultMatch(h.db, req)
 	if err != nil {
 		status := http.StatusInternalServerError
@@ -191,16 +222,23 @@ func (h *PublicController) CheckOfficialResultMatch(w http.ResponseWriter, r *ht
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(examservice.OfficialResultMatchResponse{Match: match}); err != nil {
+	respPayload := examservice.OfficialResultMatchResponse{Match: match}
+	respBytes, err := json.Marshal(respPayload)
+	if err != nil {
 		log.Printf("failed to encode response: %v", err)
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
 	}
+
+	h.cache.Set(r.Context(), cacheKey, respBytes, 10*time.Minute)
+
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(respBytes)
 }
 
 func (h *PublicController) questionsCacheKey(examID uint) string {
 	return fmt.Sprintf("%s:%d", questionsCachePrefix, examID)
 }
-
 
 func (h *PublicController) handleError(w http.ResponseWriter, err error) {
 	status := http.StatusBadRequest

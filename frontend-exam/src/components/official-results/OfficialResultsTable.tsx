@@ -132,6 +132,7 @@ export default function OfficialResultsTable({
               const associatedUser = user
                 ? `${user.name} ${user.surname} (${user.dni}${user.email ? ` - ${user.email}` : ''})`
                 : 'Sin usuario enlazado';
+              const moodleUserId = user?.moodle_id ?? null;
 
               if (isEditing) {
                 return (
@@ -240,7 +241,25 @@ export default function OfficialResultsTable({
                   <td className="px-3 py-2 text-white text-xs">{result.result_type || 'General'}</td>
                   <td className="px-3 py-2 text-white font-semibold">{result.nombre}</td>
                   <td className="px-3 py-2 text-white">{surname}</td>
-                  <td className="px-3 py-2 text-brand-pink">{associatedUser}</td>
+                  <td className="px-3 py-2 text-brand-pink">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs">{associatedUser}</span>
+                      {moodleUserId ? (
+                        <a
+                          href={`https://moodle.opositatcae.es/user/view.php?id=${moodleUserId}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 font-semibold text-brand-blue hover:underline text-xs"
+                        >
+                          Ver en moodle
+                        </a>
+                      ) : (
+                        <span className="text-gray-400 text-xs text-opacity-70">
+                          Sin usuario Moodle asignado
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-3 py-2 text-xs text-brand-yellow">
                     {new Date(result.created_at).toLocaleString()}
                   </td>

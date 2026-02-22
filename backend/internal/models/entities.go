@@ -103,8 +103,8 @@ type ExamOfficialResult struct {
 	Nombre     string    `gorm:"column:nombre" json:"nombre"`
 	ResultType string    `gorm:"column:result_type;default:'General'" json:"result_type"`
 	CreatedAt  time.Time `gorm:"column:created_at" json:"created_at"`
-	Exam       Exam      `gorm:"foreignKey:ExamID"`
-	User       *ExamUser `gorm:"foreignKey:UserID"`
+	Exam       Exam      `gorm:"foreignKey:ExamID" json:"exam"`
+	User       *ExamUser `gorm:"foreignKey:UserID" json:"user"`
 }
 
 func (ExamOfficialResult) TableName() string {

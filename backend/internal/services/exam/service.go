@@ -39,7 +39,6 @@ func NormalizeDNI(value string) string {
 	return strings.ToUpper(strings.TrimSpace(value))
 }
 
-
 func extractDigits(value string) string {
 	var b strings.Builder
 	for _, r := range value {
@@ -51,17 +50,17 @@ func extractDigits(value string) string {
 }
 
 func middleFourDigits(value string) string {
-		digits := extractDigits(value)
-  
-    if len(digits) == 4 {
-        return digits
-    }
+	digits := extractDigits(value)
 
-    if len(digits) < 7 {
-        return ""
-    }
+	if len(digits) == 4 {
+		return digits
+	}
 
-    return digits[3:7]
+	if len(digits) < 7 {
+		return ""
+	}
+
+	return digits[3:7]
 }
 
 func ValidateDNINIE(value string) bool {
@@ -287,12 +286,12 @@ func createSubmission(tx *gorm.DB, req SubmitExamRequest, userID uint) (*models.
 	}
 
 	activeQuestions := make([]models.Question, 0, len(exam.Questions))
-	activeMap := make(map[uint]models.Question)
+	questionsMap := make(map[uint]models.Question)
 
 	for _, question := range exam.Questions {
+		questionsMap[question.ID] = question
 		if question.IsActive && !question.IsCancelled {
 			activeQuestions = append(activeQuestions, question)
-			activeMap[question.ID] = question
 		}
 	}
 
@@ -302,7 +301,7 @@ func createSubmission(tx *gorm.DB, req SubmitExamRequest, userID uint) (*models.
 
 	answersMap := make(map[uint]string)
 	for _, ans := range req.Answers {
-		question, ok := activeMap[ans.QuestionID]
+		question, ok := questionsMap[ans.QuestionID]
 		if !ok {
 			return nil, nil, nil, fmt.Errorf("pregunta %d no encontrada", ans.QuestionID)
 		}
@@ -459,9 +458,9 @@ func CalculateScoreBreakdown(questions []models.Question, answers map[uint]strin
 		qID := question.ID
 		selected, ok := answers[qID]
 		if !ok {
-			continue 
+			continue
 		}
-		
+
 		selected = strings.ToUpper(strings.TrimSpace(selected))
 		if selected != "" {
 			if strings.EqualFold(selected, strings.TrimSpace(question.CorrectOption)) {
@@ -479,7 +478,7 @@ func CalculateScoreBreakdown(questions []models.Question, answers map[uint]strin
 	if subtracts && penalty > 0 {
 		netCorrect -= float64(incorrect) * penalty
 	}
-	
+
 	score := netCorrect / float64(total) * maxScore
 
 	return &ScoreBreakdown{
@@ -649,4 +648,3 @@ func buildAnswersReview(tx *gorm.DB, exam *models.Exam, submission *models.UserE
 
 	return review, nil
 }
-

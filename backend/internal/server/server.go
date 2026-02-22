@@ -36,7 +36,6 @@ func New(cfg *config.Config) (*Server, error) {
 
 	// AutoMigrate removed as per user request
 
-
 	cache, err := storage.NewRedis(cfg)
 	if err != nil {
 		return nil, err

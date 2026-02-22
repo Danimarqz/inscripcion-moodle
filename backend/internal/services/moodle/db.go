@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"strings"
 	"time"
@@ -29,6 +30,8 @@ func newMoodleDB(cfg *config.Config) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	log.Printf("moodle: connecting to DB with user='%s' host='%s' name='%s'", cfg.MoodleDBUser, cfg.MoodleDBHost, cfg.MoodleDBName)
 
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
@@ -110,4 +113,41 @@ func (c *Client) findUserByEmailDB(ctx context.Context, email string) (MoodleUse
 	}
 
 	return user, nil
+}
+
+type MoodleUserDNI struct {
+	ID        int
+	Email     string
+	Firstname string
+	Lastname  string
+	DNI       string
+}
+
+func (c *Client) GetAllUsersDNI(ctx context.Context) ([]MoodleUserDNI, error) {
+	if c.db == nil {
+		return nil, ErrMoodleDBNotConfigured
+	}
+
+	query := fmt.Sprintf(`
+		SELECT u.id, u.email, u.firstname, u.lastname, d.data 
+		FROM %suser_info_data d 
+		JOIN %suser u ON u.id = d.userid 
+		WHERE d.fieldid = 1
+	`, c.tablePrefix, c.tablePrefix)
+
+	rows, err := c.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("query moodle user dni: %w", err)
+	}
+	defer rows.Close()
+
+	var users []MoodleUserDNI
+	for rows.Next() {
+		var u MoodleUserDNI
+		if err := rows.Scan(&u.ID, &u.Email, &u.Firstname, &u.Lastname, &u.DNI); err != nil {
+			continue
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
 }

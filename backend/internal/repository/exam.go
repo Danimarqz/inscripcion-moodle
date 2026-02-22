@@ -59,7 +59,7 @@ func (r *examRepository) UpdateExam(ctx context.Context, db *gorm.DB, exam *mode
 
 func (r *examRepository) DeleteExam(ctx context.Context, db *gorm.DB, examID uint) error {
 	// Transaction logic is usually handled by the service wrapping this or passing a tx *gorm.DB
-	// But individual atomic deletes can be here. The complex cascade delete fits better in the service orchestrating repositories, 
+	// But individual atomic deletes can be here. The complex cascade delete fits better in the service orchestrating repositories,
 	// OR we put the whole logic here if we treat "Exam" as an aggregate root.
 	// For now, simple helpers.
 	return db.WithContext(ctx).Delete(&models.Exam{}, examID).Error
@@ -97,27 +97,27 @@ func (r *examRepository) RecalculateScores(ctx context.Context, db *gorm.DB, exa
 	if totalQuestions == 0 {
 		return nil // No questions, cannot calculate score
 	}
-	
+
 	fmt.Printf("DEBUG: Recalculating scores for exam %d. Subtracts: %v, Penalty: %f, TotalQuestions: %d\n", examID, exam.SubtractsPoints, penalty, totalQuestions)
 
-const scoreSQL = `
+	const scoreSQL = `
 UPDATE user_exam_submission AS u
 JOIN (
     SELECT ua.submission_id,
            ROUND(
              SUM(
                CASE 
-                 WHEN q.id IS NOT NULL AND TRIM(UPPER(ua.answer)) = TRIM(UPPER(q.correct_option)) THEN 1.0 
-                 WHEN ? AND q.id IS NOT NULL AND TRIM(UPPER(ua.answer)) != '' THEN -? 
+                 WHEN ua.answer = q.correct_option THEN 1.0 
+                 WHEN ? AND ua.answer != '' THEN -? 
                  ELSE 0.0 
                END
              ) / ? * ?, 
            2) AS base_score
     FROM user_answer ua
-    LEFT JOIN question q ON q.id = ua.question_id 
-        AND q.exam_id = ?
-        AND q.is_active = 1
-        AND NOT q.is_cancelled
+    INNER JOIN question q ON q.id = ua.question_id 
+    WHERE q.exam_id = ?
+      AND q.is_active = 1
+      AND q.is_cancelled = 0
     GROUP BY ua.submission_id
 ) AS t ON u.id = t.submission_id
 SET u.score = t.base_score
@@ -133,14 +133,13 @@ UPDATE user_exam_submission AS u
 JOIN (
     SELECT
         id,
-        exam_id,
-        ROUND(CUME_DIST() OVER (PARTITION BY exam_id ORDER BY score ASC) * 100, 2) AS pct
+        ROUND(CUME_DIST() OVER (ORDER BY score ASC) * 100, 2) AS pct
     FROM user_exam_submission
     WHERE exam_id = ? AND score IS NOT NULL
 ) ranked ON ranked.id = u.id
 SET u.percentile = ranked.pct
 WHERE u.exam_id = ?`
-	
+
 	if err := db.WithContext(ctx).Exec(percentileSQL, examID, examID).Error; err != nil {
 		fmt.Printf("ERROR: RecalculatePercentiles SQL failed: %v\n", err)
 		return err

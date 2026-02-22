@@ -2,11 +2,14 @@ package controllers
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -56,6 +59,8 @@ func (h *AdminController) createAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.cache.Del(r.Context(), "admin_not_found:"+payload.Username)
+
 	w.WriteHeader(http.StatusCreated)
 	_, _ = w.Write([]byte(constants.AdminCreated))
 }
@@ -77,9 +82,25 @@ func (h *AdminController) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	attemptHash := sha256.Sum256([]byte(payload.Username + ":" + payload.Password))
+	cacheKey := fmt.Sprintf("admin_auth_failed:%x", attemptHash)
+	userNotFoundKey := "admin_not_found:" + payload.Username
+
+	if _, ok := h.cache.Get(r.Context(), cacheKey); ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		writeJSON(w, genericError{Message: constants.InvalidCredentials})
+		return
+	}
+	if _, ok := h.cache.Get(r.Context(), userNotFoundKey); ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		writeJSON(w, genericError{Message: constants.InvalidCredentials})
+		return
+	}
+
 	var admin models.AdminUser
 	if err := h.db.Where("username = ?", payload.Username).First(&admin).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			h.cache.Set(r.Context(), userNotFoundKey, []byte("1"), 5*time.Minute)
 			w.WriteHeader(http.StatusUnauthorized)
 			writeJSON(w, genericError{Message: constants.InvalidCredentials})
 			return
@@ -89,6 +110,7 @@ func (h *AdminController) login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !h.auth.VerifyPassword(admin.PasswordHash, payload.Password) {
+		h.cache.Set(r.Context(), cacheKey, []byte("1"), 5*time.Minute)
 		w.WriteHeader(http.StatusUnauthorized)
 		writeJSON(w, genericError{Message: constants.InvalidCredentials})
 		return
@@ -124,9 +146,22 @@ func (h *AdminController) requireAuth(next http.Handler) http.Handler {
 		}
 
 		var admin models.AdminUser
+		cacheKey := "admin_auth_user:" + username
+		if cachedAdmin, ok := h.cache.Get(r.Context(), cacheKey); ok {
+			if err := json.Unmarshal(cachedAdmin, &admin); err == nil {
+				ctx := context.WithValue(r.Context(), adminContextKey, &admin)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+		}
+
 		if err := h.db.Where("username = ?", username).First(&admin).Error; err != nil {
 			http.Error(w, constants.Unauthorized, http.StatusUnauthorized)
 			return
+		}
+
+		if adminBytes, err := json.Marshal(admin); err == nil {
+			h.cache.Set(r.Context(), cacheKey, adminBytes, 30*24*time.Hour)
 		}
 
 		ctx := context.WithValue(r.Context(), adminContextKey, &admin)

@@ -104,6 +104,15 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 		return
 	}
 
+	if len(officialResults) == 0 {
+		writeJSON(w, map[string]any{
+			"status":  "success",
+			"matched": 0,
+			"synced":  0,
+		})
+		return
+	}
+
 	// Fetch all exam users
 	var allUsers []models.ExamUser
 	if err := h.db.Find(&allUsers).Error; err != nil {
@@ -117,6 +126,9 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 	}
 
 	matchedCount := 0
+	var remainingResults []*models.ExamOfficialResult
+
+	// Pass 1: Match against existing ExamUsers
 	for i := range officialResults {
 		res := &officialResults[i]
 
@@ -125,72 +137,203 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 			resFullName = normalizeForMatch(res.Nombre + res.Apellido1 + *res.Apellido2)
 		}
 
-		var matchedUserID *uint
+		var matchedUser *models.ExamUser
 
-		for _, user := range allUsers {
-			// DNI Match
+		for j := range allUsers {
+			user := &allUsers[j]
 			resDNI := strings.ToUpper(strings.TrimSpace(res.DniMasked))
 			userDNI := strings.ToUpper(strings.TrimSpace(user.DNI))
 
 			dniMatch := false
 			if len(resDNI) > 0 && len(userDNI) > 0 {
-				var cleanResDNI strings.Builder
-				for _, r := range resDNI {
-					// Keep only numbers and letters
-					if (r >= '0' && r <= '9') || (r >= 'A' && r <= 'Z') {
-						cleanResDNI.WriteRune(r)
-					}
-				}
-
-				if cleanResDNI.Len() > 0 && strings.Contains(userDNI, cleanResDNI.String()) {
-					dniMatch = true
-				}
+				// Strict positional matching from the right side (ignoring final letter if missing in mask)
+				dniMatch = matchMaskedDNI(resDNI, userDNI)
 			}
 
 			if !dniMatch {
 				continue
 			}
 
-			// Name match
 			userFullName := normalizeForMatch(user.Name + user.Surname)
 			if resFullName == userFullName {
-				matchedUserID = &user.ID
+				matchedUser = user
 				break
 			}
 		}
 
-		if matchedUserID != nil {
-			// Update the result
-			if err := h.db.Model(&models.ExamOfficialResult{}).Where("id = ?", res.ID).Update("user_id", *matchedUserID).Error; err == nil {
+		if matchedUser != nil {
+			if err := h.db.Model(&models.ExamOfficialResult{}).Where("id = ?", res.ID).Update("user_id", matchedUser.ID).Error; err == nil {
 				matchedCount++
+				res.UserID = &matchedUser.ID
 			}
+		} else {
+			remainingResults = append(remainingResults, res)
 		}
 	}
 
-	h.triggerSyncByExamID(w, uint(examID), matchedCount)
-}
+	// Pass 2: Match remaining against Moodle DB and auto-create ExamUser
+	if len(remainingResults) > 0 {
+		moodleUsers, err := h.moodleClient.GetAllUsersDNI(context.Background())
+		if err != nil {
+			log.Printf("syncOfficialResultsMoodle: failed to fetch moodle users DNI: %v", err)
+		} else {
+			log.Printf("syncOfficialResultsMoodle: fetched %d users from Moodle DB. Proceeding to match %d unlinked official results.", len(moodleUsers), len(remainingResults))
+			for _, res := range remainingResults {
+				resFullName := normalizeForMatch(res.Nombre + res.Apellido1)
+				if res.Apellido2 != nil {
+					resFullName = normalizeForMatch(res.Nombre + res.Apellido1 + *res.Apellido2)
+				}
 
-func (h *AdminController) triggerSyncByExamID(w http.ResponseWriter, examID uint, matchedCount int) {
-	// Now fetch all users associated with this exam's official results that don't have a moodle_id
-	var usersToSync []models.ExamUser
-	query := `
-		SELECT eu.* FROM exam_user eu
-		JOIN exam_official_result eor ON eu.id = eor.user_id
-		WHERE eor.exam_id = ? AND eu.moodle_id IS NULL
-		GROUP BY eu.id
-	`
-	if err := h.db.Raw(query, examID).Scan(&usersToSync).Error; err != nil {
-		log.Printf("syncOfficialResultsMoodle: failed to fetch users to sync: %v", err)
-	}
+				resDNI := strings.ToUpper(strings.TrimSpace(res.DniMasked))
 
-	syncedCount := len(usersToSync)
-	if syncedCount > 0 {
-		go h.syncMoodleUsersAsync(usersToSync)
+				// Ensure at least some numbers exist
+				hasNumbers := false
+				for _, r := range resDNI {
+					if r >= '0' && r <= '9' {
+						hasNumbers = true
+						break
+					}
+				}
+
+				if !hasNumbers {
+					log.Printf("syncOfficialResultsMoodle: skipped result ID %d due to invalid mask (original: '%s')", res.ID, res.DniMasked)
+					continue
+				}
+
+				var possibleMatches []moodle.MoodleUserDNI
+				for _, mu := range moodleUsers {
+					muDNI := strings.ToUpper(strings.TrimSpace(mu.DNI))
+					if matchMaskedDNI(resDNI, muDNI) {
+						possibleMatches = append(possibleMatches, mu)
+					}
+				}
+
+				var matchedMoodleUser *moodle.MoodleUserDNI
+
+				if len(possibleMatches) >= 1 {
+					if len(possibleMatches) == 1 {
+						log.Printf("syncOfficialResultsMoodle: single DNI match found for result ID %d (Mask: %s). Enforcing name match...", res.ID, resDNI)
+					} else {
+						log.Printf("syncOfficialResultsMoodle: multiple DNI matches (%d) found for result ID %d (Mask: %s). Attempting name match...", len(possibleMatches), res.ID, resDNI)
+					}
+
+					// Check name and surname (Permissive token matching)
+					// We split the official result's name and surnames into words
+					resTokens := strings.Fields(helpers.NormalizeName(res.Nombre + " " + res.Apellido1))
+					if res.Apellido2 != nil {
+						resTokens = append(resTokens, strings.Fields(helpers.NormalizeName(*res.Apellido2))...)
+					}
+
+					var bestMatch *moodle.MoodleUserDNI
+					maxMatchScore := 0
+
+					for i, pm := range possibleMatches {
+						pmFullName := helpers.NormalizeName(pm.Firstname + " " + pm.Lastname)
+						score := 0
+
+						// Count how many tokens from the official result exist in the Moodle name
+						for _, token := range resTokens {
+							if len(token) > 2 && strings.Contains(pmFullName, token) {
+								score++
+							}
+						}
+
+						// Exact match is still instantly chosen
+						if resFullName == strings.ReplaceAll(pmFullName, " ", "") {
+							bestMatch = &possibleMatches[i]
+							log.Printf("syncOfficialResultsMoodle: exact name match successful for result ID %d. Moodle User ID: %d", res.ID, bestMatch.ID)
+							break
+						}
+
+						// Keep track of the highest score (needs at least 2 matching words to be considered safe)
+						if score > maxMatchScore && score >= 2 {
+							maxMatchScore = score
+							bestMatch = &possibleMatches[i]
+						}
+					}
+
+					if bestMatch != nil {
+						matchedMoodleUser = bestMatch
+						log.Printf("syncOfficialResultsMoodle: name match successful for result ID %d (Score: %d). Moodle User ID: %d", res.ID, maxMatchScore, matchedMoodleUser.ID)
+					}
+
+					if matchedMoodleUser == nil {
+						log.Printf("syncOfficialResultsMoodle: name match failed for result ID %d (Mask: %s). Could not validate user.", res.ID, resDNI)
+					}
+				} else {
+					log.Printf("syncOfficialResultsMoodle: zero DNI matches found for result ID %d (Mask: %s).", res.ID, resDNI)
+				}
+
+				if matchedMoodleUser != nil {
+					// Create ExamUser since it didn't exist
+					newUser := models.ExamUser{
+						Email:            strings.ToLower(strings.TrimSpace(matchedMoodleUser.Email)),
+						Name:             helpers.NormalizeName(matchedMoodleUser.Firstname),
+						Surname:          helpers.NormalizeName(matchedMoodleUser.Lastname),
+						DNI:              matchedMoodleUser.DNI,
+						MoodleID:         &matchedMoodleUser.ID,
+						AcceptsMarketing: false, // Default
+					}
+
+					// We check if email somehow exists just in case
+					var existingUser models.ExamUser
+					if err := h.db.Where("email = ?", newUser.Email).First(&existingUser).Error; err == nil {
+						// Found existing by email that was missed due to DNI mismatch? Just update MoodleID
+						log.Printf("syncOfficialResultsMoodle: auto-create skipped for result ID %d because email %s already exists. Updating its MoodleID instead.", res.ID, newUser.Email)
+						h.db.Model(&existingUser).Update("moodle_id", matchedMoodleUser.ID)
+						h.db.Model(&models.ExamOfficialResult{}).Where("id = ?", res.ID).Update("user_id", existingUser.ID)
+						matchedCount++
+					} else {
+						// Create new
+						if err := h.db.Create(&newUser).Error; err == nil {
+							h.db.Model(&models.ExamOfficialResult{}).Where("id = ?", res.ID).Update("user_id", newUser.ID)
+							matchedCount++
+							log.Printf("syncOfficialResultsMoodle: successfully auto-created ExamUser ID %d for Official Result ID %d", newUser.ID, res.ID)
+						} else {
+							log.Printf("syncOfficialResultsMoodle: error auto-creating ExamUser for Official Result ID %d: %v", res.ID, err)
+						}
+					}
+				}
+			}
+		}
 	}
 
 	writeJSON(w, map[string]any{
 		"status":  "success",
 		"matched": matchedCount,
-		"synced":  syncedCount,
+		"synced":  0,
 	})
+}
+
+// matchMaskedDNI compares a masked DNI (e.g. "***7090**") with a full DNI (e.g. "12370908Z")
+// It assumes the full DNI is always complete (with letters).
+func matchMaskedDNI(masked, full string) bool {
+	masked = strings.ToUpper(strings.TrimSpace(masked))
+	full = strings.ToUpper(strings.TrimSpace(full))
+
+	if masked == full {
+		return true
+	}
+
+	// If they don't have the same number of characters, the comparison is invalid
+	if len(masked) != len(full) {
+		return false
+	}
+
+	for i := 0; i < len(masked); i++ {
+		mChar := masked[i]
+		fChar := full[i]
+
+		// Any character that is not a letter or a number is treated as a wildcard mask
+		isAlphaNum := (mChar >= '0' && mChar <= '9') || (mChar >= 'A' && mChar <= 'Z')
+		if !isAlphaNum {
+			continue
+		}
+
+		if mChar != fChar {
+			return false
+		}
+	}
+
+	return true
 }

@@ -50,6 +50,10 @@ func New(cfg *config.Config) *Client {
 	db, err := newMoodleDB(cfg)
 	if err != nil {
 		log.Printf("moodle: database lookup disabled: %v", err)
+	} else if db == nil {
+		log.Printf("moodle: database lookup disabled silently (no URL or DBName provided in config)")
+	} else {
+		log.Printf("moodle: database explicitly configured and connected successfully")
 	}
 
 	return &Client{
