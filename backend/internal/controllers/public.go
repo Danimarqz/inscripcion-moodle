@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -257,13 +256,9 @@ func (h *PublicController) scheduleMoodleSync(email, dni string) {
 	if h.moodleClient == nil {
 		return
 	}
-	go func(email, dni string) {
-		ctx, cancel := context.WithTimeout(context.Background(), moodleSyncTimeout)
-		defer cancel()
-		if err := moodle.SyncExamUser(ctx, h.db, h.moodleClient, email, dni); err != nil {
-			log.Printf("moodle sync for %s / %s failed: %v", email, dni, err)
-		}
-	}(email, dni)
+	if err := moodle.EnqueueSyncUser(h.db, h.moodleClient, email, dni); err != nil {
+		log.Printf("failed to enqueue moodle sync for %s / %s: %v", email, dni, err)
+	}
 }
 
 func (h *PublicController) writeJSONError(w http.ResponseWriter, status int, detail string) {

@@ -18,7 +18,9 @@ import (
 	"github.com/inscripcion-moodle/go-backend/internal/middleware"
 	"github.com/inscripcion-moodle/go-backend/internal/repository"
 	"github.com/inscripcion-moodle/go-backend/internal/services/auth"
+	"github.com/inscripcion-moodle/go-backend/internal/services/email"
 	examservice "github.com/inscripcion-moodle/go-backend/internal/services/exam"
+	"github.com/inscripcion-moodle/go-backend/internal/services/moodle"
 	"github.com/inscripcion-moodle/go-backend/internal/storage"
 )
 
@@ -43,6 +45,10 @@ func New(cfg *config.Config) (*Server, error) {
 
 	examRepo := repository.NewExamRepository()
 	examService := examservice.NewService(db, examRepo, cfg.SMTPUser)
+
+	// Initialize background worker pools
+	email.InitWorkerPool(3)
+	moodle.InitSyncWorkerPool(5)
 
 	publicController := controllers.NewPublicController(db, cache, cfg, examService)
 	registerController := controllers.NewRegisterController(cfg)

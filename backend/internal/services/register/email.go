@@ -25,8 +25,8 @@ func sendEmails(cfg *config.Config, recipient string, pdf []byte, name, surname 
 		},
 	}
 
-	if err := email.SendEmail(cfg, []string{recipient}, subject, body, attachments, nil); err != nil {
+	if err := email.EnqueueEmail(cfg, []string{recipient}, subject, body, attachments, nil); err != nil {
 		return err
 	}
-	return email.SendEmail(cfg, []string{cfg.AdminEmail}, subject, adminBody, attachments, nil)
+	return email.EnqueueEmail(cfg, []string{cfg.AdminEmail}, subject, adminBody, attachments, nil)
 }

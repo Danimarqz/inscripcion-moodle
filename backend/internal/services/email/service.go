@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log"
 	"net/smtp"
 	"strings"
 	"time"
@@ -16,6 +17,51 @@ type Attachment struct {
 	Filename    string
 	Content     []byte
 	ContentType string
+}
+
+type QueuedEmail struct {
+	Cfg         *config.Config
+	To          []string
+	Subject     string
+	Body        string
+	Attachments []Attachment
+	Bcc         []string
+}
+
+var emailQueue chan QueuedEmail
+
+func InitWorkerPool(workers int) {
+	emailQueue = make(chan QueuedEmail, 1000)
+	for range workers {
+		go func() {
+			for job := range emailQueue {
+				if err := SendEmail(job.Cfg, job.To, job.Subject, job.Body, job.Attachments, job.Bcc); err != nil {
+					log.Printf("email worker error: failed to send email to %v: %v", job.To, err)
+				}
+			}
+		}()
+	}
+}
+
+func EnqueueEmail(cfg *config.Config, to []string, subject, body string, attachments []Attachment, bcc []string) error {
+	if emailQueue == nil {
+		log.Println("WARNING: Email worker pool not initialized, sending synchronously falling back")
+		return SendEmail(cfg, to, subject, body, attachments, bcc)
+	}
+
+	select {
+	case emailQueue <- QueuedEmail{
+		Cfg:         cfg,
+		To:          to,
+		Subject:     subject,
+		Body:        body,
+		Attachments: attachments,
+		Bcc:         bcc,
+	}:
+		return nil
+	default:
+		return errors.New("email queue is full, unable to enqueue message")
+	}
 }
 
 func SendEmail(cfg *config.Config, to []string, subject, body string, attachments []Attachment, bcc []string) error {

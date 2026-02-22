@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 
+	"sync"
+
 	"github.com/xuri/excelize/v2"
 	"gorm.io/gorm"
 
@@ -93,67 +95,90 @@ func (s *Service) storeOfficialResults(ctx context.Context, examID uint, rows *e
 			}
 		}
 
-		batchSize := 500
-		batch := make([]models.ExamOfficialResult, 0, batchSize)
+		rowChan := make(chan []string, 100)
+		resultChan := make(chan models.ExamOfficialResult, 100)
+		errChan := make(chan error, 1)
 
-		flush := func() error {
-			if len(batch) == 0 {
-				return nil
-			}
-			if result := tx.Create(&batch); result.Error != nil {
-				return result.Error
-			} else {
-				imported += int(result.RowsAffected)
-			}
-			batch = batch[:0]
-			return nil
-		}
+		go func() {
+			batchSize := 500
+			batch := make([]models.ExamOfficialResult, 0, batchSize)
 
-		// Handle first row (header detection)
-		if rows.Next() {
-			firstRow, err := rows.Columns()
-			if err != nil {
-				return err
-			}
-			
-			isHeader := false
-			if len(firstRow) > 0 {
-				firstCell := strings.TrimSpace(firstRow[0])
-				// Check if it looks like a header (text only)
-				if firstCell != "" && isHeaderRegex.MatchString(firstCell) {
-					isHeader = true
-				}
-			}
-
-			if !isHeader {
-				totalRows++
-				if res, ok := parseOfficialResultRow(examID, firstRow); ok {
-					batch = append(batch, res)
-				}
-			}
-		}
-
-		for rows.Next() {
-			row, err := rows.Columns()
-			if err != nil {
-				return err
-			}
-			if len(row) == 0 {
-				continue
-			}
-			totalRows++ // We count data rows
-
-			if res, ok := parseOfficialResultRow(examID, row); ok {
+			for res := range resultChan {
 				batch = append(batch, res)
 				if len(batch) >= batchSize {
-					if err := flush(); err != nil {
-						return err
+					if result := tx.Create(&batch); result.Error != nil {
+						errChan <- result.Error
+						return
+					} else {
+						imported += int(result.RowsAffected)
 					}
+					batch = batch[:0]
 				}
 			}
+			if len(batch) > 0 {
+				if result := tx.Create(&batch); result.Error != nil {
+					errChan <- result.Error
+					return
+				} else {
+					imported += int(result.RowsAffected)
+				}
+			}
+			errChan <- nil
+		}()
+
+		numWorkers := 4
+		var wg sync.WaitGroup
+		wg.Add(numWorkers)
+		for range numWorkers {
+			go func() {
+				defer wg.Done()
+				for rowData := range rowChan {
+					if len(rowData) == 0 {
+						continue
+					}
+					if res, ok := parseOfficialResultRow(examID, rowData); ok {
+						resultChan <- res
+					}
+				}
+			}()
 		}
 
-		return flush()
+		go func() {
+			wg.Wait()
+			close(resultChan)
+		}()
+
+		rowIndex := 0
+		for rows.Next() {
+			row, rowErr := rows.Columns()
+			if rowErr != nil {
+				return rowErr
+			}
+
+			if rowIndex == 0 {
+				isHeader := false
+				if len(row) > 0 {
+					firstCell := strings.TrimSpace(row[0])
+					if firstCell != "" && isHeaderRegex.MatchString(firstCell) {
+						isHeader = true
+					}
+				}
+				if isHeader {
+					rowIndex++
+					continue
+				}
+			}
+			totalRows++
+			rowChan <- row
+			rowIndex++
+		}
+		close(rowChan)
+
+		if writeErr := <-errChan; writeErr != nil {
+			return writeErr
+		}
+
+		return nil
 	})
 
 	return totalRows, imported, err
@@ -172,7 +197,7 @@ func parseOfficialResultRow(examID uint, row []string) (models.ExamOfficialResul
 	apellido1 := cleanNameField(row[1])
 	apellido2 := cleanNameField(row[2])
 	nombre := cleanNameField(row[3])
-	
+
 	resultType := "General"
 	if len(row) >= 5 {
 		val := strings.TrimSpace(row[4])

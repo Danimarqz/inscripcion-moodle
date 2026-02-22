@@ -4,11 +4,58 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
+	"time"
 
 	"github.com/inscripcion-moodle/go-backend/internal/models"
 	"gorm.io/gorm"
 )
+
+type SyncJob struct {
+	Email  string
+	DNI    string
+	DB     *gorm.DB
+	Client *Client
+}
+
+var syncQueue chan SyncJob
+
+func InitSyncWorkerPool(workers int) {
+	syncQueue = make(chan SyncJob, 1000)
+	for i := 0; i < workers; i++ {
+		go func() {
+			for job := range syncQueue {
+				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				if err := SyncExamUser(ctx, job.DB, job.Client, job.Email, job.DNI); err != nil {
+					log.Printf("moodle sync worker error for %s / %s: %v", job.Email, job.DNI, err)
+				}
+				cancel()
+			}
+		}()
+	}
+}
+
+func EnqueueSyncUser(db *gorm.DB, client *Client, email, dni string) error {
+	if syncQueue == nil {
+		log.Println("WARNING: Moodle sync worker pool not initialized, sending synchronously falling back")
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		return SyncExamUser(ctx, db, client, email, dni)
+	}
+
+	select {
+	case syncQueue <- SyncJob{
+		Email:  email,
+		DNI:    dni,
+		DB:     db,
+		Client: client,
+	}:
+		return nil
+	default:
+		return errors.New("moodle sync queue is full")
+	}
+}
 
 var (
 	ErrUserNotEnrolled = errors.New("moodle user is not enrolled in the required course")
