@@ -128,7 +128,7 @@ func (s *Service) ExportSubmissionsAnalysis(examID uint, search, orderBy, orderD
 
 	headers := []string{"ID", "Nombre", "Apellidos", "Email", "DNI", "Nota", "Percentil", "Fecha", "Tipo"}
 	for _, q := range sortedQuestions {
-		headers = append(headers, fmt.Sprintf("P%d (Correcta: %s)", q.Name, q.CorrectOption))
+		headers = append(headers, fmt.Sprintf("P%d - %s", q.Name, q.CorrectOption))
 	}
 
 	for i, h := range headers {
