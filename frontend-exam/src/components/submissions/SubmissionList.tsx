@@ -91,7 +91,7 @@ export default function SubmissionList({
                     });
                   })()}
                   <span className="px-3 py-1 rounded-full border border-brand-yellow-soft text-brand-yellow">
-                    Percentil: {submission.percentile ?? 'N/A'}
+                    Percentil: {typeof submission.percentile === 'number' ? Math.round(submission.percentile) : 'N/A'}
                   </span>
                   <span className="px-3 py-1 rounded-full border border-brand-pink-soft text-brand-pink">
                     Méritos: {submission.merits ?? 0}
@@ -250,17 +250,18 @@ export default function SubmissionList({
                         )}
                       </div>
                       <select
-                        value={editingState.answers[question.id ?? -1] || 'A'}
+                        value={editingState.answers[question.id ?? -1] || '-'}
                         onChange={(event) =>
                           question.id !== undefined &&
                           onUpdateAnswer(
                             submission.id,
                             question.id,
-                            (event.currentTarget as HTMLSelectElement).value as AnswerOption,
+                            (event.currentTarget as HTMLSelectElement).value,
                           )
                         }
                         className="w-full rounded border border-[#444] bg-[#1f2229] px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
                       >
+                        <option value="-">Sin responder</option>
                         {answerOptions.map((option) => (
                           <option key={option} value={option}>
                             {option}

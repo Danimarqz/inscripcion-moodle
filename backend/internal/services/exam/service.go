@@ -108,9 +108,10 @@ func NewService(db *gorm.DB, repo repository.ExamRepository, contactEmail string
 	return &Service{db: db, repo: repo, contactEmail: contactEmail}
 }
 
-// recalculateScoresAsync runs the score and percentile recalculation in a separate
+// recalculatePercentilesAsync runs the percentile recalculation in a separate
 // transaction and context, making it safe to run in a background goroutine.
-func (s *Service) recalculateScoresAsync(examID uint) {
+// Scores are already calculated upon submission, so we only need to update percentiles.
+func (s *Service) recalculatePercentilesAsync(examID uint) {
 	// Use a background context so the request context being canceled doesn't kill the job.
 	ctx := context.Background()
 
@@ -119,19 +120,19 @@ func (s *Service) recalculateScoresAsync(examID uint) {
 	if tx.Error != nil {
 		// This will be tricky to log without a logger dependency.
 		// For now, printing to stderr is a temporary solution.
-		fmt.Printf("ERROR: could not begin transaction for async recalculateScores for exam %d: %v\n", examID, tx.Error)
+		fmt.Printf("ERROR: could not begin transaction for async recalculatePercentiles for exam %d: %v\n", examID, tx.Error)
 		return
 	}
 	// Ensure rollback on panic or early return.
 	defer tx.Rollback()
 
-	if err := s.repo.RecalculateScores(ctx, tx, examID); err != nil {
-		fmt.Printf("ERROR: failed to asynchronously recalculate scores for exam %d: %v\n", examID, err)
+	if err := s.repo.RecalculatePercentiles(ctx, tx, examID); err != nil {
+		fmt.Printf("ERROR: failed to asynchronously recalculate percentiles for exam %d: %v\n", examID, err)
 		return
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		fmt.Printf("ERROR: could not commit transaction for async recalculateScores for exam %d: %v\n", examID, err)
+		fmt.Printf("ERROR: could not commit transaction for async recalculatePercentiles for exam %d: %v\n", examID, err)
 	}
 }
 
@@ -150,7 +151,7 @@ func (s *Service) ProcessExamSubmission(req SubmitExamRequest) (*SubmissionPaylo
 	}
 
 	// On success, launch the recalculation in the background.
-	go s.recalculateScoresAsync(req.ExamID)
+	go s.recalculatePercentilesAsync(req.ExamID)
 
 	return payload, nil
 }

@@ -36,6 +36,7 @@ func TestService_UpdateExam_DeleteQuestions(t *testing.T) {
 	mockQuestionRepo.On("DeleteQuestions", mock.Anything, mock.Anything, []uint{102}).Return(nil)
 	mockExamRepo.On("UpdateExam", mock.Anything, mock.Anything, mock.AnythingOfType("*models.Exam")).Return(nil)
 	mockExamRepo.On("RecalculateScores", mock.Anything, mock.Anything, examID).Return(nil)
+	mockExamRepo.On("RecalculateScoresForSubmission", mock.Anything, mock.Anything, examID, mock.Anything).Return(nil)
 
 	updatedExam, err := service.UpdateExam(examID, req)
 
@@ -65,7 +66,7 @@ func TestService_UpdateExam_Numbering_SEQ_Renumbering(t *testing.T) {
 	// Update sends same questions. System should renumber 1, 3 -> 1, 2.
 	req := EditExamRequest{
 		Questions: []QuestionInput{
-			{ID: new(uint(201)), Name: new(1), CorrectOption: "A"}, 
+			{ID: new(uint(201)), Name: new(1), CorrectOption: "A"},
 			{ID: new(uint(203)), Name: new(3), CorrectOption: "B"},
 		},
 	}
@@ -73,14 +74,15 @@ func TestService_UpdateExam_Numbering_SEQ_Renumbering(t *testing.T) {
 	mockExamRepo.On("FindExamByID", mock.Anything, mock.Anything, examID).Return(exam, nil)
 	mockExamRepo.On("UpdateExam", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	mockExamRepo.On("RecalculateScores", mock.Anything, mock.Anything, examID).Return(nil)
+	mockExamRepo.On("RecalculateScoresForSubmission", mock.Anything, mock.Anything, examID, mock.Anything).Return(nil)
 
 	updatedExam, err := service.UpdateExam(examID, req)
 	assert.NoError(t, err)
-	
+
 	// Verify numbering re-sequenced
 	q1 := findQuestionByID(updatedExam.Questions, 201)
 	q3 := findQuestionByID(updatedExam.Questions, 203)
-	
+
 	assert.Equal(t, 1, q1.Name)
 	assert.Equal(t, 2, q3.Name)
 }
@@ -109,10 +111,11 @@ func TestService_UpdateExam_Numbering_NewQuestion(t *testing.T) {
 	mockExamRepo.On("FindExamByID", mock.Anything, mock.Anything, examID).Return(exam, nil)
 	mockExamRepo.On("UpdateExam", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	mockExamRepo.On("RecalculateScores", mock.Anything, mock.Anything, examID).Return(nil)
+	mockExamRepo.On("RecalculateScoresForSubmission", mock.Anything, mock.Anything, examID, mock.Anything).Return(nil)
 
 	updatedExam, err := service.UpdateExam(examID, req)
 	assert.NoError(t, err)
-	
+
 	assert.Len(t, updatedExam.Questions, 3)
 	// Find the new one (ID=0)
 	var newQ models.Question
@@ -146,16 +149,17 @@ func TestService_UpdateExam_ActiveReserveSeparation(t *testing.T) {
 	// 4. New Reserve      -> Name 4
 	req := EditExamRequest{
 		Questions: []QuestionInput{
-			{ID: new(uint(401)), Name: new(1), IsActive: new(true), CorrectOption: "A"}, // Active
-			{IsActive: new(true), CorrectOption: "C"}, // New Active
+			{ID: new(uint(401)), Name: new(1), IsActive: new(true), CorrectOption: "A"},  // Active
+			{IsActive: new(true), CorrectOption: "C"},                                    // New Active
 			{ID: new(uint(402)), Name: new(1), IsActive: new(false), CorrectOption: "B"}, // Reserve
-			{IsActive: new(false), CorrectOption: "D"}, // New Reserve
+			{IsActive: new(false), CorrectOption: "D"},                                   // New Reserve
 		},
 	}
 
 	mockExamRepo.On("FindExamByID", mock.Anything, mock.Anything, examID).Return(exam, nil)
 	mockExamRepo.On("UpdateExam", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	mockExamRepo.On("RecalculateScores", mock.Anything, mock.Anything, examID).Return(nil)
+	mockExamRepo.On("RecalculateScoresForSubmission", mock.Anything, mock.Anything, examID, mock.Anything).Return(nil)
 
 	updatedExam, err := service.UpdateExam(examID, req)
 	assert.NoError(t, err)
@@ -163,7 +167,7 @@ func TestService_UpdateExam_ActiveReserveSeparation(t *testing.T) {
 	// Verify names
 	q401 := findQuestionByID(updatedExam.Questions, 401)
 	q402 := findQuestionByID(updatedExam.Questions, 402)
-	
+
 	var newActive, newReserve models.Question
 	for _, q := range updatedExam.Questions {
 		if q.ID == 0 {
@@ -174,14 +178,13 @@ func TestService_UpdateExam_ActiveReserveSeparation(t *testing.T) {
 			}
 		}
 	}
-	
+
 	// Expect strict sequential ordering based on input list
 	assert.Equal(t, 1, q401.Name, "First Active question should be 1")
 	assert.Equal(t, 2, newActive.Name, "Second Active (New) should be 2")
 	assert.Equal(t, 3, q402.Name, "First Reserve (Old) should be 3")
 	assert.Equal(t, 4, newReserve.Name, "Second Reserve (New) should be 4")
 }
-
 
 // Helper functions uintPtr, intPtr, boolPtr removed in favor of Go 1.26 new(value) syntax
 // func uintPtr(v uint) *uint { return &v }

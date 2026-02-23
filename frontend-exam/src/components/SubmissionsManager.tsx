@@ -263,11 +263,11 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
     try {
       const fullSubmission = await getSubmission(submission.id, token);
       
-      const initialAnswers: Record<number, AnswerOption> = {};
+      const initialAnswers: Record<number, AnswerOption | '-'> = {};
       fullSubmission.answers.forEach((answer) => {
          const normalizedAnswer = (answer.answer ?? '').toUpperCase();
          const castAnswer = normalizedAnswer as AnswerOption;
-         initialAnswers[answer.question_id] = ANSWER_OPTIONS.includes(castAnswer) ? castAnswer : ANSWER_OPTIONS[0];
+         initialAnswers[answer.question_id] = ANSWER_OPTIONS.includes(castAnswer) ? castAnswer : '-';
       });
       const user = fullSubmission.user;
       
@@ -326,8 +326,7 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
 
   function updateAnswer(submissionId: number, questionId: number, value: string) {
     const upper = value.toUpperCase();
-    const normalized = upper as AnswerOption;
-    if (!ANSWER_OPTIONS.includes(normalized)) return;
+    if (upper !== '-' && !ANSWER_OPTIONS.includes(upper as AnswerOption)) return;
 
     setEditingStates((prev) => {
         const current = prev[submissionId];
@@ -336,7 +335,7 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
             ...prev,
             [submissionId]: {
                 ...current,
-                answers: { ...current.answers, [questionId]: normalized }
+                answers: { ...current.answers, [questionId]: upper as AnswerOption | '-' }
             }
         };
     });
@@ -363,7 +362,7 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
       .filter((question): question is QuestionEdit & { id: number } => typeof question.id === 'number')
       .map((question) => ({
         question_id: question.id,
-        answer: (editing.answers[question.id] || 'A').toUpperCase(),
+        answer: editing.answers[question.id] && editing.answers[question.id] !== '-' ? editing.answers[question.id] : '',
       }));
 
     if (answersPayload.length !== questions.length) { setError('No se pudieron obtener todas las preguntas del examen.'); return; }

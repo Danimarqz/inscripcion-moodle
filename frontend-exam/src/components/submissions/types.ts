@@ -13,6 +13,6 @@ export interface EditingState {
   surname: string;
   email: string;
   dni: string;
-  answers: Record<number, AnswerOption>;
+  answers: Record<number, AnswerOption | '-'>;
   merits?: number;
 }

@@ -41,7 +41,33 @@ func (s *Service) UpdateSubmission(submissionID uint, req SubmissionUpdateReques
 	if err := s.submissionRepo.Update(context.Background(), s.db, submission); err != nil {
 		return nil, err
 	}
+
+	go s.recalculateScoresForSubmissionAsync(submission.ExamID, submission.ID)
+
 	return s.submissionRepo.FindByID(context.Background(), s.db, submissionID)
+}
+
+// recalculateScoresForSubmissionAsync runs the score and percentile recalculation in a separate
+// transaction and context, making it safe to run in a background goroutine.
+// It optimizes by recalculating the score for a single submission, but recalculates percentiles for all.
+func (s *Service) recalculateScoresForSubmissionAsync(examID uint, submissionID uint) {
+	ctx := context.Background()
+
+	tx := s.db.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		fmt.Printf("ERROR: could not begin transaction for async recalculateScoresForSubmission for exam %d submission %d: %v\n", examID, submissionID, tx.Error)
+		return
+	}
+	defer tx.Rollback()
+
+	if err := s.examRepo.RecalculateScoresForSubmission(ctx, tx, examID, submissionID); err != nil {
+		fmt.Printf("ERROR: failed to asynchronously recalculate score for exam %d submission %d: %v\n", examID, submissionID, err)
+		return
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		fmt.Printf("ERROR: could not commit transaction for async recalculateScoresForSubmission for exam %d: %v\n", examID, err)
+	}
 }
 
 func (s *Service) updateUserFromSubmission(user models.ExamUser, req SubmissionUpdateRequest) error {

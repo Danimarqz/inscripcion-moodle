@@ -17,6 +17,8 @@ type ExamRepository interface {
 	DeleteExam(ctx context.Context, db *gorm.DB, examID uint) error
 	CountByName(ctx context.Context, db *gorm.DB, name string) (int64, error)
 	RecalculateScores(ctx context.Context, db *gorm.DB, examID uint) error
+	RecalculateScoresForSubmission(ctx context.Context, db *gorm.DB, examID uint, submissionID uint) error
+	RecalculatePercentiles(ctx context.Context, db *gorm.DB, examID uint) error
 }
 
 type examRepository struct{}
@@ -128,6 +130,10 @@ WHERE u.exam_id = ?`
 		return err
 	}
 
+	return r.RecalculatePercentiles(ctx, db, examID)
+}
+
+func (r *examRepository) RecalculatePercentiles(ctx context.Context, db *gorm.DB, examID uint) error {
 	const percentileSQL = `
 UPDATE user_exam_submission AS u
 JOIN (
@@ -145,4 +151,62 @@ WHERE u.exam_id = ?`
 		return err
 	}
 	return nil
+}
+
+func (r *examRepository) RecalculateScoresForSubmission(ctx context.Context, db *gorm.DB, examID uint, submissionID uint) error {
+	var exam models.Exam
+	if err := db.WithContext(ctx).First(&exam, examID).Error; err != nil {
+		return err
+	}
+
+	penalty := 0.0
+	if exam.PenaltyValue != nil {
+		penalty = *exam.PenaltyValue
+	}
+
+	maxScore := 100.0
+	if exam.MaxScore != nil {
+		maxScore = *exam.MaxScore
+	}
+
+	var totalQuestions int64
+	if err := db.WithContext(ctx).Model(&models.Question{}).
+		Where("exam_id = ? AND is_active = 1 AND is_cancelled = 0", examID).
+		Count(&totalQuestions).Error; err != nil {
+		return err
+	}
+
+	if totalQuestions == 0 {
+		return nil // No questions, cannot calculate score
+	}
+
+	const scoreSQL = `
+UPDATE user_exam_submission AS u
+JOIN (
+    SELECT ua.submission_id,
+           ROUND(
+             SUM(
+               CASE 
+                 WHEN ua.answer = q.correct_option THEN 1.0 
+                 WHEN ? AND ua.answer != '' THEN -? 
+                 ELSE 0.0 
+               END
+             ) / ? * ?, 
+           2) AS base_score
+    FROM user_answer ua
+    INNER JOIN question q ON q.id = ua.question_id 
+    WHERE q.exam_id = ? AND ua.submission_id = ?
+      AND q.is_active = 1
+      AND q.is_cancelled = 0
+    GROUP BY ua.submission_id
+) AS t ON u.id = t.submission_id
+SET u.score = t.base_score
+WHERE u.exam_id = ? AND u.id = ?`
+
+	if err := db.WithContext(ctx).Exec(scoreSQL, exam.SubtractsPoints, penalty, float64(totalQuestions), maxScore, examID, submissionID, examID, submissionID).Error; err != nil {
+		fmt.Printf("ERROR: RecalculateScoresForSubmission SQL failed: %v\n", err)
+		return err
+	}
+
+	return r.RecalculatePercentiles(ctx, db, examID)
 }

@@ -46,7 +46,7 @@ export default function SubmissionSummary({
       <div className="flex flex-wrap gap-4">
         {showScore && typeof score === 'number' && (
           <div className="flex-1 min-w-[180px] rounded-xl bg-[#1f2a24] border border-green-500/30 p-4">
-            <p className="text-xs uppercase tracking-widest text-green-400/80">Puntuaci�n</p>
+            <p className="text-xs uppercase tracking-widest text-green-400/80">Puntuación</p>
             <p className="text-2xl font-bold text-green-200">{score}</p>
           </div>
         )}
@@ -76,10 +76,10 @@ export default function SubmissionSummary({
         {showPercentile && typeof percentile === 'number' && (
           <div className="flex-1 min-w-[180px] rounded-xl bg-[#1f2330] border border-indigo-500/30 p-4">
             <p className="text-xs uppercase tracking-widest text-indigo-300/80">Percentil</p>
-            <p className="text-2xl font-bold text-indigo-200">{percentile}</p>
+            <p className="text-2xl font-bold text-indigo-200">{Math.round(percentile)}</p>
             {typeof position === 'number' && typeof totalSubmissions === 'number' && (
               <p className="text-sm text-indigo-200/70 mt-1">
-                Posici�n {position} de {totalSubmissions}
+                Posición {position} de {totalSubmissions}
               </p>
             )}
           </div>

@@ -58,6 +58,16 @@ func (m *MockExamRepository) RecalculateScores(ctx context.Context, db *gorm.DB,
 	return args.Error(0)
 }
 
+func (m *MockExamRepository) RecalculateScoresForSubmission(ctx context.Context, db *gorm.DB, examID uint, submissionID uint) error {
+	args := m.Called(ctx, db, examID, submissionID)
+	return args.Error(0)
+}
+
+func (m *MockExamRepository) RecalculatePercentiles(ctx context.Context, db *gorm.DB, examID uint) error {
+	args := m.Called(ctx, db, examID)
+	return args.Error(0)
+}
+
 type MockQuestionRepository struct {
 	mock.Mock
 }
@@ -77,7 +87,7 @@ func TestService_ListExams(t *testing.T) {
 	service := New(nil, mockRepo, nil, nil, nil) // passing nil for questionRepo
 
 	expectedExams := []models.Exam{{Name: "Test Exam"}}
-	
+
 	// Expect ListExams to be called
 	mockRepo.On("ListExams", mock.Anything, mock.Anything).Return(expectedExams, nil)
 
@@ -92,7 +102,7 @@ func TestService_GetExam(t *testing.T) {
 	service := New(nil, mockRepo, nil, nil, nil)
 
 	expectedExam := &models.Exam{Name: "Test Exam"}
-	
+
 	mockRepo.On("FindExamByID", mock.Anything, mock.Anything, uint(1)).Return(expectedExam, nil)
 
 	exam, err := service.GetExam(1)
