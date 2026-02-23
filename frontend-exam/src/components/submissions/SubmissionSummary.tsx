@@ -8,6 +8,8 @@ interface SubmissionSummaryProps {
   showPercentile: boolean;
   score: number | null;
   correctAnswers: number | null;
+  incorrectAnswers?: number | null;
+  notAnswered?: number | null;
   totalQuestions: number | null;
   percentile: number | null;
   position: number | null;
@@ -24,6 +26,8 @@ export default function SubmissionSummary({
   showPercentile,
   score,
   correctAnswers,
+  incorrectAnswers,
+  notAnswered,
   totalQuestions,
   percentile,
   position,
@@ -46,7 +50,7 @@ export default function SubmissionSummary({
       <div className="flex flex-wrap gap-4">
         {showScore && typeof score === 'number' && (
           <div className="flex-1 min-w-[180px] rounded-xl bg-[#1f2a24] border border-green-500/30 p-4">
-            <p className="text-xs uppercase tracking-widest text-green-400/80">Puntuación</p>
+            <p className="text-xs uppercase tracking-widest text-green-400/80">Nota sobre 10</p>
             <p className="text-2xl font-bold text-green-200">{score}</p>
           </div>
         )}
@@ -71,6 +75,12 @@ export default function SubmissionSummary({
             <p className="text-2xl font-bold text-teal-200">
               {correctAnswers} <span className="text-base text-teal-200/70">de</span> {totalQuestions}
             </p>
+            {(typeof incorrectAnswers === 'number' || typeof notAnswered === 'number') && (
+              <div className="mt-2 text-xs flex gap-3 text-teal-200/50">
+                {typeof incorrectAnswers === 'number' && <span>Fallos <span className="text-brand-pink-soft font-semibold">{incorrectAnswers}</span></span>}
+                {typeof notAnswered === 'number' && <span>En Blanco <span className="text-gray-400 font-semibold">{notAnswered}</span></span>}
+              </div>
+            )}
           </div>
         )}
         {showPercentile && typeof percentile === 'number' && (

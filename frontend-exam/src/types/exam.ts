@@ -18,6 +18,8 @@ export type ExamOut = {
   position?: number | null;
   total_submissions?: number | null;
   correct_answers?: number | null;
+  incorrect_answers?: number | null;
+  not_answered?: number | null;
   total_questions?: number | null;
   message?: string | null;
   answers_review?: AnswerReview[] | null;
@@ -238,6 +240,8 @@ export type ExamUiState = {
   position: number | null;
   totalSubmissions: number | null;
   correctAnswers: number | null;
+  incorrectAnswers: number | null;
+  notAnswered: number | null;
   totalQuestions: number | null;
   submissionMessage: string | null;
   resultError: string | null;
@@ -252,6 +256,8 @@ export type ExamResultPayload = {
   position: number | null;
   totalSubmissions: number | null;
   correctAnswers: number | null;
+  incorrectAnswers: number | null;
+  notAnswered: number | null;
   totalQuestions: number | null;
   message: string;
   answersReview: AnswerReview[] | null;

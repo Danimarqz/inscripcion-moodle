@@ -64,6 +64,8 @@ export default function ExamPage({
     position,
     totalSubmissions,
     correctAnswers,
+    incorrectAnswers,
+    notAnswered,
     totalQuestions,
     answersReview,
     maxScore,
@@ -341,6 +343,8 @@ export default function ExamPage({
         showPercentile={showPercentile}
         score={latestScore}
         correctAnswers={correctAnswers}
+        incorrectAnswers={incorrectAnswers}
+        notAnswered={notAnswered}
         totalQuestions={totalQuestions}
         percentile={latestPercentile}
         position={position}

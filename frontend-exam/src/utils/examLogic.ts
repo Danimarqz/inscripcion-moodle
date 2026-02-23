@@ -76,6 +76,10 @@ export function buildResultPayload(
     typeof result.total_submissions === 'number' ? result.total_submissions : null;
   const rawCorrectAnswers =
     typeof result.correct_answers === 'number' ? result.correct_answers : null;
+  const rawIncorrectAnswers =
+    typeof result.incorrect_answers === 'number' ? result.incorrect_answers : null;
+  const rawNotAnswered =
+    typeof result.not_answered === 'number' ? result.not_answered : null;
   const rawTotalQuestions =
     typeof result.total_questions === 'number' ? result.total_questions : null;
   const review =
@@ -86,6 +90,8 @@ export function buildResultPayload(
   const nextPosition = showPercentile ? rawPosition : null;
   const nextTotalSubmissions = showPercentile ? rawTotalSubmissions : null;
   const nextCorrectAnswers = showScoreFull ? rawCorrectAnswers : null;
+  const nextIncorrectAnswers = showScoreFull ? rawIncorrectAnswers : null;
+  const nextNotAnswered = showScoreFull ? rawNotAnswered : null;
   const nextTotalQuestions = showScoreFull ? rawTotalQuestions : null;
 
   const message = composeResultMessage({
@@ -107,6 +113,8 @@ export function buildResultPayload(
     position: nextPosition,
     totalSubmissions: nextTotalSubmissions,
     correctAnswers: nextCorrectAnswers,
+    incorrectAnswers: nextIncorrectAnswers,
+    notAnswered: nextNotAnswered,
     totalQuestions: nextTotalQuestions,
     message,
     answersReview: review,

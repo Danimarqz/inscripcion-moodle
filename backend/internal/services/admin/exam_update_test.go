@@ -36,7 +36,6 @@ func TestService_UpdateExam_DeleteQuestions(t *testing.T) {
 	mockQuestionRepo.On("DeleteQuestions", mock.Anything, mock.Anything, []uint{102}).Return(nil)
 	mockExamRepo.On("UpdateExam", mock.Anything, mock.Anything, mock.AnythingOfType("*models.Exam")).Return(nil)
 	mockExamRepo.On("RecalculateScores", mock.Anything, mock.Anything, examID).Return(nil)
-	mockExamRepo.On("RecalculateScoresForSubmission", mock.Anything, mock.Anything, examID, mock.Anything).Return(nil)
 
 	updatedExam, err := service.UpdateExam(examID, req)
 
@@ -74,7 +73,6 @@ func TestService_UpdateExam_Numbering_SEQ_Renumbering(t *testing.T) {
 	mockExamRepo.On("FindExamByID", mock.Anything, mock.Anything, examID).Return(exam, nil)
 	mockExamRepo.On("UpdateExam", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	mockExamRepo.On("RecalculateScores", mock.Anything, mock.Anything, examID).Return(nil)
-	mockExamRepo.On("RecalculateScoresForSubmission", mock.Anything, mock.Anything, examID, mock.Anything).Return(nil)
 
 	updatedExam, err := service.UpdateExam(examID, req)
 	assert.NoError(t, err)
@@ -111,7 +109,6 @@ func TestService_UpdateExam_Numbering_NewQuestion(t *testing.T) {
 	mockExamRepo.On("FindExamByID", mock.Anything, mock.Anything, examID).Return(exam, nil)
 	mockExamRepo.On("UpdateExam", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	mockExamRepo.On("RecalculateScores", mock.Anything, mock.Anything, examID).Return(nil)
-	mockExamRepo.On("RecalculateScoresForSubmission", mock.Anything, mock.Anything, examID, mock.Anything).Return(nil)
 
 	updatedExam, err := service.UpdateExam(examID, req)
 	assert.NoError(t, err)
@@ -159,7 +156,6 @@ func TestService_UpdateExam_ActiveReserveSeparation(t *testing.T) {
 	mockExamRepo.On("FindExamByID", mock.Anything, mock.Anything, examID).Return(exam, nil)
 	mockExamRepo.On("UpdateExam", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	mockExamRepo.On("RecalculateScores", mock.Anything, mock.Anything, examID).Return(nil)
-	mockExamRepo.On("RecalculateScoresForSubmission", mock.Anything, mock.Anything, examID, mock.Anything).Return(nil)
 
 	updatedExam, err := service.UpdateExam(examID, req)
 	assert.NoError(t, err)

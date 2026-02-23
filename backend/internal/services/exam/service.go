@@ -482,10 +482,14 @@ func CalculateScoreBreakdown(questions []models.Question, answers map[uint]strin
 
 	score := netCorrect / float64(total) * maxScore
 
+	notAnswered := total - correct - incorrect
+
 	return &ScoreBreakdown{
-		Score:          score,
-		CorrectAnswers: correct,
-		TotalQuestions: total,
+		Score:            score,
+		CorrectAnswers:   correct,
+		IncorrectAnswers: incorrect,
+		NotAnswered:      notAnswered,
+		TotalQuestions:   total,
 	}, nil
 }
 
@@ -526,6 +530,8 @@ func buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submission *models.U
 
 		if breakdownData != nil {
 			payload.CorrectAnswers = new(breakdownData.CorrectAnswers)
+			payload.IncorrectAnswers = new(breakdownData.IncorrectAnswers)
+			payload.NotAnswered = new(breakdownData.NotAnswered)
 			payload.TotalQuestions = new(breakdownData.TotalQuestions)
 		}
 	}

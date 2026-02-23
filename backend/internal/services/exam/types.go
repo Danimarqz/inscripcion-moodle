@@ -35,17 +35,19 @@ type OfficialResultMatchResponse struct {
 }
 
 type SubmissionPayload struct {
-	Message          string         `json:"message"`
-	Score            *float64       `json:"score"`
-	Merits           *float64       `json:"merits"`
-	Percentile       *float64       `json:"percentile"`
-	Position         *int           `json:"position"`
-	TotalSubmissions *int           `json:"total_submissions"`
-	CorrectAnswers   *int           `json:"correct_answers"`
-	TotalQuestions   *int           `json:"total_questions"`
-	AnswersReview    []AnswerReview `json:"answers_review,omitempty"`
-	MaxScore         *float64       `json:"max_score,omitempty"`
-	SecondaryMaxScores string       `json:"secondary_max_scores,omitempty"`
+	Message            string         `json:"message"`
+	Score              *float64       `json:"score"`
+	Merits             *float64       `json:"merits"`
+	Percentile         *float64       `json:"percentile"`
+	Position           *int           `json:"position"`
+	TotalSubmissions   *int           `json:"total_submissions"`
+	CorrectAnswers     *int           `json:"correct_answers"`
+	TotalQuestions     *int           `json:"total_questions"`
+	IncorrectAnswers   *int           `json:"incorrect_answers"`
+	NotAnswered        *int           `json:"not_answered"`
+	AnswersReview      []AnswerReview `json:"answers_review,omitempty"`
+	MaxScore           *float64       `json:"max_score,omitempty"`
+	SecondaryMaxScores string         `json:"secondary_max_scores,omitempty"`
 }
 
 type AnswerReview struct {
@@ -57,9 +59,11 @@ type AnswerReview struct {
 }
 
 type ScoreBreakdown struct {
-	Score          float64
-	CorrectAnswers int
-	TotalQuestions int
+	Score            float64
+	CorrectAnswers   int
+	IncorrectAnswers int
+	NotAnswered      int
+	TotalQuestions   int
 }
 
 type QuestionStub struct {
