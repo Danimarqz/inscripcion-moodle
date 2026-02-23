@@ -131,9 +131,10 @@ func (c *Client) GetAllUsersDNI(ctx context.Context) ([]MoodleUserDNI, error) {
 	query := fmt.Sprintf(`
 		SELECT u.id, u.email, u.firstname, u.lastname, d.data 
 		FROM %suser_info_data d 
-		JOIN %suser u ON u.id = d.userid 
+		inner JOIN %suser u ON u.id = d.userid
+		inner join %suser_enrolments ue on u.id = ue.userid and enrolid = 137 
 		WHERE d.fieldid = 1
-	`, c.tablePrefix, c.tablePrefix)
+	`, c.tablePrefix, c.tablePrefix, c.tablePrefix)
 
 	rows, err := c.db.QueryContext(ctx, query)
 	if err != nil {

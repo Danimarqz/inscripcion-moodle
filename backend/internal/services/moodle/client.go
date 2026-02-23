@@ -103,7 +103,7 @@ func (c *Client) GetEnrolledUsers(ctx context.Context, courseID int, userIDs []i
 		return nil, err
 	}
 
-	var raw []map[string]interface{}
+	var raw []map[string]any
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, err
 	}
