@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -398,6 +399,37 @@ func BuildSubmissionCheckResponse(db *gorm.DB, req SubmissionCheckRequest) (*Sub
 	return payload, nil
 }
 
+// anyWordMatches returns true if any word in userValue matches any word in officialValue.
+// Both values must be already normalized (uppercased, no accents).
+func anyWordMatches(userValue, officialValue string) bool {
+	userWords := strings.Fields(userValue)
+	officialWords := strings.Fields(officialValue)
+	for _, uw := range userWords {
+		if slices.Contains(officialWords, uw) {
+			return true
+		}
+	}
+	return false
+}
+
+// anySurnameWordMatches returns true if any word in the user's surname matches
+// either apellido1 or apellido2 from the official result.
+// Both apellidos are already normalized individually.
+func anySurnameWordMatches(userSurname, apellido1, apellido2 string) bool {
+	userWords := strings.FieldsSeq(userSurname)
+	for uw := range userWords {
+		if slices.Contains(strings.Fields(apellido1), uw) {
+			return true
+		}
+		if apellido2 != "" {
+			if slices.Contains(strings.Fields(apellido2), uw) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func CheckOfficialResultMatch(db *gorm.DB, req OfficialResultMatchRequest) (bool, error) {
 	if req.ExamID == 0 {
 		return false, ErrExamNotFound
@@ -424,20 +456,27 @@ func CheckOfficialResultMatch(db *gorm.DB, req OfficialResultMatchRequest) (bool
 
 	for _, res := range results {
 		resName := helpers.NormalizeName(res.Nombre)
-		surnameParts := []string{res.Apellido1}
+		resApellido1 := helpers.NormalizeName(res.Apellido1)
+		var resApellido2 string
 		if res.Apellido2 != nil {
-			surnameParts = append(surnameParts, *res.Apellido2)
+			resApellido2 = helpers.NormalizeName(*res.Apellido2)
 		}
-		resSurname := helpers.NormalizeName(strings.TrimSpace(strings.Join(surnameParts, " ")))
-		if resName == "" || resSurname == "" {
+		if resName == "" || resApellido1 == "" {
 			continue
 		}
-		if resName != name {
+
+		// Comprobación flexible de nombre: si alguna palabra del usuario
+		// coincide con alguna palabra del nombre oficial, es suficiente.
+		if !anyWordMatches(name, resName) {
 			continue
 		}
-		if resSurname != surname {
+
+		// Comprobación flexible de apellidos: si alguna palabra del usuario
+		// coincide con Apellido1 o Apellido2, es suficiente.
+		if !anySurnameWordMatches(surname, resApellido1, resApellido2) {
 			continue
 		}
+
 		// Doble check por seguridad, aunque el LIKE ya debería haber filtrado la mayoría
 		if middleFourDigits(res.DniMasked) == centerDigits {
 			return true, nil
