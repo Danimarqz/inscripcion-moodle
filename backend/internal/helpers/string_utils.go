@@ -52,3 +52,25 @@ func NormalizeName(value string) string {
 	}
 	return strings.Join(strings.Fields(b.String()), " ")
 }
+
+// CreateSlug generates a lowercase, alphanumeric slug without spaces.
+func CreateSlug(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	decomposed := norm.NFD.String(trimmed)
+	var b strings.Builder
+	for _, r := range decomposed {
+		if unicode.Is(unicode.Mn, r) {
+			continue
+		}
+		if unicode.IsSpace(r) {
+			continue
+		}
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			b.WriteRune(unicode.ToLower(r))
+		}
+	}
+	return b.String()
+}

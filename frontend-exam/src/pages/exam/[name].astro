@@ -1,0 +1,51 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import ExamPage from "../../components/ExamPage.tsx";
+import type { Exam } from "../../types/exam";
+import { getExamBySlug } from "../../services/examService";
+
+const examSlugParam = Astro.params.name;
+
+let examId = 0;
+let examName = "Examen";
+let showScore = false;
+let showPercentile = false;
+let showScoreFull = false;
+let validatedTribunal = false;
+
+try {
+  if (examSlugParam) {
+    const exam = await getExamBySlug(examSlugParam);
+
+    if (exam) {
+      examId = exam.id;
+      examName = exam.name;
+      showScore = Boolean(exam.show_score);
+      showPercentile = Boolean(exam.show_percentile);
+      showScoreFull = Boolean(exam.show_score_full);
+      validatedTribunal = Boolean(exam.validated_tribunal);
+    }
+  }
+} catch (error) {
+  console.error("Failed to load exam details", error);
+}
+---
+
+<Layout title={examName}>
+  {}
+  {
+    examId !== 0 ? (
+      <ExamPage
+        client:only="preact"
+        examId={examId}
+        examName={examName}
+        showScore={showScore}
+        showPercentile={showPercentile}
+        showScoreFull={showScoreFull}
+        validatedTribunal={validatedTribunal}
+      />
+    ) : (
+      <div>Examen no encontrado</div>
+    )
+  }
+</Layout>

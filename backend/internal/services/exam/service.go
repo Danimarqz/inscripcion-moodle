@@ -40,6 +40,10 @@ func NormalizeDNI(value string) string {
 	return strings.ToUpper(strings.TrimSpace(value))
 }
 
+func CreateSlug(value string) string {
+	return helpers.CreateSlug(value)
+}
+
 func extractDigits(value string) string {
 	var b strings.Builder
 	for _, r := range value {
@@ -181,6 +185,17 @@ func (s *Service) GetQuestionStubs(ctx context.Context, examID uint) ([]Question
 		})
 	}
 	return stubs, nil
+}
+
+func (s *Service) GetExamBySlug(ctx context.Context, slug string) (*models.Exam, error) {
+	exam, err := s.repo.FindExamBySlug(ctx, s.db, slug)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrExamNotFound
+		}
+		return nil, err
+	}
+	return exam, nil
 }
 
 func getOrCreateUser(tx *gorm.DB, req SubmitExamRequest) (*models.ExamUser, error) {

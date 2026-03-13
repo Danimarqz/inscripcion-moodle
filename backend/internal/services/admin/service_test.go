@@ -23,6 +23,14 @@ func (m *MockExamRepository) FindExamByID(ctx context.Context, db *gorm.DB, exam
 	return args.Get(0).(*models.Exam), args.Error(1)
 }
 
+func (m *MockExamRepository) FindExamBySlug(ctx context.Context, db *gorm.DB, slug string) (*models.Exam, error) {
+	args := m.Called(ctx, db, slug)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Exam), args.Error(1)
+}
+
 func (m *MockExamRepository) FindQuestionsByExamID(ctx context.Context, db *gorm.DB, examID uint) ([]models.Question, error) {
 	args := m.Called(ctx, db, examID)
 	return args.Get(0).([]models.Question), args.Error(1)

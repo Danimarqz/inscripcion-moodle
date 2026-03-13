@@ -78,6 +78,7 @@ func New(cfg *config.Config) (*Server, error) {
 	router.Post("/submit-exam", publicController.SubmitExam)
 	router.Post("/check-official-result", publicController.CheckOfficialResultMatch)
 	router.Get("/exams", publicController.GetExams)
+	router.Get("/exams/slug/{slug}", publicController.GetExamBySlug)
 	router.Get("/exams/{exam_id}/questions", publicController.GetQuestionStubs)
 	router.Post("/check_submission", publicController.CheckSubmission)
 	router.Route("/admin", func(r chi.Router) {

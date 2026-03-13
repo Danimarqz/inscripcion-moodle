@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/inscripcion-moodle/go-backend/internal/helpers"
 	"github.com/inscripcion-moodle/go-backend/internal/models"
 	"gorm.io/gorm"
 )
 
 type ExamRepository interface {
 	FindExamByID(ctx context.Context, db *gorm.DB, examID uint) (*models.Exam, error)
+	FindExamBySlug(ctx context.Context, db *gorm.DB, slug string) (*models.Exam, error)
 	FindQuestionsByExamID(ctx context.Context, db *gorm.DB, examID uint) ([]models.Question, error)
 	ListExams(ctx context.Context, db *gorm.DB) ([]models.Exam, error)
 	CreateExam(ctx context.Context, db *gorm.DB, exam *models.Exam) error
@@ -32,7 +34,26 @@ func (r *examRepository) FindExamByID(ctx context.Context, db *gorm.DB, examID u
 	if err := db.WithContext(ctx).Preload("Questions").First(&exam, examID).Error; err != nil {
 		return nil, err
 	}
+	exam.Slug = helpers.CreateSlug(exam.Name)
 	return &exam, nil
+}
+
+func (r *examRepository) FindExamBySlug(ctx context.Context, db *gorm.DB, slug string) (*models.Exam, error) {
+	var exams []models.Exam
+	// We fetch all active exams and search for the one that matches the slug.
+	// This is safe because the number of exams is typically small.
+	if err := db.WithContext(ctx).Where("is_active = ?", true).Find(&exams).Error; err != nil {
+		return nil, err
+	}
+
+	for i := range exams {
+		if helpers.CreateSlug(exams[i].Name) == slug {
+			exams[i].Slug = helpers.CreateSlug(exams[i].Name)
+			return &exams[i], nil
+		}
+	}
+
+	return nil, gorm.ErrRecordNotFound
 }
 
 func (r *examRepository) FindQuestionsByExamID(ctx context.Context, db *gorm.DB, examID uint) ([]models.Question, error) {
@@ -47,6 +68,9 @@ func (r *examRepository) ListExams(ctx context.Context, db *gorm.DB) ([]models.E
 	var exams []models.Exam
 	if err := db.WithContext(ctx).Preload("Questions").Find(&exams).Error; err != nil {
 		return nil, err
+	}
+	for i := range exams {
+		exams[i].Slug = helpers.CreateSlug(exams[i].Name)
 	}
 	return exams, nil
 }

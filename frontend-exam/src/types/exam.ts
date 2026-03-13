@@ -1,6 +1,7 @@
 export type Exam = {
   id: number;
   name: string;
+  slug: string;
   score?: number | null;
   percentile?: number | null;
   show_score?: boolean;

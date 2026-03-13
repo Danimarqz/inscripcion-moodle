@@ -8,6 +8,7 @@ import (
 type Exam struct {
 	ID                 uint                 `gorm:"column:id;primaryKey" json:"id"`
 	Name               string               `gorm:"column:name" json:"name"`
+	Slug               string               `gorm:"-" json:"slug"`
 	IsActive           bool                 `gorm:"column:is_active" json:"is_active"`
 	ShowScore          bool                 `gorm:"column:show_score" json:"show_score"`
 	ShowPercentile     bool                 `gorm:"column:show_percentile" json:"show_percentile"`

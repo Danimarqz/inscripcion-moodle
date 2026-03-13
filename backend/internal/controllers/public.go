@@ -18,14 +18,15 @@ import (
 	"github.com/inscripcion-moodle/go-backend/internal/cache"
 	"github.com/inscripcion-moodle/go-backend/internal/config"
 	"github.com/inscripcion-moodle/go-backend/internal/constants"
+	"github.com/inscripcion-moodle/go-backend/internal/helpers"
 	"github.com/inscripcion-moodle/go-backend/internal/models"
 	examservice "github.com/inscripcion-moodle/go-backend/internal/services/exam"
 	"github.com/inscripcion-moodle/go-backend/internal/services/moodle"
 )
 
 const (
-	examsCacheKey        = "public:exams"
-	questionsCachePrefix = "public:questions"
+	examsCacheKey        = "public:exams:v2"
+	questionsCachePrefix = "public:questions:v2"
 	moodleSyncTimeout    = 15 * time.Second
 )
 
@@ -60,6 +61,9 @@ func (h *PublicController) GetExams(w http.ResponseWriter, r *http.Request) {
 		var exams []models.Exam
 		if err := h.db.Where("is_active = ?", true).Find(&exams).Error; err != nil {
 			return nil, err
+		}
+		for i := range exams {
+			exams[i].Slug = helpers.CreateSlug(exams[i].Name)
 		}
 		return json.Marshal(exams)
 	})
@@ -133,6 +137,26 @@ func (h *PublicController) GetQuestionStubs(w http.ResponseWriter, r *http.Reque
 
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write(payload)
+}
+
+func (h *PublicController) GetExamBySlug(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	if slug == "" {
+		http.Error(w, "slug is required", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+	exam, err := h.service.GetExamBySlug(ctx, slug)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(exam); err != nil {
+		log.Printf("failed to encode response: %v", err)
+	}
 }
 
 func (h *PublicController) CheckSubmission(w http.ResponseWriter, r *http.Request) {

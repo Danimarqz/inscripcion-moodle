@@ -13,6 +13,10 @@ export async function getExams(): Promise<Exam[]> {
   return request<Exam[]>('/exams', { method: 'GET' });
 }
 
+export async function getExamBySlug(slug: string): Promise<Exam> {
+  return request<Exam>(`/exams/slug/${slug}`, { method: 'GET' });
+}
+
 export async function getQuestions(examId: number): Promise<Question[]> {
   return request<Question[]>(`/exams/${examId}/questions`, { method: 'GET' });
 }

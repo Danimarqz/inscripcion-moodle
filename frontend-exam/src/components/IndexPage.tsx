@@ -32,17 +32,17 @@ export default function IndexPage() {
 
   return (
     <>
-      {error && <p class="text-center text-lg mt-8 p-4 rounded-lg border border-red-500 text-red-500 bg-red-500/10">{error}</p>}
+      {error && <p className="text-center text-lg mt-8 p-4 rounded-lg border border-red-500 text-red-500 bg-red-500/10">{error}</p>}
 
       <section>
         {exams.length === 0 && !error ? (
-          <p class="text-center text-lg mt-8 p-4 rounded-lg border border-green-500 text-green-500 bg-green-500/10">No hay exámenes disponibles en este momento.</p>
+          <p className="text-center text-lg mt-8 p-4 rounded-lg border border-green-500 text-green-500 bg-green-500/10">No hay exámenes disponibles en este momento.</p>
         ) : (
-          <ul role="list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 p-0 list-none">
+          <ul role="list" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 p-0 list-none">
             {exams.map((exam) => (
               <Card
                 key={exam.id}
-                href={`/exam/${exam.id}`}
+                href={`/exam/${exam.slug}`}
                 title={exam.name}
                 body="Comienza tu examen de oposición."
               />
