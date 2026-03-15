@@ -10,7 +10,7 @@ import {
   getExamSubmissions,
   getSubmission,
   sendSubmissionEmails,
-  syncMoodleUsers,
+  syncMoodleUsersStream,
   type SubmissionEmailAttachmentPayload,
   type SendSubmissionEmailsPayload,
   updateSubmissionAttempt,
@@ -681,7 +681,7 @@ export default function SubmissionsManager({ exams, token }: SubmissionsManagerP
     setSyncError(null);
     setSyncingMoodle(true);
     try {
-      const result = await syncMoodleUsers(token);
+      const result = await syncMoodleUsersStream(token, (msg) => setSyncMessage(msg));
       setSyncMessage(
         `Sincronizados ${result.synced} de ${result.checked} usuarios (fallidos: ${result.failed}).`,
       );

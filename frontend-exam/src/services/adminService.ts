@@ -11,7 +11,6 @@ import type {
   EditOfficialResultPayload,
   ImportOfficialResultsSummary,
   SubmissionUpdatePayload,
-  SyncMoodleUsersResponse,
 } from '../types/exam';
 import { request } from './api';
 
@@ -204,24 +203,69 @@ export async function sendSubmissionEmails(
   });
 }
 
-export async function syncMoodleUsers(token: string): Promise<SyncMoodleUsersResponse> {
-  return request<SyncMoodleUsersResponse>('/admin/moodle/sync-users', {
-    method: 'POST',
-    token,
-  });
+type SseEvent = {
+  status: string;
+  message?: string;
+  [key: string]: unknown;
+};
+
+async function readSseStream(
+  response: Response,
+  onProgress: (message: string) => void,
+): Promise<SseEvent> {
+  if (!response.body) throw new Error('No response body');
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const data = JSON.parse(line.slice(6)) as SseEvent;
+      if (data.status === 'error') throw new Error(data.message ?? 'Error durante la sincronización');
+      if (data.status === 'done') return data;
+      if (data.message) onProgress(data.message);
+    }
+  }
+  throw new Error('La conexión se cerró antes de completar la sincronización');
 }
 
-export async function syncOfficialResultsMoodle(
+export async function syncMoodleUsersStream(
+  token: string,
+  onProgress: (message: string) => void,
+): Promise<{ checked: number; synced: number; failed: number }> {
+  const API_URL = import.meta.env.PUBLIC_API_URL;
+  const response = await fetch(`${API_URL}/admin/moodle/sync-users`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Error al iniciar la sincronización');
+  const data = await readSseStream(response, onProgress);
+  return {
+    checked: (data.checked as number) ?? 0,
+    synced: (data.synced as number) ?? 0,
+    failed: (data.failed as number) ?? 0,
+  };
+}
+
+export async function syncOfficialResultsMoodleStream(
   examId: number,
   token: string,
-): Promise<{ matched: number; synced: number }> {
-  return request<{ matched: number; synced: number }>(
-    `/admin/exams/${examId}/results/official/sync-moodle`,
-    {
-      method: 'POST',
-      token,
-    },
-  );
+  onProgress: (message: string) => void,
+): Promise<{ matched: number }> {
+  const API_URL = import.meta.env.PUBLIC_API_URL;
+  const response = await fetch(`${API_URL}/admin/exams/${examId}/results/official/sync-moodle`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Error al iniciar la sincronización con Moodle');
+  const data = await readSseStream(response, onProgress);
+  return { matched: (data.matched as number) ?? 0 };
 }
 
 export type FetchOfficialResultsOptions = {

@@ -4,7 +4,7 @@ import {
   getOfficialResults,
   deleteOfficialResult,
   updateOfficialResult,
-  syncOfficialResultsMoodle,
+  syncOfficialResultsMoodleStream,
 } from '../services/adminService';
 import { useAsyncTask } from '../hooks/useAsyncTask';
 import OfficialResultImport from './official-results/OfficialResultImport';
@@ -31,6 +31,7 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
   const [feedback, setFeedback] = useState<string | null>(null);
   const [summary, setSummary] = useState<ImportOfficialResultsSummary | null>(null);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [syncProgress, setSyncProgress] = useState<string | null>(null);
 
   const [sortBy, setSortBy] = useState<'dni' | 'nombre' | 'apellidos' | 'usuario' | 'creado'>(
     'apellidos',
@@ -56,6 +57,7 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
     setSearchTerm('');
     setTypeFilter('');
     setHasUserFilter('');
+    setSyncProgress(null);
   }, [selectedExamId]);
 
   useEffect(() => {
@@ -299,36 +301,46 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
             <option value="true">Vinculados a usuario</option>
             <option value="false">No vinculados</option>
           </select>
-          <button
-            onClick={async () => {
-              if (isSyncing) return;
-              setIsSyncing(true);
-              setResultsError(null);
-              setFeedback(null);
-              setSummary(null);
-              try {
-                const res = await syncOfficialResultsMoodle(Number(selectedExamId), token);
-                setFeedback(
-                  `Sincronización Moodle iniciada: ${res.matched} usuarios cruzados con DNI, ${res.synced} usuarios enviados a sincronización.`,
-                );
-                await refreshResults();
-              } catch (err) {
-                setResultsError(
-                  err instanceof Error ? err.message : 'Error al sincronizar con Moodle',
-                );
-              } finally {
-                setIsSyncing(false);
-              }
-            }}
-            disabled={isSyncing}
-            className={`w-full lg:w-auto px-4 py-2 font-semibold rounded-md transition-colors lg:ml-auto ${
-              isSyncing
-                ? 'bg-gray-600 cursor-not-allowed opacity-70 text-gray-300'
-                : 'bg-brand-pink hover:bg-brand-pink/90 text-white'
-            }`}
-          >
-            {isSyncing ? 'Sincronizando...' : 'Sincronizar Moodle'}
-          </button>
+          <div className="flex flex-col gap-1 lg:ml-auto w-full lg:w-auto">
+            <button
+              onClick={async () => {
+                if (isSyncing) return;
+                setIsSyncing(true);
+                setResultsError(null);
+                setFeedback(null);
+                setSummary(null);
+                setSyncProgress(null);
+                try {
+                  const res = await syncOfficialResultsMoodleStream(
+                    Number(selectedExamId),
+                    token,
+                    (msg) => setSyncProgress(msg),
+                  );
+                  setSyncProgress(null);
+                  setFeedback(`Sincronización Moodle completada: ${res.matched} usuarios vinculados.`);
+                  await refreshResults();
+                } catch (err) {
+                  setSyncProgress(null);
+                  setResultsError(
+                    err instanceof Error ? err.message : 'Error al sincronizar con Moodle',
+                  );
+                } finally {
+                  setIsSyncing(false);
+                }
+              }}
+              disabled={isSyncing}
+              className={`w-full lg:w-auto px-4 py-2 font-semibold rounded-md transition-colors ${
+                isSyncing
+                  ? 'bg-gray-600 cursor-not-allowed opacity-70 text-gray-300'
+                  : 'bg-brand-pink hover:bg-brand-pink/90 text-white'
+              }`}
+            >
+              {isSyncing ? 'Sincronizando...' : 'Sincronizar Moodle'}
+            </button>
+            {isSyncing && syncProgress && (
+              <p className="text-sm text-brand-blue animate-pulse">{syncProgress}</p>
+            )}
+          </div>
         </div>
       )}
 
