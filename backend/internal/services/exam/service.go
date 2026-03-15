@@ -55,17 +55,29 @@ func extractDigits(value string) string {
 }
 
 func middleFourDigits(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) == 0 {
+		return ""
+	}
+
 	digits := extractDigits(value)
 
 	if len(digits) == 4 {
 		return digits
 	}
 
-	if len(digits) < 7 {
-		return ""
+	if value[0] >= '0' && value[0] <= '9' {
+		// DNI LOGIC
+		if len(digits) >= 7 {
+			return digits[3:7]
+		}
+	} else {
+		// NIE LOGIC
+		if len(digits) >= 6 {
+			return digits[2:6]
+		}
 	}
-
-	return digits[3:7]
+	return ""
 }
 
 func ValidateDNINIE(value string) bool {
