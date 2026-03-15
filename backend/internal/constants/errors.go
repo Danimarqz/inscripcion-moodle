@@ -27,4 +27,5 @@ const (
 	InvalidToken            = "invalid token"
 	Unauthorized            = "unauthorized"
 	TokenIsValid            = `{"detail": "Token valido", "user": "%s"}`
+	ErrorInterno            = "error interno"
 )

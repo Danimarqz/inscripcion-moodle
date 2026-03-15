@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"slices"
 	"sort"
 	"strings"
@@ -137,19 +138,19 @@ func (s *Service) recalculatePercentilesAsync(examID uint) {
 	if tx.Error != nil {
 		// This will be tricky to log without a logger dependency.
 		// For now, printing to stderr is a temporary solution.
-		fmt.Printf("ERROR: could not begin transaction for async recalculatePercentiles for exam %d: %v\n", examID, tx.Error)
+		log.Printf("ERROR: could not begin transaction for async recalculatePercentiles for exam %d: %v", examID, tx.Error)
 		return
 	}
 	// Ensure rollback on panic or early return.
 	defer tx.Rollback()
 
 	if err := s.repo.RecalculatePercentiles(ctx, tx, examID); err != nil {
-		fmt.Printf("ERROR: failed to asynchronously recalculate percentiles for exam %d: %v\n", examID, err)
+		log.Printf("ERROR: failed to asynchronously recalculate percentiles for exam %d: %v", examID, err)
 		return
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		fmt.Printf("ERROR: could not commit transaction for async recalculatePercentiles for exam %d: %v\n", examID, err)
+		log.Printf("ERROR: could not commit transaction for async recalculatePercentiles for exam %d: %v", examID, err)
 	}
 }
 

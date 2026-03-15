@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 
+	"gorm.io/gorm"
+
 	"github.com/inscripcion-moodle/go-backend/internal/helpers"
 	"github.com/inscripcion-moodle/go-backend/internal/models"
 	"github.com/inscripcion-moodle/go-backend/internal/services/moodle"
@@ -82,7 +84,7 @@ func (h *AdminController) syncMoodleUsersAsync(users []models.ExamUser) {
 		synced++
 	}
 
-	log.Printf("moodle sync finished: checked=%d synced=%d failed=%d", checked, synced, failed)
+	log.Printf("AUDIT: moodle sync finished: checked=%d synced=%d failed=%d", checked, synced, failed)
 }
 
 func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *http.Request) {
@@ -165,6 +167,7 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 			if err := h.db.Model(&models.ExamOfficialResult{}).Where("id = ?", res.ID).Update("user_id", matchedUser.ID).Error; err == nil {
 				matchedCount++
 				res.UserID = &matchedUser.ID
+				log.Printf("AUDIT: syncOfficialResultsMoodle Pass1: linked Official Result ID %d to ExamUser ID %d", res.ID, matchedUser.ID)
 			}
 		} else {
 			remainingResults = append(remainingResults, res)
@@ -173,7 +176,9 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 
 	// Pass 2: Match remaining against Moodle DB and auto-create ExamUser
 	if len(remainingResults) > 0 {
-		moodleUsers, err := h.moodleClient.GetAllUsersDNI(context.Background())
+		moodleCtx, moodleCancel := context.WithTimeout(context.Background(), moodleAdminSyncTimeout)
+		defer moodleCancel()
+		moodleUsers, err := h.moodleClient.GetAllUsersDNI(moodleCtx)
 		if err != nil {
 			log.Printf("syncOfficialResultsMoodle: failed to fetch moodle users DNI: %v", err)
 		} else {
@@ -275,29 +280,38 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 						AcceptsMarketing: false, // Default
 					}
 
-					// We check if email somehow exists just in case
-					var existingUser models.ExamUser
-					if err := h.db.Where("email = ?", newUser.Email).First(&existingUser).Error; err == nil {
-						// Found existing by email that was missed due to DNI mismatch? Just update MoodleID
-						log.Printf("syncOfficialResultsMoodle: auto-create skipped for result ID %d because email %s already exists. Updating its MoodleID instead.", res.ID, newUser.Email)
-						h.db.Model(&existingUser).Update("moodle_id", matchedMoodleUser.ID)
-						h.db.Model(&models.ExamOfficialResult{}).Where("id = ?", res.ID).Update("user_id", existingUser.ID)
-						matchedCount++
-					} else {
-						// Create new
-						if err := h.db.Create(&newUser).Error; err == nil {
-							h.db.Model(&models.ExamOfficialResult{}).Where("id = ?", res.ID).Update("user_id", newUser.ID)
-							matchedCount++
-							log.Printf("syncOfficialResultsMoodle: successfully auto-created ExamUser ID %d for Official Result ID %d", newUser.ID, res.ID)
-						} else {
-							log.Printf("syncOfficialResultsMoodle: error auto-creating ExamUser for Official Result ID %d: %v", res.ID, err)
+					txErr := h.db.Transaction(func(tx *gorm.DB) error {
+						// We check if email somehow exists just in case
+						var existingUser models.ExamUser
+						if err := tx.Where("email = ?", newUser.Email).First(&existingUser).Error; err == nil {
+							// Found existing by email that was missed due to DNI mismatch? Just update MoodleID
+							log.Printf("syncOfficialResultsMoodle: auto-create skipped for result ID %d because email %s already exists. Updating its MoodleID instead.", res.ID, newUser.Email)
+							if err := tx.Model(&existingUser).Update("moodle_id", matchedMoodleUser.ID).Error; err != nil {
+								return err
+							}
+							return tx.Model(&models.ExamOfficialResult{}).Where("id = ?", res.ID).Update("user_id", existingUser.ID).Error
 						}
+						// Create new
+						if err := tx.Create(&newUser).Error; err != nil {
+							return err
+						}
+						return tx.Model(&models.ExamOfficialResult{}).Where("id = ?", res.ID).Update("user_id", newUser.ID).Error
+					})
+					if txErr == nil {
+						matchedCount++
+						log.Printf("AUDIT: syncOfficialResultsMoodle Pass2: linked Official Result ID %d to ExamUser (email: %s)", res.ID, newUser.Email)
+						if newUser.ID != 0 {
+							log.Printf("syncOfficialResultsMoodle: successfully auto-created ExamUser ID %d for Official Result ID %d", newUser.ID, res.ID)
+						}
+					} else {
+						log.Printf("syncOfficialResultsMoodle: transaction failed for Official Result ID %d: %v", res.ID, txErr)
 					}
 				}
 			}
 		}
 	}
 
+	log.Printf("AUDIT: syncOfficialResultsMoodle: exam_id=%d pass1+pass2 matched=%d", examID, matchedCount)
 	writeJSON(w, map[string]any{
 		"status":  "success",
 		"matched": matchedCount,

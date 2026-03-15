@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/smtp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/inscripcion-moodle/go-backend/internal/config"
@@ -28,19 +29,24 @@ type QueuedEmail struct {
 	Bcc         []string
 }
 
-var emailQueue chan QueuedEmail
+var (
+	emailQueue chan QueuedEmail
+	initOnce   sync.Once
+)
 
 func InitWorkerPool(workers int) {
-	emailQueue = make(chan QueuedEmail, 1000)
-	for range workers {
-		go func() {
-			for job := range emailQueue {
-				if err := SendEmail(job.Cfg, job.To, job.Subject, job.Body, job.Attachments, job.Bcc); err != nil {
-					log.Printf("email worker error: failed to send email to %v: %v", job.To, err)
+	initOnce.Do(func() {
+		emailQueue = make(chan QueuedEmail, 1000)
+		for range workers {
+			go func() {
+				for job := range emailQueue {
+					if err := SendEmail(job.Cfg, job.To, job.Subject, job.Body, job.Attachments, job.Bcc); err != nil {
+						log.Printf("email worker error: failed to send email to %v: %v", job.To, err)
+					}
 				}
-			}
-		}()
-	}
+			}()
+		}
+	})
 }
 
 func EnqueueEmail(cfg *config.Config, to []string, subject, body string, attachments []Attachment, bcc []string) error {

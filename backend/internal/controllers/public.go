@@ -57,7 +57,7 @@ func NewPublicController(db *gorm.DB, rds *redis.Client, cfg *config.Config, ser
 
 func (h *PublicController) GetExams(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	payload, err := h.cache.GetOrSet(ctx, examsCacheKey, 0, func() ([]byte, error) {
+	payload, err := h.cache.GetOrSet(ctx, examsCacheKey, h.cacheTTL, func() ([]byte, error) {
 		var exams []models.Exam
 		if err := h.db.Where("is_active = ?", true).Find(&exams).Error; err != nil {
 			return nil, err
@@ -118,7 +118,7 @@ func (h *PublicController) GetQuestionStubs(w http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	key := h.questionsCacheKey(uint(examID))
 
-	payload, err := h.cache.GetOrSet(ctx, key, 0, func() ([]byte, error) {
+	payload, err := h.cache.GetOrSet(ctx, key, h.cacheTTL, func() ([]byte, error) {
 		stubs, err := h.service.GetQuestionStubs(ctx, uint(examID))
 		if err != nil {
 			return nil, err
@@ -196,7 +196,7 @@ func (h *PublicController) CheckSubmission(w http.ResponseWriter, r *http.Reques
 	respBytes, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("failed to encode response: %v", err)
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		http.Error(w, constants.ErrorInterno, http.StatusInternalServerError)
 		return
 	}
 
@@ -249,7 +249,7 @@ func (h *PublicController) CheckOfficialResultMatch(w http.ResponseWriter, r *ht
 	respBytes, err := json.Marshal(respPayload)
 	if err != nil {
 		log.Printf("failed to encode response: %v", err)
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		http.Error(w, constants.ErrorInterno, http.StatusInternalServerError)
 		return
 	}
 

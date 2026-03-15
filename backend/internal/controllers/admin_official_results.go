@@ -1,8 +1,11 @@
 package controllers
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
+	"log"
 	"net/http"
 
 	"gorm.io/gorm"
@@ -39,6 +42,7 @@ func (h *AdminController) createOfficialResult(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	log.Printf("AUDIT: createOfficialResult: exam_id=%d result_id=%d", examID, result.ID)
 	writeJSON(w, result)
 }
 
@@ -61,12 +65,25 @@ func (h *AdminController) importOfficialResults(w http.ResponseWriter, r *http.R
 		_ = file.Close()
 	}()
 
+	// Validate XLSX magic bytes: ZIP/XLSX files start with PK\x03\x04
+	header := make([]byte, 4)
+	if _, err := io.ReadFull(file, header); err != nil {
+		http.Error(w, "invalid file: could not read file header", http.StatusBadRequest)
+		return
+	}
+	if header[0] != 0x50 || header[1] != 0x4B || header[2] != 0x03 || header[3] != 0x04 {
+		http.Error(w, "invalid file: only xlsx files are accepted", http.StatusBadRequest)
+		return
+	}
+	fullFile := io.MultiReader(bytes.NewReader(header), file)
+
 	replace := parseBoolParam(r.URL.Query().Get("replace_existing"), true)
-	report, err := h.excelImport.ImportOfficialResultsExcel(r.Context(), uint(examID), file, replace)
+	report, err := h.excelImport.ImportOfficialResultsExcel(r.Context(), uint(examID), fullFile, replace)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	log.Printf("AUDIT: importOfficialResults: exam_id=%d total_rows=%d imported=%d replace=%v", examID, report.TotalRows, report.ImportedResults, replace)
 	writeJSON(w, report)
 }
 
@@ -122,6 +139,7 @@ func (h *AdminController) updateOfficialResult(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	log.Printf("AUDIT: updateOfficialResult: id=%d", id)
 	writeJSON(w, result)
 }
 
@@ -141,5 +159,6 @@ func (h *AdminController) deleteOfficialResult(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	log.Printf("AUDIT: deleteOfficialResult: id=%d", id)
 	w.WriteHeader(http.StatusNoContent)
 }

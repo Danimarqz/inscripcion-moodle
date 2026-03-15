@@ -2,13 +2,17 @@ package cache
 
 import (
 	"context"
+	"log"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 
 	"github.com/redis/go-redis/v9"
 )
 
 type Cache struct {
 	cache *redis.Client
+	sf    singleflight.Group
 }
 
 func New(cache *redis.Client) *Cache {
@@ -24,7 +28,7 @@ func (c *Cache) Get(ctx context.Context, key string) ([]byte, bool) {
 		return payload, true
 	}
 	if err != redis.Nil {
-		_ = err
+		log.Printf("cache: redis error for key %q: %v", key, err)
 	}
 	return nil, false
 }
@@ -64,17 +68,26 @@ func (c *Cache) SMembers(ctx context.Context, key string) ([]string, error) {
 	return c.cache.SMembers(ctx, key).Result()
 }
 
-
 func (c *Cache) GetOrSet(ctx context.Context, key string, ttl time.Duration, fn func() ([]byte, error)) ([]byte, error) {
 	if cached, ok := c.Get(ctx, key); ok {
 		return cached, nil
 	}
 
-	payload, err := fn()
+	result, err, _ := c.sf.Do(key, func() (any, error) {
+		// Re-check cache inside the singleflight to avoid a stampede after the
+		// first waiter already populated it.
+		if cached, ok := c.Get(ctx, key); ok {
+			return cached, nil
+		}
+		payload, err := fn()
+		if err != nil {
+			return nil, err
+		}
+		c.Set(ctx, key, payload, ttl)
+		return payload, nil
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	c.Set(ctx, key, payload, ttl)
-	return payload, nil
+	return result.([]byte), nil
 }

@@ -10,10 +10,16 @@ import (
 	"golang.org/x/time/rate"
 )
 
+type limiterEntry struct {
+	limiter  *rate.Limiter
+	lastSeen time.Time
+}
+
 type RateLimiter struct {
 	requests int
 	window   time.Duration
-	limiters sync.Map
+	mu       sync.RWMutex
+	limiters map[string]*limiterEntry
 }
 
 func NewRateLimiter(requests int, window time.Duration) *RateLimiter {
@@ -23,9 +29,27 @@ func NewRateLimiter(requests int, window time.Duration) *RateLimiter {
 	if window <= 0 {
 		window = time.Minute
 	}
-	return &RateLimiter{
+	rl := &RateLimiter{
 		requests: requests,
 		window:   window,
+		limiters: make(map[string]*limiterEntry),
+	}
+	go rl.cleanupLoop()
+	return rl
+}
+
+func (rl *RateLimiter) cleanupLoop() {
+	ticker := time.NewTicker(rl.window)
+	defer ticker.Stop()
+	for range ticker.C {
+		threshold := time.Now().Add(-3 * rl.window)
+		rl.mu.Lock()
+		for key, entry := range rl.limiters {
+			if entry.lastSeen.Before(threshold) {
+				delete(rl.limiters, key)
+			}
+		}
+		rl.mu.Unlock()
 	}
 }
 
@@ -42,19 +66,31 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 }
 
 func (rl *RateLimiter) getLimiter(key string) *rate.Limiter {
-	value, ok := rl.limiters.Load(key)
+	rl.mu.RLock()
+	entry, ok := rl.limiters[key]
+	rl.mu.RUnlock()
 	if ok {
-		return value.(*rate.Limiter)
+		rl.mu.Lock()
+		entry.lastSeen = time.Now()
+		rl.mu.Unlock()
+		return entry.limiter
 	}
 
 	interval := rl.window / time.Duration(rl.requests)
 	if interval <= 0 {
 		interval = time.Nanosecond
 	}
-	limit := rate.Every(interval)
+	limiter := rate.NewLimiter(rate.Every(interval), rl.requests)
 
-	limiter := rate.NewLimiter(limit, rl.requests)
-	rl.limiters.Store(key, limiter)
+	rl.mu.Lock()
+	// Double-checked locking: re-check after acquiring write lock.
+	if e, exists := rl.limiters[key]; exists {
+		e.lastSeen = time.Now()
+		rl.mu.Unlock()
+		return e.limiter
+	}
+	rl.limiters[key] = &limiterEntry{limiter: limiter, lastSeen: time.Now()}
+	rl.mu.Unlock()
 	return limiter
 }
 
