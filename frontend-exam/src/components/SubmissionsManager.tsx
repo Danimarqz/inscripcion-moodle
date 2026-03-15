@@ -15,7 +15,7 @@ import {
   type SendSubmissionEmailsPayload,
   updateSubmissionAttempt,
 } from '../services/adminService';
-import { normalizeDni, validateDniNie } from '../utils/validation';
+import { isValidEmail, normalizeDni, validateDniNie } from '../utils/validation';
 
 import ExamSelector from './submissions/ExamSelector';
 import SubmissionFilters from './submissions/SubmissionFilters';
@@ -44,9 +44,7 @@ interface SubmissionsManagerProps {
   token: string;
 }
 
-function isValidEmail(value: string): boolean {
-  return /^[\w-.]+@([\w-]+\.)+[\w-]{2,}$/i.test(value.trim());
-}
+const MAX_ATTACHMENT_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
 interface SubmissionsViewerProps {
   examId: number;
@@ -95,6 +93,9 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
   const [subDeleteId, setSubDeleteId] = useState<number | null>(null);
   const [filterType, setFilterType] = useState<string>('');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Prevents stale fetch responses from overwriting a more recent one.
+  const fetchRequestId = useRef(0);
 
   const handleSearchInput = (value: string) => {
     setSearchTerm(value);
@@ -145,12 +146,12 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
   // Data Fetching Effect
   useEffect(() => {
     let mounted = true;
+    const requestId = ++fetchRequestId.current;
+
     const fetchData = async () => {
       setLoading(true);
       setError(null);
       setFeedback(null);
-      // Removed setEditing(null) to preserve edits across page loads if desired, or clear it if strict.
-      // Keeping it simple: changing filters clears edits to avoid confusion.
       setEditingStates({});
 
       try {
@@ -165,46 +166,49 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
           type: filterType,
         });
 
-        if (!mounted) return;
+        // Discard if unmounted or a newer request has already started.
+        if (!mounted || requestId !== fetchRequestId.current) return;
+
         setSubmissions(response.submissions);
-        
+
         if (needsStats) {
-             if (response.stats_included) {
-               setSubmissionStats({
-                 totalSubmissions: response.total_submissions ?? 0,
-                 averageScore: response.average_score ?? null,
-               });
-               setNeedsStats(false);
-             } else if (response.submissions.length === 0) {
-               setSubmissionStats(INITIAL_SUBMISSION_STATS);
-               setNeedsStats(false);
-             }
+          if (response.stats_included) {
+            setSubmissionStats({
+              totalSubmissions: response.total_submissions ?? 0,
+              averageScore: response.average_score ?? null,
+            });
+            setNeedsStats(false);
+          } else if (response.submissions.length === 0) {
+            setSubmissionStats(INITIAL_SUBMISSION_STATS);
+            setNeedsStats(false);
+          }
         }
 
         if (needsStats) {
-            try {
-              const examData = await getExamById(examId, token);
-              if (mounted) {
-                setQuestions(examData.questions ?? []);
-                setExamConfig({
-                    maxScore: examData.max_score,
-                    secondaryMaxScores: examData.secondary_max_scores
-                });
-              }
-            } catch (qErr) {
-               console.error("Failed to load questions", qErr);
+          try {
+            const examData = await getExamById(examId, token);
+            if (mounted && requestId === fetchRequestId.current) {
+              setQuestions(examData.questions ?? []);
+              setExamConfig({
+                maxScore: examData.max_score,
+                secondaryMaxScores: examData.secondary_max_scores,
+              });
             }
+          } catch (qErr) {
+            if (import.meta.env.DEV) {
+              console.error('Failed to load exam config:', qErr);
+            }
+          }
         }
-
       } catch (err) {
-        if (mounted) {
+        if (mounted && requestId === fetchRequestId.current) {
           setError(err instanceof Error ? err.message : String(err));
           setSubmissions([]);
           setSubmissionStats(INITIAL_SUBMISSION_STATS);
           setNeedsStats(false);
         }
       } finally {
-        if (mounted) {
+        if (mounted && requestId === fetchRequestId.current) {
           setLoading(false);
         }
       }
@@ -498,6 +502,13 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
 
   const handleAttachmentChange = (files: FileList | null) => {
     if (!files) return;
+    const oversized = Array.from(files).find((f) => f.size > MAX_ATTACHMENT_SIZE_BYTES);
+    if (oversized) {
+      setEmailComposeModalError(
+        `El archivo "${oversized.name}" supera el límite de 5 MB por adjunto.`,
+      );
+      return;
+    }
     setEmailAttachments((prev) => [...prev, ...Array.from(files)]);
   };
 

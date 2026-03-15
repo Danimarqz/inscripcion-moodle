@@ -19,9 +19,9 @@ export function useExamQuestions(examId: number) {
         if (!cancelled) {
           setQuestions(data);
         }
-      } catch (fetchError) {
+      } catch (fetchError: unknown) {
         if (!cancelled) {
-          setError((fetchError as Error).message);
+          setError(fetchError instanceof Error ? fetchError.message : String(fetchError));
         }
       } finally {
         if (!cancelled) {

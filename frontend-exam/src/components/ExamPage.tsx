@@ -52,6 +52,7 @@ export default function ExamPage({
   const [eligibilityChecking, setEligibilityChecking] = useState(false);
   const [eligibilityError, setEligibilityError] = useState<string | null>(null);
   const [showEligibilityModal, setShowEligibilityModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [examUiState, dispatchExamUi] = useExamUi();
   const {
@@ -190,8 +191,8 @@ export default function ExamPage({
       const payload = getResultPayload(data, 'check');
       dispatchExamUi({ type: 'CHECK_SUCCESS', payload });
       setAutoCheckDisabled(true);
-    } catch (error) {
-      const message = (error as Error).message;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '';
       if (message && message !== 'submission not found') {
         dispatchExamUi({ type: 'CHECK_ERROR', payload: message });
       } else {
@@ -273,6 +274,7 @@ export default function ExamPage({
       result_type: resultType,
     };
 
+    setIsSubmitting(true);
     try {
       const result = await submitExam(payload);
       const payloadResult = getResultPayload(result, 'submit');
@@ -288,8 +290,8 @@ export default function ExamPage({
       setDni('');
       setAcceptsMarketing(false);
       setUserAnswers({});
-    } catch (error) {
-      const message = (error as Error).message || 'Error al enviar el examen';
+    } catch (error: unknown) {
+      const message = (error instanceof Error ? error.message : null) || 'Error al enviar el examen';
       const lower = message.toLowerCase();
       const isEligibilityIssue =
         lower.includes('examen oficial') ||
@@ -306,6 +308,8 @@ export default function ExamPage({
       }
 
       dispatchExamUi({ type: 'SUBMIT_ERROR', payload: message });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -487,9 +491,9 @@ export default function ExamPage({
           <button
             type="submit"
             className="btn-brand w-full text-lg mt-4 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-            disabled={!eligibilityAllowed || eligibilityChecking}
+            disabled={!eligibilityAllowed || eligibilityChecking || isSubmitting}
           >
-            {eligibilityChecking ? 'Comprobando...' : 'Entregar Examen'}
+            {eligibilityChecking ? 'Comprobando...' : isSubmitting ? 'Enviando...' : 'Entregar Examen'}
           </button>
         )}
         {formError && (

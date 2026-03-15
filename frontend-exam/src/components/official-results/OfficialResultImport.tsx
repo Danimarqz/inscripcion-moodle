@@ -45,6 +45,12 @@ export default function OfficialResultImport({
       return;
     }
 
+    if (!file.name.match(/\.xlsx?$/i)) {
+      onError('Solo se aceptan archivos Excel (.xlsx o .xls).');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     setImporting(true);
     onError(''); // Clear error
 

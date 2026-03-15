@@ -27,8 +27,8 @@ export default function AdminLogin({ className = "", redirectTo = "/admin/dashbo
       const response = await adminLogin({ username, password });
       saveAuthToken(response.access_token);
       window.location.href = redirectTo;
-    } catch (error: any) {
-      setErrorMessage(error?.message ?? "Error desconocido al iniciar sesión.");
+    } catch (error: unknown) {
+      setErrorMessage(error instanceof Error ? error.message : "Error desconocido al iniciar sesión.");
     } finally {
       setIsSubmitting(false);
     }

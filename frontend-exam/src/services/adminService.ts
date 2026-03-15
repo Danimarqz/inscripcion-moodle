@@ -148,17 +148,31 @@ export async function fetchSubmissionEmailList(
   });
 }
 
+const DOWNLOAD_TIMEOUT_MS = 30_000;
+
+function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () => controller.abort(new DOMException('Request timed out', 'TimeoutError')),
+    timeoutMs,
+  );
+  return fetch(url, { ...init, signal: controller.signal }).finally(() =>
+    clearTimeout(timeoutId),
+  );
+}
+
 export async function downloadSubmissionEmails(
   examId: number,
   token: string,
   options: FetchSubmissionsOptions = {},
 ): Promise<string> {
-  // Use text() response manually if request helper assumes json
   const params = buildParams(examId, options);
   const API_URL = import.meta.env.PUBLIC_API_URL;
-  const response = await fetch(`${API_URL}/admin/results/emails?${params.toString()}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const response = await fetchWithTimeout(
+    `${API_URL}/admin/results/emails?${params.toString()}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+    DOWNLOAD_TIMEOUT_MS,
+  );
   if (!response.ok) throw new Error('Error downloading submission emails');
   return response.text();
 }
@@ -170,9 +184,11 @@ export async function downloadSubmissionsAnalysis(
 ): Promise<Blob> {
   const params = buildParams(examId, options);
   const API_URL = import.meta.env.PUBLIC_API_URL;
-  const response = await fetch(`${API_URL}/admin/exams/${examId}/results/analysis?${params.toString()}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const response = await fetchWithTimeout(
+    `${API_URL}/admin/exams/${examId}/results/analysis?${params.toString()}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+    DOWNLOAD_TIMEOUT_MS,
+  );
   if (!response.ok) throw new Error('Error downloading analysis');
   return response.blob();
 }
@@ -267,11 +283,18 @@ export async function importOfficialResults(
   );
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || 'Error importing official results');
+    const text = await response.text().catch(() => '');
+    let message = 'Error importing official results';
+    try {
+      const json = JSON.parse(text) as Record<string, unknown>;
+      if (typeof json.detail === 'string') message = json.detail;
+    } catch {
+      if (text.trim()) message = text.trim();
+    }
+    throw new Error(message);
   }
 
-  return response.json();
+  return response.json() as Promise<ImportOfficialResultsSummary>;
 }
 
 export async function createOfficialResult(
