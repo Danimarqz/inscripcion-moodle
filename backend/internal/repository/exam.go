@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"fmt"
+	"math"
+	"strings"
 
 	"github.com/inscripcion-moodle/go-backend/internal/helpers"
 	"github.com/inscripcion-moodle/go-backend/internal/models"
@@ -107,51 +109,52 @@ func (r *examRepository) RecalculateScores(ctx context.Context, db *gorm.DB, exa
 	if exam.PenaltyValue != nil {
 		penalty = *exam.PenaltyValue
 	}
-
 	maxScore := 100.0
 	if exam.MaxScore != nil {
 		maxScore = *exam.MaxScore
 	}
 
-	var totalQuestions int64
-	if err := db.WithContext(ctx).Model(&models.Question{}).
-		Where("exam_id = ? AND is_active = 1 AND is_cancelled = 0", examID).
-		Count(&totalQuestions).Error; err != nil {
+	var questions []models.Question
+	if err := db.WithContext(ctx).Where("exam_id = ? AND is_active = 1 AND is_cancelled = 0", examID).
+		Find(&questions).Error; err != nil {
+		return err
+	}
+	if len(questions) == 0 {
+		return nil
+	}
+
+	var submissions []models.UserExamSubmission
+	if err := db.WithContext(ctx).Where("exam_id = ?", examID).Find(&submissions).Error; err != nil {
 		return err
 	}
 
-	if totalQuestions == 0 {
-		return nil // No questions, cannot calculate score
+	// Calculate scores in Go and batch update
+	type scoreUpdate struct {
+		id    uint
+		score float64
+	}
+	updates := make([]scoreUpdate, 0, len(submissions))
+	for _, sub := range submissions {
+		if sub.AnswersData == nil {
+			continue
+		}
+		score := calculateScore(questions, map[uint]string(*sub.AnswersData), exam.SubtractsPoints, penalty, maxScore)
+		updates = append(updates, scoreUpdate{id: sub.ID, score: score})
 	}
 
-	fmt.Printf("DEBUG: Recalculating scores for exam %d. Subtracts: %v, Penalty: %f, TotalQuestions: %d\n", examID, exam.SubtractsPoints, penalty, totalQuestions)
-
-	const scoreSQL = `
-UPDATE user_exam_submission AS u
-JOIN (
-    SELECT ua.submission_id,
-           ROUND(
-             SUM(
-               CASE 
-                 WHEN ua.answer = q.correct_option THEN 1.0 
-                 WHEN ? AND ua.answer != '' THEN -? 
-                 ELSE 0.0 
-               END
-             ) / ? * ?, 
-           2) AS base_score
-    FROM user_answer ua
-    INNER JOIN question q ON q.id = ua.question_id 
-    WHERE q.exam_id = ?
-      AND q.is_active = 1
-      AND q.is_cancelled = 0
-    GROUP BY ua.submission_id
-) AS t ON u.id = t.submission_id
-SET u.score = t.base_score
-WHERE u.exam_id = ?`
-
-	if err := db.WithContext(ctx).Exec(scoreSQL, exam.SubtractsPoints, penalty, float64(totalQuestions), maxScore, examID, examID).Error; err != nil {
-		fmt.Printf("ERROR: RecalculateScores SQL failed: %v\n", err)
-		return err
+	if len(updates) > 0 {
+		var sb strings.Builder
+		sb.WriteString("UPDATE user_exam_submission SET score = CASE id ")
+		ids := make([]uint, 0, len(updates))
+		for _, u := range updates {
+			fmt.Fprintf(&sb, "WHEN %d THEN %.2f ", u.id, u.score)
+			ids = append(ids, u.id)
+		}
+		sb.WriteString("END WHERE id IN (?)")
+		if err := db.WithContext(ctx).Exec(sb.String(), ids).Error; err != nil {
+			fmt.Printf("ERROR: RecalculateScores batch update failed: %v\n", err)
+			return err
+		}
 	}
 
 	return r.RecalculatePercentiles(ctx, db, examID)
@@ -187,50 +190,58 @@ func (r *examRepository) RecalculateScoresForSubmission(ctx context.Context, db 
 	if exam.PenaltyValue != nil {
 		penalty = *exam.PenaltyValue
 	}
-
 	maxScore := 100.0
 	if exam.MaxScore != nil {
 		maxScore = *exam.MaxScore
 	}
 
-	var totalQuestions int64
-	if err := db.WithContext(ctx).Model(&models.Question{}).
-		Where("exam_id = ? AND is_active = 1 AND is_cancelled = 0", examID).
-		Count(&totalQuestions).Error; err != nil {
+	var questions []models.Question
+	if err := db.WithContext(ctx).Where("exam_id = ? AND is_active = 1 AND is_cancelled = 0", examID).
+		Find(&questions).Error; err != nil {
 		return err
 	}
-
-	if totalQuestions == 0 {
-		return nil // No questions, cannot calculate score
+	if len(questions) == 0 {
+		return nil
 	}
 
-	const scoreSQL = `
-UPDATE user_exam_submission AS u
-JOIN (
-    SELECT ua.submission_id,
-           ROUND(
-             SUM(
-               CASE 
-                 WHEN ua.answer = q.correct_option THEN 1.0 
-                 WHEN ? AND ua.answer != '' THEN -? 
-                 ELSE 0.0 
-               END
-             ) / ? * ?, 
-           2) AS base_score
-    FROM user_answer ua
-    INNER JOIN question q ON q.id = ua.question_id 
-    WHERE q.exam_id = ? AND ua.submission_id = ?
-      AND q.is_active = 1
-      AND q.is_cancelled = 0
-    GROUP BY ua.submission_id
-) AS t ON u.id = t.submission_id
-SET u.score = t.base_score
-WHERE u.exam_id = ? AND u.id = ?`
+	var submission models.UserExamSubmission
+	if err := db.WithContext(ctx).First(&submission, submissionID).Error; err != nil {
+		return err
+	}
+	if submission.AnswersData == nil {
+		return r.RecalculatePercentiles(ctx, db, examID)
+	}
 
-	if err := db.WithContext(ctx).Exec(scoreSQL, exam.SubtractsPoints, penalty, float64(totalQuestions), maxScore, examID, submissionID, examID, submissionID).Error; err != nil {
-		fmt.Printf("ERROR: RecalculateScoresForSubmission SQL failed: %v\n", err)
+	score := calculateScore(questions, map[uint]string(*submission.AnswersData), exam.SubtractsPoints, penalty, maxScore)
+	if err := db.WithContext(ctx).Model(&models.UserExamSubmission{}).
+		Where("id = ?", submissionID).
+		Update("score", score).Error; err != nil {
 		return err
 	}
 
 	return r.RecalculatePercentiles(ctx, db, examID)
+}
+
+func calculateScore(questions []models.Question, answers map[uint]string, subtracts bool, penalty, maxScore float64) float64 {
+	total := 0
+	netCorrect := 0.0
+	for _, q := range questions {
+		if !q.IsActive || q.IsCancelled {
+			continue
+		}
+		total++
+		selected := strings.ToUpper(strings.TrimSpace(answers[q.ID]))
+		if selected == "" {
+			continue
+		}
+		if strings.EqualFold(selected, strings.TrimSpace(q.CorrectOption)) {
+			netCorrect++
+		} else if subtracts && penalty > 0 {
+			netCorrect -= penalty
+		}
+	}
+	if total == 0 {
+		return 0
+	}
+	return math.Round(netCorrect/float64(total)*maxScore*100) / 100
 }

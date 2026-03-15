@@ -288,7 +288,7 @@ func processSubmission(tx *gorm.DB, req SubmitExamRequest, contactEmail string) 
 
 	// The score recalculation is now handled asynchronously by the caller.
 
-	if err := tx.Preload("Answers").Preload("User").First(submission, submission.ID).Error; err != nil {
+	if err := tx.Preload("User").First(submission, submission.ID).Error; err != nil {
 		return nil, err
 	}
 
@@ -357,6 +357,7 @@ func createSubmission(tx *gorm.DB, req SubmitExamRequest, userID uint) (*models.
 	}
 
 	scorePtr := new(breakdown.Score)
+	answersJSON := models.AnswersJSON(answersMap)
 
 	submission := &models.UserExamSubmission{
 		UserID:             userID,
@@ -365,6 +366,7 @@ func createSubmission(tx *gorm.DB, req SubmitExamRequest, userID uint) (*models.
 		Merits:             req.Merits,
 		Percentile:         new(0.0),
 		SelectedResultType: req.ResultType,
+		AnswersData:        &answersJSON,
 	}
 
 	if err := tx.Create(submission).Error; err != nil {
@@ -398,7 +400,6 @@ func BuildSubmissionCheckResponse(db *gorm.DB, req SubmissionCheckRequest) (*Sub
 	if err := queryDB.
 		Preload("User").
 		Preload("Exam.Questions", "is_active and not is_cancelled").
-		Preload("Answers").
 		Joins("JOIN exam_user ON exam_user.id = user_exam_submission.user_id").
 		Where("exam_user.dni = ? AND LOWER(exam_user.email) = ? AND user_exam_submission.exam_id = ?", normalizedDNI, normalizedEmail, req.ExamID).
 		First(&submission).Error; err != nil {
@@ -588,7 +589,7 @@ func buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submission *models.U
 			breakdownCopy := *breakdown
 			breakdownData = &breakdownCopy
 		} else {
-			data, err := fetchScoreBreakdownFromDB(tx, exam, submission.ID)
+			data, err := fetchScoreBreakdownFromDB(tx, exam, submission.AnswersData)
 			if err != nil {
 				return nil, err
 			}
@@ -636,7 +637,7 @@ func getSubmissionPositionData(tx *gorm.DB, submission *models.UserExamSubmissio
 	return new(position), new(totalSubmissions), nil
 }
 
-func fetchScoreBreakdownFromDB(tx *gorm.DB, exam *models.Exam, submissionID uint) (*ScoreBreakdown, error) {
+func fetchScoreBreakdownFromDB(tx *gorm.DB, exam *models.Exam, answersData *models.AnswersJSON) (*ScoreBreakdown, error) {
 	var questions []models.Question
 	if err := tx.Where("exam_id = ? AND is_active = 1 AND is_cancelled = 0", exam.ID).Find(&questions).Error; err != nil {
 		return nil, err
@@ -645,14 +646,9 @@ func fetchScoreBreakdownFromDB(tx *gorm.DB, exam *models.Exam, submissionID uint
 		return nil, nil
 	}
 
-	var answers []models.UserAnswer
-	if err := tx.Where("submission_id = ?", submissionID).Find(&answers).Error; err != nil {
-		return nil, err
-	}
-
 	answerMap := make(map[uint]string)
-	for _, ans := range answers {
-		answerMap[ans.QuestionID] = ans.Answer
+	if answersData != nil {
+		answerMap = map[uint]string(*answersData)
 	}
 
 	penalty := 0.0
@@ -678,16 +674,11 @@ func buildAnswersReview(tx *gorm.DB, exam *models.Exam, submission *models.UserE
 		}
 	}
 
-	answers := submission.Answers
-	if len(answers) == 0 {
-		if err := tx.Where("submission_id = ?", submission.ID).Find(&answers).Error; err != nil {
-			return nil, err
-		}
-	}
-
 	answerMap := make(map[uint]string)
-	for _, ans := range answers {
-		answerMap[ans.QuestionID] = strings.ToUpper(ans.Answer)
+	if submission.AnswersData != nil {
+		for k, v := range *submission.AnswersData {
+			answerMap[k] = strings.ToUpper(v)
+		}
 	}
 
 	sort.SliceStable(questions, func(i, j int) bool {

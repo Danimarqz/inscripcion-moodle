@@ -123,20 +123,21 @@ type MoodleUserDNI struct {
 	DNI       string
 }
 
-func (c *Client) GetAllUsersDNI(ctx context.Context) ([]MoodleUserDNI, error) {
+func (c *Client) GetAllUsersDNI(ctx context.Context, courseID int) ([]MoodleUserDNI, error) {
 	if c.db == nil {
 		return nil, ErrMoodleDBNotConfigured
 	}
 
 	query := fmt.Sprintf(`
-		SELECT u.id, u.email, u.firstname, u.lastname, d.data 
-		FROM %suser_info_data d 
-		inner JOIN %suser u ON u.id = d.userid
-		inner join %suser_enrolments ue on u.id = ue.userid and enrolid = 137 
+		SELECT u.id, u.email, u.firstname, u.lastname, d.data
+		FROM %suser_info_data d
+		INNER JOIN %suser u ON u.id = d.userid
+		INNER JOIN %suser_enrolments ue ON u.id = ue.userid
+		INNER JOIN %senrol e ON ue.enrolid = e.id AND e.courseid = ?
 		WHERE d.fieldid = 1
-	`, c.tablePrefix, c.tablePrefix, c.tablePrefix)
+	`, c.tablePrefix, c.tablePrefix, c.tablePrefix, c.tablePrefix)
 
-	rows, err := c.db.QueryContext(ctx, query)
+	rows, err := c.db.QueryContext(ctx, query, courseID)
 	if err != nil {
 		return nil, fmt.Errorf("query moodle user dni: %w", err)
 	}

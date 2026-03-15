@@ -23,7 +23,7 @@ var syncQueue chan SyncJob
 
 func InitSyncWorkerPool(workers int) {
 	syncQueue = make(chan SyncJob, 1000)
-	for i := 0; i < workers; i++ {
+	for range workers {
 		go func() {
 			for job := range syncQueue {
 				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

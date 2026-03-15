@@ -18,7 +18,7 @@ func (s *Service) ExportSubmissionsAnalysis(examID uint, search, orderBy, orderD
 
 	const maxLimit = 1000000
 	orderClause := buildSubmissionOrder(orderBy, orderDir)
-	submissions, err := s.submissionRepo.List(context.Background(), s.db, examID, true, maxLimit, 0, search, orderClause, moodleSynced, resultType)
+	submissions, err := s.submissionRepo.List(context.Background(), s.db, examID, maxLimit, 0, search, orderClause, moodleSynced, resultType)
 	if err != nil {
 		return nil, err
 	}
@@ -43,8 +43,8 @@ func (s *Service) ExportSubmissionsAnalysis(examID uint, search, orderBy, orderD
 
 	for _, sub := range submissions {
 		userAnswers := make(map[uint]string)
-		for _, ans := range sub.Answers {
-			userAnswers[ans.QuestionID] = ans.Answer
+		if sub.AnswersData != nil {
+			userAnswers = map[uint]string(*sub.AnswersData)
 		}
 
 		for _, q := range exam.Questions {
@@ -162,8 +162,8 @@ func (s *Service) ExportSubmissionsAnalysis(examID uint, search, orderBy, orderD
 		f.SetCellValue(sheetData, fmt.Sprintf("I%d", row), sub.SelectedResultType)
 
 		userAnswers := make(map[uint]string)
-		for _, ans := range sub.Answers {
-			userAnswers[ans.QuestionID] = ans.Answer
+		if sub.AnswersData != nil {
+			userAnswers = map[uint]string(*sub.AnswersData)
 		}
 
 		colIndex := 10

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/inscripcion-moodle/go-backend/internal/models"
@@ -97,15 +98,28 @@ func (s *Service) updateUserFromSubmission(user models.ExamUser, req SubmissionU
 }
 
 func (s *Service) updateAnswersFromSubmission(submission *models.UserExamSubmission, req SubmissionUpdateRequest) error {
-	answerMap := make(map[uint]*models.UserAnswer)
-	for i := range submission.Answers {
-		answer := submission.Answers[i]
-		answerMap[answer.QuestionID] = &submission.Answers[i]
+	// Update AnswersData (primary)
+	answersMap := make(models.AnswersJSON)
+	if submission.AnswersData != nil {
+		maps.Copy(answersMap, *submission.AnswersData)
 	}
-
-	ctx := context.Background()
 	for _, answer := range req.Answers {
-		if existing, ok := answerMap[answer.QuestionID]; ok {
+		answersMap[answer.QuestionID] = answer.Answer
+	}
+	submission.AnswersData = &answersMap
+
+	// Phase 1: dual-write to user_answer
+	ctx := context.Background()
+	var existingAnswers []models.UserAnswer
+	if err := s.db.Where("submission_id = ?", submission.ID).Find(&existingAnswers).Error; err != nil {
+		return err
+	}
+	existingMap := make(map[uint]*models.UserAnswer)
+	for i := range existingAnswers {
+		existingMap[existingAnswers[i].QuestionID] = &existingAnswers[i]
+	}
+	for _, answer := range req.Answers {
+		if existing, ok := existingMap[answer.QuestionID]; ok {
 			existing.Answer = answer.Answer
 			if err := s.submissionRepo.SaveAnswer(ctx, s.db, existing); err != nil {
 				return err
@@ -127,7 +141,7 @@ func (s *Service) updateAnswersFromSubmission(submission *models.UserExamSubmiss
 func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats bool, search, orderBy, orderDir string, moodleSynced *bool, resultType *string) (*ListSubmissionsResult, error) {
 	orderClause := buildSubmissionOrder(strings.TrimSpace(orderBy), strings.TrimSpace(orderDir))
 
-	subs, err := s.submissionRepo.List(context.Background(), s.db, examID, false, limit, offset, search, orderClause, moodleSynced, resultType)
+	subs, err := s.submissionRepo.List(context.Background(), s.db, examID, limit, offset, search, orderClause, moodleSynced, resultType)
 	if err != nil {
 		return nil, err
 	}

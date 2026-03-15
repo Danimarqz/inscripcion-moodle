@@ -1,9 +1,44 @@
 package models
 
 import (
+	"database/sql/driver"
+	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 )
+
+// AnswersJSON maps question IDs to answer strings.
+// Stored as JSON in the database: {"123": "A", "124": "B"}
+type AnswersJSON map[uint]string
+
+func (a AnswersJSON) Value() (driver.Value, error) {
+	if a == nil {
+		return nil, nil
+	}
+	b, err := json.Marshal(a)
+	if err != nil {
+		return nil, err
+	}
+	return string(b), nil
+}
+
+func (a *AnswersJSON) Scan(value any) error {
+	if value == nil {
+		*a = nil
+		return nil
+	}
+	var data []byte
+	switch v := value.(type) {
+	case []byte:
+		data = v
+	case string:
+		data = []byte(v)
+	default:
+		return fmt.Errorf("AnswersJSON.Scan: unsupported type %T", value)
+	}
+	return json.Unmarshal(data, a)
+}
 
 type Exam struct {
 	ID                 uint                 `gorm:"column:id;primaryKey" json:"id"`
@@ -63,10 +98,11 @@ type UserExamSubmission struct {
 	Merits             *float64     `gorm:"column:merits" json:"merits"`
 	Percentile         *float64     `gorm:"column:percentile" json:"percentile"`
 	SelectedResultType string       `gorm:"column:selected_result_type;default:'General'" json:"selected_result_type"`
+	AnswersData        *AnswersJSON `gorm:"column:answers_json;type:json" json:"answers_data,omitempty"`
 	SubmittedAt        time.Time    `gorm:"column:submitted_at;autoCreateTime;index:idx_user_exam_submission_submitted_at" json:"submitted_at"`
 	User               ExamUser     `gorm:"foreignKey:UserID" json:"user"`
 	Exam               Exam         `gorm:"foreignKey:ExamID" json:"exam"`
-	Answers            []UserAnswer `gorm:"foreignKey:SubmissionID" json:"answers"`
+	Answers            []UserAnswer `gorm:"foreignKey:SubmissionID" json:"answers"` // Phase 1: kept for dual-write, will be removed in Phase 3
 }
 
 func (UserExamSubmission) TableName() string {

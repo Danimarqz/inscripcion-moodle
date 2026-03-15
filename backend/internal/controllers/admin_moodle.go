@@ -62,21 +62,23 @@ func (h *AdminController) syncMoodleUsers(w http.ResponseWriter, r *http.Request
 	ctx, cancel := context.WithTimeout(r.Context(), moodleAdminSyncTimeout)
 	defer cancel()
 
-	enrolledUsers, err := h.moodleClient.GetEnrolledUsers(ctx, h.cfg.MoodleExamCourseID, nil)
+	moodleUsers, err := h.moodleClient.GetAllUsersDNI(ctx, h.cfg.MoodleExamCourseID)
 	if err != nil {
-		log.Printf("failed to fetch enrolled users for course %d: %v", h.cfg.MoodleExamCourseID, err)
+		log.Printf("moodle sync-users: failed to fetch moodle users for course %d: %v", h.cfg.MoodleExamCourseID, err)
 		msg, _ := json.Marshal(map[string]string{"status": "error", "message": err.Error()})
 		sseEvent(w, flusher, string(msg))
 		return
 	}
 
-	enrolledByEmail := make(map[string]moodle.EnrolledUser, len(enrolledUsers))
-	for _, enrolled := range enrolledUsers {
-		email := strings.ToLower(strings.TrimSpace(enrolled.Email))
-		if email != "" {
-			enrolledByEmail[email] = enrolled
+	moodleIDByEmail := make(map[string]int, len(moodleUsers))
+	for _, mu := range moodleUsers {
+		if e := strings.ToLower(strings.TrimSpace(mu.Email)); e != "" {
+			moodleIDByEmail[e] = mu.ID
 		}
 	}
+
+	log.Printf("moodle sync-users: course_id=%d moodle_enrolled=%d pending_exam_users=%d",
+		h.cfg.MoodleExamCourseID, len(moodleUsers), len(users))
 
 	sseEvent(w, flusher, fmt.Sprintf(`{"status":"syncing","message":"Procesando %d usuarios..."}`, len(users)))
 
@@ -89,7 +91,7 @@ func (h *AdminController) syncMoodleUsers(w http.ResponseWriter, r *http.Request
 			failed++
 			continue
 		}
-		enrolled, ok := enrolledByEmail[email]
+		moodleID, ok := moodleIDByEmail[email]
 		if !ok {
 			failed++
 			continue
@@ -97,7 +99,7 @@ func (h *AdminController) syncMoodleUsers(w http.ResponseWriter, r *http.Request
 		if err := h.db.Model(&models.ExamUser{}).
 			Where("id = ?", user.ID).
 			Where("moodle_id IS NULL").
-			Update("moodle_id", enrolled.ID).Error; err != nil {
+			Update("moodle_id", moodleID).Error; err != nil {
 			log.Printf("moodle sync for %s (%s) failed: %v", user.Email, user.DNI, err)
 			failed++
 			continue
@@ -217,7 +219,7 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 	moodleCtx, moodleCancel := context.WithTimeout(r.Context(), moodleAdminSyncTimeout)
 	defer moodleCancel()
 
-	moodleUsers, err := h.moodleClient.GetAllUsersDNI(moodleCtx)
+	moodleUsers, err := h.moodleClient.GetAllUsersDNI(moodleCtx, h.cfg.MoodleExamCourseID)
 	if err != nil {
 		log.Printf("syncOfficialResultsMoodle: failed to fetch moodle users DNI: %v", err)
 		msg, _ := json.Marshal(map[string]string{"status": "error", "message": err.Error()})

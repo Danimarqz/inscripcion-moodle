@@ -12,14 +12,14 @@ import (
 
 type SubmissionRepository interface {
 	FindByID(ctx context.Context, db *gorm.DB, submissionID uint) (*models.UserExamSubmission, error)
-	List(ctx context.Context, db *gorm.DB, examID uint, includeAnswers bool, limit, offset int, search, order string, moodleSynced *bool, resultType *string) ([]models.UserExamSubmission, error)
+	List(ctx context.Context, db *gorm.DB, examID uint, limit, offset int, search, order string, moodleSynced *bool, resultType *string) ([]models.UserExamSubmission, error)
 	Count(ctx context.Context, db *gorm.DB, examID uint, moodleSynced *bool, resultType *string) (int64, error)
 	Delete(ctx context.Context, db *gorm.DB, submissionID uint) error
 	DeleteByExamID(ctx context.Context, db *gorm.DB, examID uint) error
 	GetAverageScore(ctx context.Context, db *gorm.DB, examID uint, moodleSynced *bool, resultType *string) (*float64, error)
 	Update(ctx context.Context, db *gorm.DB, submission *models.UserExamSubmission) error
-	SaveAnswer(ctx context.Context, db *gorm.DB, answer *models.UserAnswer) error
-	CreateAnswer(ctx context.Context, db *gorm.DB, answer *models.UserAnswer) error
+	SaveAnswer(ctx context.Context, db *gorm.DB, answer *models.UserAnswer) error   // Phase 1: dual-write
+	CreateAnswer(ctx context.Context, db *gorm.DB, answer *models.UserAnswer) error // Phase 1: dual-write
 }
 
 type submissionRepository struct{}
@@ -30,20 +30,16 @@ func NewSubmissionRepository() SubmissionRepository {
 
 func (r *submissionRepository) FindByID(ctx context.Context, db *gorm.DB, submissionID uint) (*models.UserExamSubmission, error) {
 	var submission models.UserExamSubmission
-	if err := db.WithContext(ctx).Preload("User").Preload("Answers").First(&submission, submissionID).Error; err != nil {
+	if err := db.WithContext(ctx).Preload("User").First(&submission, submissionID).Error; err != nil {
 		return nil, err
 	}
 	return &submission, nil
 }
 
-func (r *submissionRepository) List(ctx context.Context, db *gorm.DB, examID uint, includeAnswers bool, limit, offset int, search, order string, moodleSynced *bool, resultType *string) ([]models.UserExamSubmission, error) {
+func (r *submissionRepository) List(ctx context.Context, db *gorm.DB, examID uint, limit, offset int, search, order string, moodleSynced *bool, resultType *string) ([]models.UserExamSubmission, error) {
 	var subs []models.UserExamSubmission
 	query := db.WithContext(ctx).Preload("User").
 		Where("exam_id = ?", examID)
-	
-	if includeAnswers {
-		query = query.Preload("Answers")
-	}
 
 	query = query.Joins("LEFT JOIN exam_user ON exam_user.id = user_exam_submission.user_id")
 
@@ -171,7 +167,7 @@ func (r *submissionRepository) GetAverageScore(ctx context.Context, db *gorm.DB,
 }
 
 func (r *submissionRepository) Update(ctx context.Context, db *gorm.DB, submission *models.UserExamSubmission) error {
-	return db.WithContext(ctx).Preload("User").Preload("Answers").Save(submission).Error
+	return db.WithContext(ctx).Save(submission).Error
 }
 
 func (r *submissionRepository) SaveAnswer(ctx context.Context, db *gorm.DB, answer *models.UserAnswer) error {
