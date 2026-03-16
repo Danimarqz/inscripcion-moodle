@@ -6,6 +6,8 @@ import type {
   OfficialResultCheckPayload,
   OfficialResultCheckResponse,
   UserSubmissionCheck,
+  UpdateMeritsPayload,
+  UpdateMeritsResponse,
 } from '../types/exam';
 import { request } from './api';
 
@@ -43,6 +45,13 @@ export async function checkOfficialResult(
   payload: OfficialResultCheckPayload,
 ): Promise<OfficialResultCheckResponse> {
   return request<OfficialResultCheckResponse>('/check-official-result', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateMerits(payload: UpdateMeritsPayload): Promise<UpdateMeritsResponse> {
+  return request<UpdateMeritsResponse>('/update-merits', {
     method: 'POST',
     body: JSON.stringify(payload),
   });

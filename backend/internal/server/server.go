@@ -44,7 +44,8 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 
 	examRepo := repository.NewExamRepository()
-	examService := examservice.NewService(db, examRepo, cfg.SMTPUser)
+	submissionRepo := repository.NewSubmissionRepository()
+	examService := examservice.NewService(db, examRepo, submissionRepo, cfg.SMTPUser)
 
 	// Initialize background worker pools
 	email.InitWorkerPool(3)
@@ -81,6 +82,7 @@ func New(cfg *config.Config) (*Server, error) {
 	router.Get("/exams/slug/{slug}", publicController.GetExamBySlug)
 	router.Get("/exams/{exam_id}/questions", publicController.GetQuestionStubs)
 	router.Post("/check_submission", publicController.CheckSubmission)
+	router.Post("/update-merits", publicController.UpdateMerits)
 	router.Route("/admin", func(r chi.Router) {
 		adminController.RegisterRoutes(r)
 	})

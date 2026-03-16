@@ -18,6 +18,11 @@ export const examUiInitialState: ExamUiState = {
   answersReview: null,
   maxScore: null,
   secondaryMaxScores: null,
+  isPassed: null,
+  canEditMerits: false,
+  merits: null,
+  meritsPosition: null,
+  meritsTotal: null,
 };
 
 export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action) => {
@@ -41,6 +46,11 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         answersReview: null,
         maxScore: null,
         secondaryMaxScores: null,
+        isPassed: null,
+        canEditMerits: false,
+        merits: null,
+        meritsPosition: null,
+        meritsTotal: null,
       };
     case 'CHECK_SUCCESS':
       return {
@@ -59,6 +69,11 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         answersReview: action.payload.answersReview,
         maxScore: action.payload.max_score ?? null,
         secondaryMaxScores: action.payload.secondary_max_scores ?? null,
+        isPassed: action.payload.isPassed,
+        canEditMerits: action.payload.canEditMerits,
+        merits: action.payload.merits,
+        meritsPosition: action.payload.meritsPosition,
+        meritsTotal: action.payload.meritsTotal,
       };
     case 'CHECK_ERROR':
       return {
@@ -77,6 +92,11 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         answersReview: null,
         maxScore: null,
         secondaryMaxScores: null,
+        isPassed: null,
+        canEditMerits: false,
+        merits: null,
+        meritsPosition: null,
+        meritsTotal: null,
       };
     case 'SUBMIT_SUCCESS':
       return {
@@ -95,6 +115,11 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         answersReview: action.payload.answersReview,
         maxScore: action.payload.max_score ?? null,
         secondaryMaxScores: action.payload.secondary_max_scores ?? null,
+        isPassed: action.payload.isPassed,
+        canEditMerits: action.payload.canEditMerits,
+        merits: action.payload.merits,
+        meritsPosition: action.payload.meritsPosition,
+        meritsTotal: action.payload.meritsTotal,
       };
     case 'SUBMIT_ERROR':
       return {
@@ -114,6 +139,11 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         answersReview: null,
         maxScore: null,
         secondaryMaxScores: null,
+        isPassed: null,
+        canEditMerits: false,
+        merits: null,
+        meritsPosition: null,
+        meritsTotal: null,
       };
     default:
       return state;

@@ -120,5 +120,10 @@ export function buildResultPayload(
     answersReview: review,
     max_score: config.showScore ? result.max_score : undefined,
     secondary_max_scores: config.showScore ? result.secondary_max_scores : undefined,
+    isPassed: result.is_passed ?? null,
+    canEditMerits: result.can_edit_merits ?? false,
+    merits: result.merits ?? null,
+    meritsPosition: result.merits_position ?? null,
+    meritsTotal: result.merits_total ?? null,
   };
 }

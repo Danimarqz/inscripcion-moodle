@@ -12,6 +12,8 @@ export type Exam = {
   penalty_value?: number;
   max_score?: number;
   secondary_max_scores?: string;
+  passing_criteria_type?: string;
+  passing_criteria_value?: number | null;
 };
 export type ExamOut = {
   score?: number | null;
@@ -26,6 +28,11 @@ export type ExamOut = {
   answers_review?: AnswerReview[] | null;
   max_score?: number | null;
   secondary_max_scores?: string | null;
+  is_passed?: boolean | null;
+  can_edit_merits?: boolean;
+  merits?: number | null;
+  merits_position?: number | null;
+  merits_total?: number | null;
 };
 
 export type Question = {
@@ -138,6 +145,8 @@ export type ExamCreateWithQuestions = {
   penalty_value?: number;
   max_score?: number;
   secondary_max_scores?: string;
+  passing_criteria_type?: string;
+  passing_criteria_value?: number | null;
   questions: QuestionCreate[];
 };
 
@@ -161,6 +170,8 @@ export type ExamEdit = {
   penalty_value?: number;
   max_score?: number;
   secondary_max_scores?: string;
+  passing_criteria_type?: string;
+  passing_criteria_value?: number | null;
   questions: QuestionEdit[];
 };
 
@@ -228,6 +239,20 @@ export type SortableHeaderProps = {
   onSort: (key: 'dni' | 'nombre' | 'apellidos' | 'usuario' | 'creado') => void;
 };
 
+export type UpdateMeritsPayload = {
+  email: string;
+  dni: string;
+  exam_id: number;
+  merits: number | null;
+};
+
+export type UpdateMeritsResponse = {
+  message: string;
+  merits: number | null;
+  merits_position?: number | null;
+  merits_total?: number | null;
+};
+
 export type ExamUiState = {
   checking: boolean;
   hasPreviousSubmission: boolean;
@@ -244,6 +269,11 @@ export type ExamUiState = {
   answersReview: AnswerReview[] | null;
   maxScore: number | null;
   secondaryMaxScores: string | null;
+  isPassed: boolean | null;
+  canEditMerits: boolean;
+  merits: number | null;
+  meritsPosition: number | null;
+  meritsTotal: number | null;
 };
 
 export type ExamResultPayload = {
@@ -259,6 +289,11 @@ export type ExamResultPayload = {
   answersReview: AnswerReview[] | null;
   max_score?: number | null;
   secondary_max_scores?: string | null;
+  isPassed: boolean | null;
+  canEditMerits: boolean;
+  merits: number | null;
+  meritsPosition: number | null;
+  meritsTotal: number | null;
 };
 
 export type ExamUiAction =

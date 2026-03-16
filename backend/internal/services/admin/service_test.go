@@ -76,6 +76,14 @@ func (m *MockExamRepository) RecalculatePercentiles(ctx context.Context, db *gor
 	return args.Error(0)
 }
 
+func (m *MockExamRepository) GetTop10AverageScore(ctx context.Context, db *gorm.DB, examID uint) (*float64, error) {
+	args := m.Called(ctx, db, examID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*float64), args.Error(1)
+}
+
 type MockQuestionRepository struct {
 	mock.Mock
 }

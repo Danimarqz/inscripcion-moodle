@@ -52,9 +52,11 @@ type Exam struct {
 	SubtractsPoints    bool                 `gorm:"column:subtracts_points" json:"subtracts_points"`
 	PenaltyValue       *float64             `gorm:"column:penalty_value" json:"penalty_value"`
 	MaxScore           *float64             `gorm:"column:max_score;default:100.0" json:"max_score"`
-	SecondaryMaxScores string               `gorm:"column:secondary_max_scores" json:"secondary_max_scores"`
-	Questions          []Question           `gorm:"foreignKey:ExamID" json:"questions"`
-	Submissions        []UserExamSubmission `gorm:"foreignKey:ExamID" json:"submissions"`
+	SecondaryMaxScores   string               `gorm:"column:secondary_max_scores" json:"secondary_max_scores"`
+	PassingCriteriaType  string               `gorm:"column:passing_criteria_type;default:'disabled'" json:"passing_criteria_type"`
+	PassingCriteriaValue *float64             `gorm:"column:passing_criteria_value" json:"passing_criteria_value"`
+	Questions            []Question           `gorm:"foreignKey:ExamID" json:"questions"`
+	Submissions          []UserExamSubmission `gorm:"foreignKey:ExamID" json:"submissions"`
 }
 
 func (Exam) TableName() string {

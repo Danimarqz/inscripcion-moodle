@@ -16,6 +16,9 @@ interface SubmissionSummaryProps {
   totalSubmissions: number | null;
   maxScore?: number | null;
   secondaryMaxScores?: string | null;
+  isPassed?: boolean | null;
+  meritsPosition?: number | null;
+  meritsTotal?: number | null;
 }
 
 export default function SubmissionSummary({
@@ -34,6 +37,9 @@ export default function SubmissionSummary({
   totalSubmissions,
   maxScore,
   secondaryMaxScores,
+  isPassed,
+  meritsPosition,
+  meritsTotal,
 }: SubmissionSummaryProps) {
   const trimmedMessage = message.trim();
   if (!trimmedMessage) return null;
@@ -43,9 +49,21 @@ export default function SubmissionSummary({
 
   return (
     <div className="mt-6 rounded-2xl border border-green-500/60 bg-green-500/5 p-6 shadow-[0_10px_25px_rgba(16,185,129,0.15)] text-left">
-      <p className="text-green-200 text-lg font-semibold mb-2">
-        {primaryMessage ?? trimmedMessage}
-      </p>
+      <div className="flex items-center gap-3 mb-2">
+        <p className="text-green-200 text-lg font-semibold">
+          {primaryMessage ?? trimmedMessage}
+        </p>
+        {isPassed === true && (
+          <span className="inline-flex items-center rounded-full bg-green-500/20 border border-green-500/50 px-3 py-1 text-xs font-semibold text-green-300">
+            Aprobado
+          </span>
+        )}
+        {isPassed === false && (
+          <span className="inline-flex items-center rounded-full bg-gray-500/20 border border-gray-500/50 px-3 py-1 text-xs font-semibold text-gray-400">
+            No aprobado
+          </span>
+        )}
+      </div>
 
       <div className="flex flex-wrap gap-4">
         {showScore && typeof score === 'number' && (
@@ -95,6 +113,14 @@ export default function SubmissionSummary({
           </div>
         )}
       </div>
+      {typeof meritsPosition === 'number' && typeof meritsTotal === 'number' && (
+        <div className="mt-4 p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/30">
+          <p className="text-sm text-indigo-200">
+            Ranking de méritos: posición <span className="font-bold text-indigo-100">{meritsPosition}</span> de{' '}
+            <span className="font-bold text-indigo-100">{meritsTotal}</span> aprobados con méritos
+          </p>
+        </div>
+      )}
       {Array.isArray(review) && review.length > 0 && (
         <div className="mt-6">
           <h3 className="text-base font-semibold text-brand-yellow mb-3">

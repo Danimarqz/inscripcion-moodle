@@ -45,17 +45,19 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 	}
 
 	exam := &models.Exam{
-		Name:               req.Name,
-		IsActive:           req.IsActive,
-		ShowScore:          req.ShowScore,
-		ShowPercentile:     req.ShowPercentile,
-		ShowScoreFull:      req.ShowScoreFull,
-		ValidatedTribunal:  req.ValidatedTribunal,
-		SubtractsPoints:    req.SubtractsPoints,
-		PenaltyValue:       req.PenaltyValue,
-		MaxScore:           req.MaxScore,
-		SecondaryMaxScores: req.SecondaryMaxScores,
-		Questions:          questions,
+		Name:                 req.Name,
+		IsActive:             req.IsActive,
+		ShowScore:            req.ShowScore,
+		ShowPercentile:       req.ShowPercentile,
+		ShowScoreFull:        req.ShowScoreFull,
+		ValidatedTribunal:    req.ValidatedTribunal,
+		SubtractsPoints:      req.SubtractsPoints,
+		PenaltyValue:         req.PenaltyValue,
+		MaxScore:             req.MaxScore,
+		SecondaryMaxScores:   req.SecondaryMaxScores,
+		PassingCriteriaType:  req.PassingCriteriaType,
+		PassingCriteriaValue: req.PassingCriteriaValue,
+		Questions:            questions,
 	}
 
 	if len(activeQuestions(questions)) == 0 {
@@ -141,6 +143,12 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 	}
 	if req.SecondaryMaxScores != nil {
 		exam.SecondaryMaxScores = *req.SecondaryMaxScores
+	}
+	if req.PassingCriteriaType != nil {
+		exam.PassingCriteriaType = *req.PassingCriteriaType
+	}
+	if req.PassingCriteriaValue != nil {
+		exam.PassingCriteriaValue = req.PassingCriteriaValue
 	}
 
 	inputQuestionIDs := make(map[uint]struct{})

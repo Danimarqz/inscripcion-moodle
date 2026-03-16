@@ -36,6 +36,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
   const [penaltyValue, setPenaltyValue] = useState(0);
   const [maxScore, setMaxScore] = useState(100);
   const [secondaryMaxScores, setSecondaryMaxScores] = useState('');
+  const [passingCriteriaType, setPassingCriteriaType] = useState('disabled');
+  const [passingCriteriaValue, setPassingCriteriaValue] = useState<number | null>(null);
 
   useEffect(() => {
     if (authenticating) return;
@@ -67,6 +69,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setPenaltyValue(0);
       setMaxScore(100);
       setSecondaryMaxScores('');
+      setPassingCriteriaType('disabled');
+      setPassingCriteriaValue(null);
       setAll([{ ...DEFAULT_QUESTION }]);
       setError(null);
       return;
@@ -85,6 +89,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setPenaltyValue(examData.penalty_value ?? 0);
       setMaxScore(examData.max_score ?? 100);
       setSecondaryMaxScores(examData.secondary_max_scores ?? '');
+      setPassingCriteriaType(examData.passing_criteria_type ?? 'disabled');
+      setPassingCriteriaValue(examData.passing_criteria_value ?? null);
 
       const normalizedQuestions = (examData.questions.length
         ? examData.questions
@@ -147,6 +153,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
       penalty_value: subtractsPoints ? penaltyValue : 0,
       max_score: maxScore,
       secondary_max_scores: secondaryMaxScores,
+      passing_criteria_type: passingCriteriaType,
+      passing_criteria_value: passingCriteriaType !== 'disabled' ? passingCriteriaValue : null,
       questions: questions.map((q) => ({
         id: 'id' in q ? q.id : undefined,
         correct_option: q.correct_option.toUpperCase(),
@@ -434,6 +442,54 @@ export default function ExamForm({ examId }: ExamFormProps) {
               Separa con comas. Ej: "10,60" mostrará también la nota sobre 10 y sobre 60.
             </span>
           </label>
+        </div>
+      </fieldset>
+
+      <fieldset className="mb-6 border border-[#444] rounded-lg p-4" disabled={isBusy}>
+        <legend className="font-bold text-brand-pink px-2">Criterio para aprobar</legend>
+        <p className="text-xs text-gray-400 mb-4">
+          Configura si quieres informar a los alumnos de si han aprobado y permitirles añadir méritos.
+        </p>
+        <div className="flex flex-col gap-4">
+          <label className="block text-brand-pink font-bold">
+            Tipo de criterio:
+            <select
+              value={passingCriteriaType}
+              onChange={(e) => {
+                const val = (e.target as HTMLSelectElement).value;
+                setPassingCriteriaType(val);
+                if (val === 'disabled') setPassingCriteriaValue(null);
+              }}
+              className="w-full mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+              disabled={isBusy}
+            >
+              <option value="disabled">Desactivado</option>
+              <option value="min_score">Nota minima</option>
+              <option value="top10_pct">% de la media del top 10</option>
+            </select>
+          </label>
+          {passingCriteriaType !== 'disabled' && (
+            <label className="block text-brand-pink font-bold">
+              {passingCriteriaType === 'min_score' ? 'Nota minima para aprobar:' : 'Porcentaje de la media del top 10:'}
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={passingCriteriaValue ?? ''}
+                onInput={(e) => {
+                  const v = (e.target as HTMLInputElement).value;
+                  setPassingCriteriaValue(v ? parseFloat(v) : null);
+                }}
+                className="w-full mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+                disabled={isBusy}
+              />
+              <span className="text-xs text-gray-400 block mt-1">
+                {passingCriteriaType === 'min_score'
+                  ? 'Los alumnos con nota >= este valor se consideran aprobados.'
+                  : 'Ej: 80 significa que el umbral es el 80% de la media del top 10.'}
+              </span>
+            </label>
+          )}
         </div>
       </fieldset>
 

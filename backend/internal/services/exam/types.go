@@ -48,6 +48,24 @@ type SubmissionPayload struct {
 	AnswersReview      []AnswerReview `json:"answers_review,omitempty"`
 	MaxScore           *float64       `json:"max_score,omitempty"`
 	SecondaryMaxScores string         `json:"secondary_max_scores,omitempty"`
+	IsPassed           *bool          `json:"is_passed"`
+	CanEditMerits      bool           `json:"can_edit_merits"`
+	MeritsPosition     *int           `json:"merits_position,omitempty"`
+	MeritsTotal        *int           `json:"merits_total,omitempty"`
+}
+
+type UpdateMeritsRequest struct {
+	DNI    string   `json:"dni"`
+	Email  string   `json:"email"`
+	ExamID uint     `json:"exam_id"`
+	Merits *float64 `json:"merits"`
+}
+
+type UpdateMeritsResponse struct {
+	Message        string   `json:"message"`
+	Merits         *float64 `json:"merits"`
+	MeritsPosition *int     `json:"merits_position,omitempty"`
+	MeritsTotal    *int     `json:"merits_total,omitempty"`
 }
 
 type AnswerReview struct {

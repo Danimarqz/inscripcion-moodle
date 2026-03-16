@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"math"
 	"strings"
@@ -23,6 +24,7 @@ type ExamRepository interface {
 	RecalculateScores(ctx context.Context, db *gorm.DB, examID uint) error
 	RecalculateScoresForSubmission(ctx context.Context, db *gorm.DB, examID uint, submissionID uint) error
 	RecalculatePercentiles(ctx context.Context, db *gorm.DB, examID uint) error
+	GetTop10AverageScore(ctx context.Context, db *gorm.DB, examID uint) (*float64, error)
 }
 
 type examRepository struct{}
@@ -220,6 +222,18 @@ func (r *examRepository) RecalculateScoresForSubmission(ctx context.Context, db 
 	}
 
 	return r.RecalculatePercentiles(ctx, db, examID)
+}
+
+func (r *examRepository) GetTop10AverageScore(ctx context.Context, db *gorm.DB, examID uint) (*float64, error) {
+	var avg sql.NullFloat64
+	subquery := `SELECT AVG(score) FROM (SELECT score FROM user_exam_submission WHERE exam_id = ? AND score IS NOT NULL ORDER BY score DESC LIMIT 10) t`
+	if err := db.WithContext(ctx).Raw(subquery, examID).Row().Scan(&avg); err != nil {
+		return nil, err
+	}
+	if avg.Valid {
+		return &avg.Float64, nil
+	}
+	return nil, nil
 }
 
 func calculateScore(questions []models.Question, answers map[uint]string, subtracts bool, penalty, maxScore float64) float64 {

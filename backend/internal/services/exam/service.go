@@ -117,13 +117,14 @@ func ValidateAnswerOption(option string) (string, error) {
 }
 
 type Service struct {
-	db           *gorm.DB
-	repo         repository.ExamRepository
-	contactEmail string
+	db             *gorm.DB
+	repo           repository.ExamRepository
+	submissionRepo repository.SubmissionRepository
+	contactEmail   string
 }
 
-func NewService(db *gorm.DB, repo repository.ExamRepository, contactEmail string) *Service {
-	return &Service{db: db, repo: repo, contactEmail: contactEmail}
+func NewService(db *gorm.DB, repo repository.ExamRepository, submissionRepo repository.SubmissionRepository, contactEmail string) *Service {
+	return &Service{db: db, repo: repo, submissionRepo: submissionRepo, contactEmail: contactEmail}
 }
 
 // recalculatePercentilesAsync runs the percentile recalculation in a separate
@@ -157,7 +158,7 @@ func (s *Service) recalculatePercentilesAsync(examID uint) {
 func (s *Service) ProcessExamSubmission(req SubmitExamRequest) (*SubmissionPayload, error) {
 	var payload *SubmissionPayload
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		p, err := processSubmission(tx, req, s.contactEmail)
+		p, err := processSubmission(tx, req, s.contactEmail, s.repo, s.submissionRepo)
 		if err != nil {
 			return err
 		}
@@ -245,7 +246,7 @@ func getOrCreateUser(tx *gorm.DB, req SubmitExamRequest) (*models.ExamUser, erro
 	return &candidate, nil
 }
 
-func processSubmission(tx *gorm.DB, req SubmitExamRequest, contactEmail string) (*SubmissionPayload, error) {
+func processSubmission(tx *gorm.DB, req SubmitExamRequest, contactEmail string, examRepo repository.ExamRepository, submissionRepo repository.SubmissionRepository) (*SubmissionPayload, error) {
 	normalizedDNI := NormalizeDNI(req.DNI)
 	trimmedName := strings.TrimSpace(req.Name)
 	trimmedSurname := strings.TrimSpace(req.Surname)
@@ -292,7 +293,15 @@ func processSubmission(tx *gorm.DB, req SubmitExamRequest, contactEmail string) 
 		return nil, err
 	}
 
-	payload, err := buildSubmissionPayload(tx, &submission.Exam, submission, "Examen enviado correctamente", breakdown)
+	// Determine pass status message
+	message := "Examen enviado correctamente"
+	threshold := getPassingThreshold(tx, &submission.Exam, examRepo)
+	isPassed := evaluatePassStatus(submission.Score, threshold)
+	if isPassed != nil && *isPassed {
+		message = "Enhorabuena, hay posibilidades de que pases el corte. El siguiente paso es meter tus méritos, cuando los tengas calculados añádelos"
+	}
+
+	payload, err := buildSubmissionPayload(tx, &submission.Exam, submission, message, breakdown, examRepo, submissionRepo)
 	if err != nil {
 		return nil, err
 	}
@@ -390,11 +399,11 @@ func createSubmission(tx *gorm.DB, req SubmitExamRequest, userID uint) (*models.
 	return submission, breakdown, answersMap, nil
 }
 
-func BuildSubmissionCheckResponse(db *gorm.DB, req SubmissionCheckRequest) (*SubmissionPayload, error) {
+func (s *Service) BuildSubmissionCheckResponse(req SubmissionCheckRequest) (*SubmissionPayload, error) {
 	normalizedEmail := strings.ToLower(strings.TrimSpace(req.Email))
 	normalizedDNI := NormalizeDNI(req.DNI)
 	var submission models.UserExamSubmission
-	queryDB := db.Session(&gorm.Session{
+	queryDB := s.db.Session(&gorm.Session{
 		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
 	})
 	if err := queryDB.
@@ -420,12 +429,67 @@ func BuildSubmissionCheckResponse(db *gorm.DB, req SubmissionCheckRequest) (*Sub
 		return nil, ErrResultsNotViewable
 	}
 
-	payload, err := buildSubmissionPayload(db, &submission.Exam, &submission, "Ya has enviado este examen anteriormente", nil)
+	payload, err := buildSubmissionPayload(s.db, &submission.Exam, &submission, "Ya has enviado este examen anteriormente", nil, s.repo, s.submissionRepo)
 	if err != nil {
 		return nil, err
 	}
 
 	return payload, nil
+}
+
+var (
+	ErrNotPassed     = errors.New("no has aprobado el examen, no puedes añadir méritos")
+	ErrMeritsInvalid = errors.New("el valor de méritos no es válido")
+)
+
+func (s *Service) UpdateMerits(req UpdateMeritsRequest) (*UpdateMeritsResponse, error) {
+	normalizedDNI := NormalizeDNI(req.DNI)
+	if !ValidateDNINIE(normalizedDNI) {
+		return nil, ErrDNINotValid
+	}
+
+	normalizedEmail := strings.ToLower(strings.TrimSpace(req.Email))
+
+	var submission models.UserExamSubmission
+	queryDB := s.db.Session(&gorm.Session{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err := queryDB.
+		Preload("Exam").
+		Joins("JOIN exam_user ON exam_user.id = user_exam_submission.user_id").
+		Where("exam_user.dni = ? AND LOWER(exam_user.email) = ? AND user_exam_submission.exam_id = ?", normalizedDNI, normalizedEmail, req.ExamID).
+		First(&submission).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrSubmissionNotFound
+		}
+		return nil, err
+	}
+
+	threshold := getPassingThreshold(s.db, &submission.Exam, s.repo)
+	isPassed := evaluatePassStatus(submission.Score, threshold)
+	if isPassed == nil || !*isPassed {
+		return nil, ErrNotPassed
+	}
+
+	submission.Merits = req.Merits
+	if err := s.db.Model(&submission).Update("merits", req.Merits).Error; err != nil {
+		return nil, err
+	}
+
+	resp := &UpdateMeritsResponse{
+		Message: "Méritos actualizados correctamente",
+		Merits:  req.Merits,
+	}
+
+	if req.Merits != nil && threshold != nil {
+		pos, total, err := s.submissionRepo.GetMeritsRanking(context.Background(), s.db, req.ExamID, submission.ID, *threshold)
+		if err == nil {
+			resp.MeritsPosition = pos
+			resp.MeritsTotal = total
+		}
+	}
+
+	return resp, nil
 }
 
 // anyWordMatches returns true if any word in userValue matches any word in officialValue.
@@ -561,7 +625,38 @@ func CalculateScoreBreakdown(questions []models.Question, answers map[uint]strin
 	}, nil
 }
 
-func buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submission *models.UserExamSubmission, message string, breakdown *ScoreBreakdown) (*SubmissionPayload, error) {
+func getPassingThreshold(db *gorm.DB, exam *models.Exam, examRepo repository.ExamRepository) *float64 {
+	switch exam.PassingCriteriaType {
+	case "min_score":
+		return exam.PassingCriteriaValue
+	case "top10_pct":
+		if exam.PassingCriteriaValue == nil {
+			return nil
+		}
+		avg, err := examRepo.GetTop10AverageScore(context.Background(), db, exam.ID)
+		if err != nil || avg == nil {
+			return nil
+		}
+		threshold := (*exam.PassingCriteriaValue / 100) * *avg
+		return &threshold
+	default:
+		return nil
+	}
+}
+
+func evaluatePassStatus(score *float64, threshold *float64) *bool {
+	if threshold == nil {
+		return nil
+	}
+	if score == nil {
+		passed := false
+		return &passed
+	}
+	passed := *score >= *threshold
+	return &passed
+}
+
+func buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submission *models.UserExamSubmission, message string, breakdown *ScoreBreakdown, examRepo repository.ExamRepository, submissionRepo repository.SubmissionRepository) (*SubmissionPayload, error) {
 	payload := &SubmissionPayload{
 		Message:            message,
 		Merits:             submission.Merits,
@@ -610,6 +705,20 @@ func buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submission *models.U
 			return nil, err
 		}
 		payload.AnswersReview = review
+	}
+
+	// Passing criteria logic
+	threshold := getPassingThreshold(tx, exam, examRepo)
+	isPassed := evaluatePassStatus(submission.Score, threshold)
+	payload.IsPassed = isPassed
+	payload.CanEditMerits = isPassed != nil && *isPassed
+
+	if payload.CanEditMerits && submission.Merits != nil {
+		pos, total, err := submissionRepo.GetMeritsRanking(context.Background(), tx, exam.ID, submission.ID, *threshold)
+		if err == nil {
+			payload.MeritsPosition = pos
+			payload.MeritsTotal = total
+		}
 	}
 
 	return payload, nil

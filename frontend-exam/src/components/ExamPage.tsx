@@ -8,7 +8,7 @@ import type {
   ExamResultPayload,
   ExamSubmissionPayload,
 } from '../types/exam';
-import { checkOfficialResult, checkSubmission, submitExam } from '../services/examService';
+import { checkOfficialResult, checkSubmission, submitExam, updateMerits } from '../services/examService';
 import { useExamQuestions } from '../hooks/useExamQuestions';
 import { useExamUi } from '../hooks/useExamUi';
 import { isValidEmail, normalizeDni, validateDniNie } from '../utils/validation';
@@ -71,7 +71,24 @@ export default function ExamPage({
     answersReview,
     maxScore,
     secondaryMaxScores,
+    isPassed,
+    canEditMerits,
+    merits: currentMerits,
+    meritsPosition,
+    meritsTotal,
   } = examUiState;
+
+  const [meritsValue, setMeritsValue] = useState('');
+  const [meritsSubmitting, setMeritsSubmitting] = useState(false);
+  const [meritsMessage, setMeritsMessage] = useState<string | null>(null);
+  const [localMeritsPosition, setLocalMeritsPosition] = useState<number | null>(null);
+  const [localMeritsTotal, setLocalMeritsTotal] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (currentMerits !== null) setMeritsValue(String(currentMerits));
+    setLocalMeritsPosition(meritsPosition);
+    setLocalMeritsTotal(meritsTotal);
+  }, [currentMerits, meritsPosition, meritsTotal]);
 
   const { questions, loading, error: questionsError } = useExamQuestions(examId);
   const allowResultPreview =
@@ -165,6 +182,32 @@ export default function ExamPage({
   }, []);
 
 
+
+  async function handleMeritsSubmit(event: Event) {
+    event.preventDefault();
+    setMeritsMessage(null);
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedDni = normalizeDni(dni);
+    const meritsNum = meritsValue ? parseFloat(meritsValue) : null;
+
+    setMeritsSubmitting(true);
+    try {
+      const resp = await updateMerits({
+        email: normalizedEmail,
+        dni: normalizedDni,
+        exam_id: examId,
+        merits: meritsNum,
+      });
+      setMeritsMessage(resp.message);
+      if (resp.merits_position != null) setLocalMeritsPosition(resp.merits_position);
+      if (resp.merits_total != null) setLocalMeritsTotal(resp.merits_total);
+    } catch (error: unknown) {
+      setMeritsMessage(error instanceof Error ? error.message : 'Error al guardar méritos');
+    } finally {
+      setMeritsSubmitting(false);
+    }
+  }
 
   function getResultPayload(result: ExamOut, context: 'check' | 'submit'): ExamResultPayload {
     return buildResultPayload(result, context, {
@@ -355,8 +398,48 @@ export default function ExamPage({
         totalSubmissions={totalSubmissions}
         maxScore={maxScore}
         secondaryMaxScores={secondaryMaxScores}
+        isPassed={isPassed}
+        meritsPosition={localMeritsPosition ?? meritsPosition}
+        meritsTotal={localMeritsTotal ?? meritsTotal}
       />
     ) : null;
+
+  const meritsForm = canEditMerits && hasPreviousSubmission ? (
+    <div className="mt-6 rounded-2xl border border-brand-yellow/60 bg-brand-yellow/5 p-6 shadow-[0_10px_25px_rgba(255,200,50,0.1)]">
+      <h3 className="text-lg font-semibold text-brand-yellow mb-3">Añadir o editar méritos</h3>
+      <form onSubmit={handleMeritsSubmit} className="flex flex-col gap-3">
+        <label className="block text-sm text-gray-300">
+          Puntuación de méritos:
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={meritsValue}
+            onInput={(e) => setMeritsValue((e.target as HTMLInputElement).value)}
+            className="w-full mt-1 px-4 py-3 rounded-lg bg-[#1f2229] border border-[#555] text-white focus:ring-2 focus:ring-brand-yellow focus:border-transparent transition-all"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={meritsSubmitting}
+          className="btn-brand w-full text-base disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+        >
+          {meritsSubmitting ? 'Guardando...' : 'Guardar méritos'}
+        </button>
+        {meritsMessage && (
+          <p className="text-sm text-green-300 bg-green-500/10 border border-green-500/30 p-3 rounded-md">{meritsMessage}</p>
+        )}
+      </form>
+      {(localMeritsPosition ?? meritsPosition) != null && (localMeritsTotal ?? meritsTotal) != null && (
+        <div className="mt-4 p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/30">
+          <p className="text-sm text-indigo-200">
+            Eres el número <span className="font-bold text-indigo-100">{localMeritsPosition ?? meritsPosition}</span> de{' '}
+            <span className="font-bold text-indigo-100">{localMeritsTotal ?? meritsTotal}</span> personas aprobadas que han metido sus méritos
+          </p>
+        </div>
+      )}
+    </div>
+  ) : null;
 
   return (
     <main>
@@ -382,6 +465,7 @@ export default function ExamPage({
         />
       )}
       {allowResultPreview && resultsSummary}
+      {allowResultPreview && meritsForm}
       {validatedTribunal && (
                 <p className="text-xs text-brand-yellow mt-2">
                   Estas respuestas NO las puedes modificar, si te has confundido al meter alguna respuesta envíanos un correo a <a href="mailto:info.opositatcae@gmail.com">info.opositatcae@gmail.com</a> y lo corregiremos.
@@ -425,6 +509,7 @@ export default function ExamPage({
           </p>
         )}
         {!allowResultPreview && resultsSummary}
+        {!allowResultPreview && meritsForm}
         {resultError && (
           <p className="text-center text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mt-6">
             {resultError}

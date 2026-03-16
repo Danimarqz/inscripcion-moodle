@@ -11,31 +11,35 @@ type QuestionInput struct {
 }
 
 type CreateExamRequest struct {
-	Name              string          `json:"name"`
-	IsActive          bool            `json:"is_active"`
-	ShowScore         bool            `json:"show_score"`
-	ShowPercentile    bool            `json:"show_percentile"`
-	ShowScoreFull     bool            `json:"show_score_full"`
-	ValidatedTribunal bool            `json:"validated_tribunal"`
-	SubtractsPoints   bool            `json:"subtracts_points"`
-	PenaltyValue      *float64        `json:"penalty_value,omitempty"`
-	MaxScore          *float64        `json:"max_score,omitempty"`
-	SecondaryMaxScores string         `json:"secondary_max_scores,omitempty"`
-	Questions         []QuestionInput `json:"questions"`
+	Name                 string          `json:"name"`
+	IsActive             bool            `json:"is_active"`
+	ShowScore            bool            `json:"show_score"`
+	ShowPercentile       bool            `json:"show_percentile"`
+	ShowScoreFull        bool            `json:"show_score_full"`
+	ValidatedTribunal    bool            `json:"validated_tribunal"`
+	SubtractsPoints      bool            `json:"subtracts_points"`
+	PenaltyValue         *float64        `json:"penalty_value,omitempty"`
+	MaxScore             *float64        `json:"max_score,omitempty"`
+	SecondaryMaxScores   string          `json:"secondary_max_scores,omitempty"`
+	PassingCriteriaType  string          `json:"passing_criteria_type"`
+	PassingCriteriaValue *float64        `json:"passing_criteria_value,omitempty"`
+	Questions            []QuestionInput `json:"questions"`
 }
 
 type EditExamRequest struct {
-	Name              *string         `json:"name,omitempty"`
-	IsActive          *bool           `json:"is_active,omitempty"`
-	ShowScore         *bool           `json:"show_score,omitempty"`
-	ShowPercentile    *bool           `json:"show_percentile,omitempty"`
-	ShowScoreFull     *bool           `json:"show_score_full,omitempty"`
-	ValidatedTribunal *bool           `json:"validated_tribunal,omitempty"`
-	SubtractsPoints   *bool           `json:"subtracts_points,omitempty"`
-	PenaltyValue      *float64        `json:"penalty_value,omitempty"`
-	MaxScore          *float64        `json:"max_score,omitempty"`
-	SecondaryMaxScores *string        `json:"secondary_max_scores,omitempty"`
-	Questions         []QuestionInput `json:"questions"`
+	Name                 *string         `json:"name,omitempty"`
+	IsActive             *bool           `json:"is_active,omitempty"`
+	ShowScore            *bool           `json:"show_score,omitempty"`
+	ShowPercentile       *bool           `json:"show_percentile,omitempty"`
+	ShowScoreFull        *bool           `json:"show_score_full,omitempty"`
+	ValidatedTribunal    *bool           `json:"validated_tribunal,omitempty"`
+	SubtractsPoints      *bool           `json:"subtracts_points,omitempty"`
+	PenaltyValue         *float64        `json:"penalty_value,omitempty"`
+	MaxScore             *float64        `json:"max_score,omitempty"`
+	SecondaryMaxScores   *string         `json:"secondary_max_scores,omitempty"`
+	PassingCriteriaType  *string         `json:"passing_criteria_type,omitempty"`
+	PassingCriteriaValue *float64        `json:"passing_criteria_value,omitempty"`
+	Questions            []QuestionInput `json:"questions"`
 }
 
 type ListSubmissionsResult struct {

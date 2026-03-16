@@ -187,7 +187,7 @@ func (h *PublicController) CheckSubmission(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	payload, err := examservice.BuildSubmissionCheckResponse(h.db, req)
+	payload, err := h.service.BuildSubmissionCheckResponse(req)
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -259,6 +259,42 @@ func (h *PublicController) CheckOfficialResultMatch(w http.ResponseWriter, r *ht
 	_, _ = w.Write(respBytes)
 }
 
+func (h *PublicController) UpdateMerits(w http.ResponseWriter, r *http.Request) {
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			log.Printf("failed to close request body: %v", err)
+		}
+	}()
+	var req examservice.UpdateMeritsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, constants.InvalidRequest, http.StatusBadRequest)
+		return
+	}
+
+	if strings.TrimSpace(req.Email) == "" || strings.TrimSpace(req.DNI) == "" {
+		http.Error(w, constants.EmailAndDNIAreRequired, http.StatusBadRequest)
+		return
+	}
+
+	resp, err := h.service.UpdateMerits(req)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+
+	// Invalidate check_submission cache for this user/exam
+	normalizedEmail := strings.ToLower(strings.TrimSpace(req.Email))
+	normalizedDNI := examservice.NormalizeDNI(req.DNI)
+	cacheKeyHash := sha256.Sum256(fmt.Appendf(nil, "%d:%s:%s", req.ExamID, normalizedEmail, normalizedDNI))
+	cacheKey := fmt.Sprintf("check_sub:%x", cacheKeyHash)
+	h.cache.Del(r.Context(), cacheKey)
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("failed to encode response: %v", err)
+	}
+}
+
 func (h *PublicController) questionsCacheKey(examID uint) string {
 	return fmt.Sprintf("%s:%d", questionsCachePrefix, examID)
 }
@@ -271,6 +307,8 @@ func (h *PublicController) handleError(w http.ResponseWriter, err error) {
 	case errors.Is(err, examservice.ErrExamNotActive), errors.Is(err, examservice.ErrResultsNotViewable):
 		status = http.StatusForbidden
 	case errors.Is(err, examservice.ErrOfficialResultMissing):
+		status = http.StatusForbidden
+	case errors.Is(err, examservice.ErrNotPassed):
 		status = http.StatusForbidden
 	}
 	h.writeJSONError(w, status, err.Error())
