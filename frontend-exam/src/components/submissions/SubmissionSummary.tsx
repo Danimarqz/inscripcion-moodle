@@ -50,7 +50,7 @@ export default function SubmissionSummary({
       <div className="flex flex-wrap gap-4">
         {showScore && typeof score === 'number' && (
           <div className="flex-1 min-w-[180px] rounded-xl bg-[#1f2a24] border border-green-500/30 p-4">
-            <p className="text-xs uppercase tracking-widest text-green-400/80">Nota sobre 10</p>
+            <p className="text-xs uppercase tracking-widest text-green-400/80">Nota sobre {maxScore}</p>
             <p className="text-2xl font-bold text-green-200">{score}</p>
           </div>
         )}
