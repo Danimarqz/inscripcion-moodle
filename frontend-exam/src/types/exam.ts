@@ -41,11 +41,6 @@ export type Answer = {
   answer: string;
 }
 
-export type SubmissionAnswer = {
-  id: number;
-  question_id: number;
-  answer: string;
-}
 
 export type ExamUser = {
   id: number;
@@ -69,7 +64,7 @@ export type AdminSubmission = {
   merits?: number | null;
   percentile?: number | null;
   submitted_at: string;
-  answers: SubmissionAnswer[];
+  answers_data?: Record<string, string> | null;
   accepts_marketing?: boolean | null;
   selected_result_type?: string | null;
 };

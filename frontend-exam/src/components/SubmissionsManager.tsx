@@ -268,11 +268,13 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
       const fullSubmission = await getSubmission(submission.id, token);
       
       const initialAnswers: Record<number, AnswerOption | '-'> = {};
-      fullSubmission.answers.forEach((answer) => {
-         const normalizedAnswer = (answer.answer ?? '').toUpperCase();
-         const castAnswer = normalizedAnswer as AnswerOption;
-         initialAnswers[answer.question_id] = ANSWER_OPTIONS.includes(castAnswer) ? castAnswer : '-';
-      });
+      if (fullSubmission.answers_data) {
+        for (const [qid, val] of Object.entries(fullSubmission.answers_data)) {
+          const normalizedAnswer = (val ?? '').toUpperCase();
+          const castAnswer = normalizedAnswer as AnswerOption;
+          initialAnswers[Number(qid)] = ANSWER_OPTIONS.includes(castAnswer) ? castAnswer : '-';
+        }
+      }
       const user = fullSubmission.user;
       
       setEditingStates((prev) => ({

@@ -98,7 +98,7 @@ type UserExamSubmission struct {
 	Merits             *float64     `gorm:"column:merits" json:"merits"`
 	Percentile         *float64     `gorm:"column:percentile" json:"percentile"`
 	SelectedResultType string       `gorm:"column:selected_result_type;default:'General'" json:"selected_result_type"`
-	AnswersData        *AnswersJSON `gorm:"column:answers_json;type:json" json:"answers_data,omitempty"`
+	AnswersData        *AnswersJSON `gorm:"column:answers_json;type:json" json:"answers_data"`
 	SubmittedAt        time.Time    `gorm:"column:submitted_at;autoCreateTime;index:idx_user_exam_submission_submitted_at" json:"submitted_at"`
 	User               ExamUser     `gorm:"foreignKey:UserID" json:"user"`
 	Exam               Exam         `gorm:"foreignKey:ExamID" json:"exam"`

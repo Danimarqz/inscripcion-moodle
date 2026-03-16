@@ -629,7 +629,7 @@ func getSubmissionPositionData(tx *gorm.DB, submission *models.UserExamSubmissio
 
 	var better int64
 	if err := tx.Model(&models.UserExamSubmission{}).
-		Where("exam_id = ? AND score IS NOT NULL AND score > ?", submission.ExamID, *submission.Score).
+		Where("exam_id = ? AND score IS NOT NULL AND score > ? AND id != ?", submission.ExamID, *submission.Score, submission.ID).
 		Count(&better).Error; err != nil {
 		return nil, nil, err
 	}
