@@ -14,14 +14,12 @@ export class ApiError extends Error {
 }
 
 export async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-  // Discard any caller-supplied signal; we manage our own timeout.
-  const { token, headers, signal: _ignored, ...rest } = options;
+  const { token, headers, signal: callerSignal, ...rest } = options;
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(
-    () => controller.abort(new DOMException('Request timed out', 'TimeoutError')),
-    TIMEOUT_MS,
-  );
+  const timeoutSignal = AbortSignal.timeout(TIMEOUT_MS);
+  const combinedSignal = callerSignal
+    ? AbortSignal.any([callerSignal, timeoutSignal])
+    : timeoutSignal;
 
   const defaultHeaders: HeadersInit = {
     'Content-Type': 'application/json',
@@ -33,7 +31,7 @@ export async function request<T>(endpoint: string, options: RequestOptions = {})
   try {
     const response = await fetch(`${API_URL}${endpoint}`, {
       headers: { ...defaultHeaders, ...headers },
-      signal: controller.signal,
+      signal: combinedSignal,
       ...rest,
     });
 
@@ -56,11 +54,9 @@ export async function request<T>(endpoint: string, options: RequestOptions = {})
 
     return response.json() as Promise<T>;
   } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') {
+    if (err instanceof DOMException && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
       throw new ApiError('La solicitud tardó demasiado. Por favor, inténtalo de nuevo.', 408);
     }
     throw err;
-  } finally {
-    clearTimeout(timeoutId);
   }
 }

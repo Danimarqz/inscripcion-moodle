@@ -13,9 +13,26 @@ function getStorage(): Storage | null {
   }
 }
 
+function isTokenExpired(token: string): boolean {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const payload = JSON.parse(atob(parts[1]));
+    if (typeof payload.exp !== 'number') return true;
+    return Date.now() >= payload.exp * 1000;
+  } catch {
+    return true;
+  }
+}
+
 export function getAuthToken(): string | null {
   const storage = getStorage();
-  return storage ? storage.getItem(STORAGE_KEY) : null;
+  const token = storage ? storage.getItem(STORAGE_KEY) : null;
+  if (token && isTokenExpired(token)) {
+    removeAuthToken();
+    return null;
+  }
+  return token;
 }
 
 export function saveAuthToken(token: string): void {

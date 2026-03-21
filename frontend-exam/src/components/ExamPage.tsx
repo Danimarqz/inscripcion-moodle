@@ -1,21 +1,23 @@
 import type { JSX } from 'preact';
-import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 
 import type {
   Answer,
-  AnswerReview,
   ExamOut,
   ExamResultPayload,
   ExamSubmissionPayload,
 } from '../types/exam';
-import { checkOfficialResult, checkSubmission, submitExam, updateMerits } from '../services/examService';
+import { checkSubmission, submitExam } from '../services/examService';
 import { useExamQuestions } from '../hooks/useExamQuestions';
 import { useExamUi } from '../hooks/useExamUi';
+import { useEligibilityCheck } from '../hooks/useEligibilityCheck';
+import { useAnswerManagement } from '../hooks/useAnswerManagement';
 import { isValidEmail, normalizeDni, validateDniNie } from '../utils/validation';
 import { buildResultPayload } from '../utils/examLogic';
 import QuestionList from './questions/QuestionList';
 import QuickResultCheck from './submissions/QuickResultCheck';
 import SubmissionSummary from './submissions/SubmissionSummary';
+import MeritsForm from './submissions/MeritsForm';
 import EligibilityModal from './modals/EligibilityModal';
 import SubmissionIdentityFields from './submissions/SubmissionIdentityFields';
 
@@ -47,11 +49,6 @@ export default function ExamPage({
   const [acceptsMarketing, setAcceptsMarketing] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [autoCheckDisabled, setAutoCheckDisabled] = useState(false);
-  const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
-  const [eligibilityAllowed, setEligibilityAllowed] = useState(false);
-  const [eligibilityChecking, setEligibilityChecking] = useState(false);
-  const [eligibilityError, setEligibilityError] = useState<string | null>(null);
-  const [showEligibilityModal, setShowEligibilityModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [examUiState, dispatchExamUi] = useExamUi();
@@ -78,136 +75,22 @@ export default function ExamPage({
     meritsTotal,
   } = examUiState;
 
-  const [meritsValue, setMeritsValue] = useState('');
-  const [meritsSubmitting, setMeritsSubmitting] = useState(false);
-  const [meritsMessage, setMeritsMessage] = useState<string | null>(null);
-  const [localMeritsPosition, setLocalMeritsPosition] = useState<number | null>(null);
-  const [localMeritsTotal, setLocalMeritsTotal] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (currentMerits !== null) setMeritsValue(String(currentMerits));
-    setLocalMeritsPosition(meritsPosition);
-    setLocalMeritsTotal(meritsTotal);
-  }, [currentMerits, meritsPosition, meritsTotal]);
-
   const { questions, loading, error: questionsError } = useExamQuestions(examId);
-  const allowResultPreview =
-    showScore || showPercentile || showScoreFull || validatedTribunal;
+  const {
+    userAnswers, setAnswer, clearAnswer,
+    activeEntries, reserveEntries, resetAnswers,
+  } = useAnswerManagement(questions);
+  const eligibility = useEligibilityCheck(studentName, studentSurname, dni, examId);
 
   useEffect(() => {
     dispatchExamUi({ type: 'RESET' });
     setAutoCheckDisabled(false);
     setAcceptsMarketing(false);
-    setUserAnswers({});
-    setEligibilityAllowed(false);
-    setEligibilityError(null);
-    setShowEligibilityModal(false);
-  }, [examId, dispatchExamUi]);
+    resetAnswers();
+  }, [examId, dispatchExamUi, resetAnswers]);
 
-  useEffect(() => {
-    setEligibilityAllowed(false);
-    setEligibilityError(null);
-    setShowEligibilityModal(false);
-
-    const trimmedName = studentName.trim();
-    const trimmedSurname = studentSurname.trim();
-    const normalizedDni = normalizeDni(dni);
-
-    if (!trimmedName || !trimmedSurname) {
-      setEligibilityChecking(false);
-      return;
-    }
-    if (!validateDniNie(normalizedDni)) {
-      setEligibilityChecking(false);
-      return;
-    }
-
-    let cancelled = false;
-    setEligibilityChecking(true);
-    const timer = window.setTimeout(() => {
-      void checkOfficialResult({
-        exam_id: examId,
-        name: trimmedName,
-        surname: trimmedSurname,
-        dni: normalizedDni,
-      })
-        .then((res) => {
-          if (cancelled) return;
-          setEligibilityAllowed(res.match);
-          if (!res.match) {
-            setShowEligibilityModal(true);
-          }
-        })
-        .catch((err) => {
-          if (cancelled) return;
-          setEligibilityError(err instanceof Error ? err.message : 'No se pudo comprobar el acceso');
-        })
-        .finally(() => {
-          if (cancelled) return;
-          setEligibilityChecking(false);
-        });
-    }, 350);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-      setEligibilityChecking(false);
-    };
-  }, [studentName, studentSurname, dni, examId]);
-
-  const questionEntries = useMemo(
-    () => questions.map((question, index) => ({ index, question })),
-    [questions],
-  );
-  const activeEntries = questionEntries.filter(({ question }) => question.is_active !== false);
-  const reserveEntries = questionEntries.filter(({ question }) => question.is_active === false);
-
-  const setAnswerForQuestion = useCallback((questionId: number, option: string) => {
-    const normalizedOption = option.toUpperCase();
-    setUserAnswers((prev) => ({
-      ...prev,
-      [questionId]: normalizedOption,
-    }));
-  }, []);
-
-  const clearAnswerForQuestion = useCallback((questionId: number) => {
-    setUserAnswers((prev) => {
-      if (!(questionId in prev)) {
-        return prev;
-      }
-      const next = { ...prev };
-      delete next[questionId];
-      return next;
-    });
-  }, []);
-
-
-
-  async function handleMeritsSubmit(event: Event) {
-    event.preventDefault();
-    setMeritsMessage(null);
-
-    const normalizedEmail = email.trim().toLowerCase();
-    const normalizedDni = normalizeDni(dni);
-    const meritsNum = meritsValue ? parseFloat(meritsValue) : null;
-
-    setMeritsSubmitting(true);
-    try {
-      const resp = await updateMerits({
-        email: normalizedEmail,
-        dni: normalizedDni,
-        exam_id: examId,
-        merits: meritsNum,
-      });
-      setMeritsMessage(resp.message);
-      if (resp.merits_position != null) setLocalMeritsPosition(resp.merits_position);
-      if (resp.merits_total != null) setLocalMeritsTotal(resp.merits_total);
-    } catch (error: unknown) {
-      setMeritsMessage(error instanceof Error ? error.message : 'Error al guardar méritos');
-    } finally {
-      setMeritsSubmitting(false);
-    }
-  }
+  const allowResultPreview =
+    showScore || showPercentile || showScoreFull || validatedTribunal;
 
   function getResultPayload(result: ExamOut, context: 'check' | 'submit'): ExamResultPayload {
     return buildResultPayload(result, context, {
@@ -220,7 +103,7 @@ export default function ExamPage({
   async function checkUserSubmission(force = false) {
     if (!allowResultPreview) return;
     if (!force && autoCheckDisabled) return;
-    if (checking) return;
+    if (checking || isSubmitting) return;
 
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedDni = normalizeDni(dni);
@@ -268,9 +151,9 @@ export default function ExamPage({
       setFormError('Los apellidos son obligatorios.');
       return;
     }
-    if (!eligibilityAllowed) {
+    if (!eligibility.allowed) {
       setFormError('Debemos verificar que participaste en el examen oficial antes de continuar.');
-      setShowEligibilityModal(true);
+      eligibility.setShowModal(true);
       return;
     }
 
@@ -304,6 +187,11 @@ export default function ExamPage({
     const meritsRaw = formData.get('merits') as string;
     const merits = meritsRaw ? parseFloat(meritsRaw) : undefined;
 
+    if (merits !== undefined && isNaN(merits)) {
+      setFormError('El valor de méritos no es válido.');
+      return;
+    }
+
     const payload: ExamSubmissionPayload = {
       email: emailRaw,
       dni: dniRaw,
@@ -313,7 +201,7 @@ export default function ExamPage({
       answers,
       merits,
       accepts_marketing: acceptsMarketing,
-      eligibility_confirmed: eligibilityAllowed,
+      eligibility_confirmed: eligibility.allowed,
       result_type: resultType,
     };
 
@@ -332,7 +220,7 @@ export default function ExamPage({
       setEmail('');
       setDni('');
       setAcceptsMarketing(false);
-      setUserAnswers({});
+      resetAnswers();
     } catch (error: unknown) {
       const message = (error instanceof Error ? error.message : null) || 'Error al enviar el examen';
       const lower = message.toLowerCase();
@@ -343,8 +231,8 @@ export default function ExamPage({
         lower.includes('registrar tus resultados');
 
       if (isEligibilityIssue) {
-        setShowEligibilityModal(true);
-        setEligibilityAllowed(false);
+        eligibility.setShowModal(true);
+        eligibility.setAllowed(false);
         setFormError(null);
       } else {
         setFormError(message);
@@ -399,51 +287,27 @@ export default function ExamPage({
         maxScore={maxScore}
         secondaryMaxScores={secondaryMaxScores}
         isPassed={isPassed}
-        meritsPosition={localMeritsPosition ?? meritsPosition}
-        meritsTotal={localMeritsTotal ?? meritsTotal}
+        meritsPosition={meritsPosition}
+        meritsTotal={meritsTotal}
       />
     ) : null;
 
-  const meritsForm = canEditMerits && hasPreviousSubmission ? (
-    <div className="mt-6 rounded-2xl border border-brand-yellow/60 bg-brand-yellow/5 p-6 shadow-[0_10px_25px_rgba(255,200,50,0.1)]">
-      <h3 className="text-lg font-semibold text-brand-yellow mb-3">Añadir o editar méritos</h3>
-      <form onSubmit={handleMeritsSubmit} className="flex flex-col gap-3">
-        <label className="block text-sm text-gray-300">
-          Puntuación de méritos:
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={meritsValue}
-            onInput={(e) => setMeritsValue((e.target as HTMLInputElement).value)}
-            className="w-full mt-1 px-4 py-3 rounded-lg bg-[#1f2229] border border-[#555] text-white focus:ring-2 focus:ring-brand-yellow focus:border-transparent transition-all"
-          />
-        </label>
-        <button
-          type="submit"
-          disabled={meritsSubmitting}
-          className="btn-brand w-full text-base disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-        >
-          {meritsSubmitting ? 'Guardando...' : 'Guardar méritos'}
-        </button>
-        {meritsMessage && (
-          <p className="text-sm text-green-300 bg-green-500/10 border border-green-500/30 p-3 rounded-md">{meritsMessage}</p>
-        )}
-      </form>
-      {(localMeritsPosition ?? meritsPosition) != null && (localMeritsTotal ?? meritsTotal) != null && (
-        <div className="mt-4 p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/30">
-          <p className="text-sm text-indigo-200">
-            Eres el número <span className="font-bold text-indigo-100">{localMeritsPosition ?? meritsPosition}</span> de{' '}
-            <span className="font-bold text-indigo-100">{localMeritsTotal ?? meritsTotal}</span> personas aprobadas que han metido sus méritos
-          </p>
-        </div>
-      )}
-    </div>
-  ) : null;
+  const meritsFormElement = (
+    <MeritsForm
+      email={email}
+      dni={dni}
+      examId={examId}
+      canEditMerits={canEditMerits}
+      hasPreviousSubmission={hasPreviousSubmission}
+      currentMerits={currentMerits}
+      meritsPosition={meritsPosition}
+      meritsTotal={meritsTotal}
+    />
+  );
 
   return (
     <main>
-      <EligibilityModal open={showEligibilityModal} onClose={() => setShowEligibilityModal(false)} />
+      <EligibilityModal open={eligibility.showModal} onClose={() => eligibility.setShowModal(false)} />
       <a
         href="/"
         className="inline-block mb-6 px-4 py-2 font-bold text-brand-pink border border-brand-pink rounded-md no-underline transition-colors duration-300 ease-in-out hover:text-brand-yellow hover:border-brand-yellow"
@@ -464,8 +328,8 @@ export default function ExamPage({
           onSubmit={handleManualCheck}
         />
       )}
+      {allowResultPreview && meritsFormElement}
       {allowResultPreview && resultsSummary}
-      {allowResultPreview && meritsForm}
       {validatedTribunal && (
                 <p className="text-xs text-brand-yellow mt-2">
                   Estas respuestas NO las puedes modificar, si te has confundido al meter alguna respuesta envíanos un correo a <a href="mailto:info.opositatcae@gmail.com">info.opositatcae@gmail.com</a> y lo corregiremos.
@@ -482,9 +346,9 @@ export default function ExamPage({
           onEmailChange={setEmail}
           onDniChange={setDni}
           onBlurCheck={handleCheckSubmissionBlur}
-          eligibilityError={eligibilityError}
+          eligibilityError={eligibility.error}
         />
-        
+
         {!hasPreviousSubmission && (
           <div className="mt-6 mb-6">
             <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -508,8 +372,8 @@ export default function ExamPage({
             Comprobando si ya has entregado el examen...
           </p>
         )}
+        {!allowResultPreview && meritsFormElement}
         {!allowResultPreview && resultsSummary}
-        {!allowResultPreview && meritsForm}
         {resultError && (
           <p className="text-center text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mt-6">
             {resultError}
@@ -522,8 +386,8 @@ export default function ExamPage({
               activeEntries={activeEntries}
               reserveEntries={reserveEntries}
               userAnswers={userAnswers}
-              onSetAnswer={setAnswerForQuestion}
-              onClearAnswer={clearAnswerForQuestion}
+              onSetAnswer={setAnswer}
+              onClearAnswer={clearAnswer}
             />
 
             <div className="mt-8 mb-6 p-4 rounded-lg bg-[#2a2d33] border border-[#555]">
@@ -576,9 +440,9 @@ export default function ExamPage({
           <button
             type="submit"
             className="btn-brand w-full text-lg mt-4 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-            disabled={!eligibilityAllowed || eligibilityChecking || isSubmitting}
+            disabled={!eligibility.allowed || eligibility.checking || isSubmitting}
           >
-            {eligibilityChecking ? 'Comprobando...' : isSubmitting ? 'Enviando...' : 'Entregar Examen'}
+            {eligibility.checking ? 'Comprobando...' : isSubmitting ? 'Enviando...' : 'Entregar Examen'}
           </button>
         )}
         {formError && (

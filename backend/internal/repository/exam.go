@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"math"
 	"strings"
 
@@ -154,7 +155,7 @@ func (r *examRepository) RecalculateScores(ctx context.Context, db *gorm.DB, exa
 		}
 		sb.WriteString("END WHERE id IN (?)")
 		if err := db.WithContext(ctx).Exec(sb.String(), ids).Error; err != nil {
-			fmt.Printf("ERROR: RecalculateScores batch update failed: %v\n", err)
+			log.Printf("ERROR: RecalculateScores batch update failed: %v", err)
 			return err
 		}
 	}
@@ -176,7 +177,7 @@ SET u.percentile = ranked.pct
 WHERE u.exam_id = ?`
 
 	if err := db.WithContext(ctx).Exec(percentileSQL, examID, examID).Error; err != nil {
-		fmt.Printf("ERROR: RecalculatePercentiles SQL failed: %v\n", err)
+		log.Printf("ERROR: RecalculatePercentiles SQL failed: %v", err)
 		return err
 	}
 	return nil

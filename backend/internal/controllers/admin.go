@@ -11,6 +11,7 @@ import (
 
 	"github.com/inscripcion-moodle/go-backend/internal/cache"
 	"github.com/inscripcion-moodle/go-backend/internal/config"
+	"github.com/inscripcion-moodle/go-backend/internal/middleware"
 	"github.com/inscripcion-moodle/go-backend/internal/models"
 	"github.com/inscripcion-moodle/go-backend/internal/repository"
 	"github.com/inscripcion-moodle/go-backend/internal/services/admin"
@@ -73,8 +74,9 @@ func NewAdminController(db *gorm.DB, cacheClient *redis.Client, authService *aut
 }
 
 func (h *AdminController) RegisterRoutes(r chi.Router) {
+	loginLimiter := middleware.NewRateLimiter(5, time.Minute)
 	r.Post("/create-admin", h.createAdmin)
-	r.Post("/login", h.login)
+	r.With(loginLimiter.Middleware).Post("/login", h.login)
 	r.Group(func(r chi.Router) {
 		r.Use(h.requireAuth)
 		r.Get("/check-token", h.checkToken)

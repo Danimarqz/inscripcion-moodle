@@ -66,13 +66,11 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 }
 
 func (rl *RateLimiter) getLimiter(key string) *rate.Limiter {
-	rl.mu.RLock()
-	entry, ok := rl.limiters[key]
-	rl.mu.RUnlock()
-	if ok {
-		rl.mu.Lock()
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	if entry, ok := rl.limiters[key]; ok {
 		entry.lastSeen = time.Now()
-		rl.mu.Unlock()
 		return entry.limiter
 	}
 
@@ -81,16 +79,7 @@ func (rl *RateLimiter) getLimiter(key string) *rate.Limiter {
 		interval = time.Nanosecond
 	}
 	limiter := rate.NewLimiter(rate.Every(interval), rl.requests)
-
-	rl.mu.Lock()
-	// Double-checked locking: re-check after acquiring write lock.
-	if e, exists := rl.limiters[key]; exists {
-		e.lastSeen = time.Now()
-		rl.mu.Unlock()
-		return e.limiter
-	}
 	rl.limiters[key] = &limiterEntry{limiter: limiter, lastSeen: time.Now()}
-	rl.mu.Unlock()
 	return limiter
 }
 

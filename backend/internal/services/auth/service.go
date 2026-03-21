@@ -50,6 +50,8 @@ func (s *Service) CreateToken(username string) (string, error) {
 	claims := claims{
 		Username: username,
 		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    "inscripcion-moodle",
+			Audience:  jwt.ClaimStrings{"inscripcion-moodle-admin"},
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(s.tokenTTL)),
 			Subject:   username,
@@ -66,7 +68,10 @@ func (s *Service) ParseToken(tokenStr string) (string, error) {
 			return nil, errors.New("unexpected signing algorithm")
 		}
 		return []byte(s.secretKey), nil
-	})
+	},
+		jwt.WithIssuer("inscripcion-moodle"),
+		jwt.WithAudience("inscripcion-moodle-admin"),
+	)
 	if err != nil {
 		return "", err
 	}

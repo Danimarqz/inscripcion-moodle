@@ -26,11 +26,13 @@ func InitSyncWorkerPool(workers int) {
 	for range workers {
 		go func() {
 			for job := range syncQueue {
-				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-				if err := SyncExamUser(ctx, job.DB, job.Client, job.Email, job.DNI); err != nil {
-					log.Printf("moodle sync worker error for %s / %s: %v", job.Email, job.DNI, err)
-				}
-				cancel()
+				func() {
+					ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+					defer cancel()
+					if err := SyncExamUser(ctx, job.DB, job.Client, job.Email, job.DNI); err != nil {
+						log.Printf("moodle sync worker error for %s / %s: %v", job.Email, job.DNI, err)
+					}
+				}()
 			}
 		}()
 	}
@@ -38,10 +40,7 @@ func InitSyncWorkerPool(workers int) {
 
 func EnqueueSyncUser(db *gorm.DB, client *Client, email, dni string) error {
 	if syncQueue == nil {
-		log.Println("WARNING: Moodle sync worker pool not initialized, sending synchronously falling back")
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		return SyncExamUser(ctx, db, client, email, dni)
+		return errors.New("moodle sync worker pool not initialized")
 	}
 
 	select {
@@ -68,7 +67,7 @@ func SyncExamUser(ctx context.Context, db *gorm.DB, client *Client, email, dni s
 	if db == nil {
 		return errors.New("database is required")
 	}
-	normalizedDNI := normalizeDNI(dni)
+	normalizedDNI := strings.ToUpper(strings.TrimSpace(dni))
 	if normalizedDNI == "" {
 		return fmt.Errorf("invalid dni")
 	}
@@ -112,6 +111,3 @@ func SyncExamUser(ctx context.Context, db *gorm.DB, client *Client, email, dni s
 	return db.Model(&user).Where("moodle_id IS NULL").Update("moodle_id", moodleID).Error
 }
 
-func normalizeDNI(value string) string {
-	return strings.ToUpper(strings.TrimSpace(value))
-}

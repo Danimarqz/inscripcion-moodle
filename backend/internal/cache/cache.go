@@ -37,7 +37,9 @@ func (c *Cache) Set(ctx context.Context, key string, payload []byte, ttl time.Du
 	if c.cache == nil || ttl < 0 {
 		return
 	}
-	_ = c.cache.Set(ctx, key, payload, ttl).Err()
+	if err := c.cache.Set(ctx, key, payload, ttl).Err(); err != nil {
+		log.Printf("cache: redis set error for key %q: %v", key, err)
+	}
 }
 
 func (c *Cache) Del(ctx context.Context, key string) error {

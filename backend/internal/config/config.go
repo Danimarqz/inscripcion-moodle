@@ -62,7 +62,10 @@ func Load() (*Config, error) {
 		redisURL = "redis://localhost:6379"
 	}
 
-	origins := parseOrigins(os.Getenv("ALLOWED_ORIGINS"))
+	origins, err := parseOrigins(os.Getenv("ALLOWED_ORIGINS"))
+	if err != nil {
+		return nil, err
+	}
 	rateLimitRequests := parseEnvInt("RATE_LIMIT_REQUESTS", 60)
 	rateLimitWindowSeconds := parseEnvInt("RATE_LIMIT_WINDOW_SECONDS", 60)
 	tokenTTL := parseEnvInt("ACCESS_TOKEN_EXPIRE_MINUTES", 60)
@@ -121,9 +124,9 @@ func parseEnvInt(key string, fallback int) int {
 	return fallback
 }
 
-func parseOrigins(env string) []string {
+func parseOrigins(env string) ([]string, error) {
 	if env == "" {
-		return []string{"*"}
+		return nil, fmt.Errorf("ALLOWED_ORIGINS environment variable is required (comma-separated list of origins)")
 	}
 	parts := strings.Split(env, ",")
 	result := make([]string, 0, len(parts))
@@ -134,7 +137,7 @@ func parseOrigins(env string) []string {
 		}
 	}
 	if len(result) == 0 {
-		return []string{"*"}
+		return nil, fmt.Errorf("ALLOWED_ORIGINS environment variable is required (comma-separated list of origins)")
 	}
-	return result
+	return result, nil
 }

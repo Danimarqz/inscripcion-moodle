@@ -43,10 +43,12 @@ export async function checkSubmission(payload: UserSubmissionCheck): Promise<Exa
 
 export async function checkOfficialResult(
   payload: OfficialResultCheckPayload,
+  signal?: AbortSignal,
 ): Promise<OfficialResultCheckResponse> {
   return request<OfficialResultCheckResponse>('/check-official-result', {
     method: 'POST',
     body: JSON.stringify(payload),
+    signal,
   });
 }
 

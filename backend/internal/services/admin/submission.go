@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"maps"
 	"strings"
 
@@ -56,18 +57,18 @@ func (s *Service) recalculateScoresForSubmissionAsync(examID uint, submissionID 
 
 	tx := s.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
-		fmt.Printf("ERROR: could not begin transaction for async recalculateScoresForSubmission for exam %d submission %d: %v\n", examID, submissionID, tx.Error)
+		log.Printf("ERROR: could not begin transaction for async recalculateScoresForSubmission for exam %d submission %d: %v", examID, submissionID, tx.Error)
 		return
 	}
 	defer tx.Rollback()
 
 	if err := s.examRepo.RecalculateScoresForSubmission(ctx, tx, examID, submissionID); err != nil {
-		fmt.Printf("ERROR: failed to asynchronously recalculate score for exam %d submission %d: %v\n", examID, submissionID, err)
+		log.Printf("ERROR: failed to asynchronously recalculate score for exam %d submission %d: %v", examID, submissionID, err)
 		return
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		fmt.Printf("ERROR: could not commit transaction for async recalculateScoresForSubmission for exam %d: %v\n", examID, err)
+		log.Printf("ERROR: could not commit transaction for async recalculateScoresForSubmission for exam %d: %v", examID, err)
 	}
 }
 

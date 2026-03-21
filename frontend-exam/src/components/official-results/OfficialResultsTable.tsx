@@ -1,6 +1,6 @@
 import { useState } from 'preact/hooks';
 import type { EditOfficialResultPayload, ExamOfficialResult } from '../../types/exam';
-import PaginationControls from './PaginationControls';
+import PaginationControls from '../shared/PaginationControls';
 import SortableHeader from './SortableHeader';
 
 interface OfficialResultsTableProps {

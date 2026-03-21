@@ -23,7 +23,7 @@ import SubmissionFilterActions from './submissions/SubmissionFilterActions';
 import SubmissionStats from './submissions/SubmissionStats';
 import EmailComposer from './submissions/EmailComposer';
 import PaginationSettings from './submissions/PaginationSettings';
-import PaginationControls from './submissions/PaginationControls';
+import PaginationControls from './shared/PaginationControls';
 import SubmissionList from './submissions/SubmissionList';
 import ConfirmModal from './modals/ConfirmModal';
 import { ANSWER_OPTIONS } from './submissions/types';
@@ -139,9 +139,6 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
   const { totalSubmissions, averageScore } = submissionStats;
   const effectiveLimit = pageLimit > 0 ? pageLimit : 1;
   const totalPages = Math.max(1, Math.ceil(totalSubmissions / effectiveLimit));
-
-  const handlePrevPage = () => setCurrentPage((prev) => Math.max(1, prev - 1));
-  const handleNextPage = () => setCurrentPage((prev) => Math.min(totalPages, prev + 1));
 
   // Data Fetching Effect
   useEffect(() => {
@@ -615,7 +612,7 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
 
                {submissions.length > 0 && (
                 <>
-                  <PaginationControls currentPage={currentPage} totalPages={totalPages} onPrev={handlePrevPage} onNext={handleNextPage} />
+                  <PaginationControls totalItems={totalSubmissions} pageSize={effectiveLimit} currentPage={currentPage} onPageChange={setCurrentPage} />
                   <SubmissionList
                     submissions={submissions}
                     editingStates={editingStates}
@@ -632,7 +629,7 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
                     onSave={handleSave}
                     savingIds={savingIds}
                   />
-                  <PaginationControls currentPage={currentPage} totalPages={totalPages} onPrev={handlePrevPage} onNext={handleNextPage} />
+                  <PaginationControls totalItems={totalSubmissions} pageSize={effectiveLimit} currentPage={currentPage} onPageChange={setCurrentPage} />
                 </>
                )}
              </>
