@@ -52,6 +52,7 @@ type SubmissionPayload struct {
 	CanEditMerits      bool           `json:"can_edit_merits"`
 	MeritsPosition     *int           `json:"merits_position,omitempty"`
 	MeritsTotal        *int           `json:"merits_total,omitempty"`
+	PassedCount        *int           `json:"passed_count,omitempty"`
 }
 
 type UpdateMeritsRequest struct {

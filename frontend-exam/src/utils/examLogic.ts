@@ -125,5 +125,6 @@ export function buildResultPayload(
     merits: result.merits ?? null,
     meritsPosition: result.merits_position ?? null,
     meritsTotal: result.merits_total ?? null,
+    passedCount: result.passed_count ?? null,
   };
 }

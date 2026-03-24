@@ -11,7 +11,7 @@ export default function EligibilityModal({ open, onClose }: EligibilityModalProp
         <h2 className="text-xl font-bold text-brand-pink">No encontramos tu resultado oficial</h2>
         <p className="text-sm text-gray-200 leading-relaxed">
           Este apartado es solo para personas que realizaron el examen oficial. Si no puedes registrar tus resultados y
-          si te presentaste, contacta con nosotros: <span className="text-brand-yellow">info.opositatcae@gmail.com</span>
+          si te presentaste, contacta con nosotros: <span className="text-brand-yellow"><a href="mailto:info@opositatcae.es">info@opositatcae.es</a></span>
         </p>
         <div className="flex justify-end">
           <button type="button" onClick={onClose} className="btn-brand px-5">

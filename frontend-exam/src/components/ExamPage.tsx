@@ -73,6 +73,7 @@ export default function ExamPage({
     merits: currentMerits,
     meritsPosition,
     meritsTotal,
+    passedCount,
   } = examUiState;
 
   const { questions, loading, error: questionsError } = useExamQuestions(examId);
@@ -302,6 +303,8 @@ export default function ExamPage({
       currentMerits={currentMerits}
       meritsPosition={meritsPosition}
       meritsTotal={meritsTotal}
+      aprobados={passedCount}
+      totalSubmissions={totalSubmissions}
     />
   );
 
@@ -332,7 +335,7 @@ export default function ExamPage({
       {allowResultPreview && resultsSummary}
       {validatedTribunal && (
                 <p className="text-xs text-brand-yellow mt-2">
-                  Estas respuestas NO las puedes modificar, si te has confundido al meter alguna respuesta envíanos un correo a <a href="mailto:info.opositatcae@gmail.com">info.opositatcae@gmail.com</a> y lo corregiremos.
+                  Estas respuestas NO las puedes modificar, si te has confundido al meter alguna respuesta envíanos un correo a <a href="mailto:info@opositatcae.es">info@opositatcae.es</a> y lo corregiremos.
                 </p>
               )}
       <form id="exam-form" onSubmit={handleSubmit} noValidate>

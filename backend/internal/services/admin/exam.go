@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/inscripcion-moodle/go-backend/internal/models"
+	examservice "github.com/inscripcion-moodle/go-backend/internal/services/exam"
 )
 
 func (s *Service) ListExams() ([]models.Exam, error) {
@@ -149,6 +150,10 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 	}
 	if req.PassingCriteriaValue != nil {
 		exam.PassingCriteriaValue = req.PassingCriteriaValue
+	}
+
+	if req.PassingCriteriaType != nil || req.PassingCriteriaValue != nil {
+		exam.PassingThreshold = examservice.ComputePassingThreshold(s.db, exam, s.examRepo)
 	}
 
 	inputQuestionIDs := make(map[uint]struct{})

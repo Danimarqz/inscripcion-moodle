@@ -11,6 +11,8 @@ interface MeritsFormProps {
   currentMerits: number | null;
   meritsPosition: number | null;
   meritsTotal: number | null;
+  aprobados: number | null;
+  totalSubmissions: number | null;
 }
 
 export default function MeritsForm({
@@ -22,12 +24,15 @@ export default function MeritsForm({
   currentMerits,
   meritsPosition,
   meritsTotal,
+  aprobados,
+  totalSubmissions,
 }: MeritsFormProps) {
   const [meritsValue, setMeritsValue] = useState('');
   const [meritsSubmitting, setMeritsSubmitting] = useState(false);
   const [meritsMessage, setMeritsMessage] = useState<string | null>(null);
   const [localMeritsPosition, setLocalMeritsPosition] = useState<number | null>(null);
   const [localMeritsTotal, setLocalMeritsTotal] = useState<number | null>(null);
+  const [meritsSaved, setMeritsSaved] = useState(false);
 
   useEffect(() => {
     if (currentMerits !== null) setMeritsValue(String(currentMerits));
@@ -39,6 +44,7 @@ export default function MeritsForm({
 
   const effectivePosition = localMeritsPosition ?? meritsPosition;
   const effectiveTotal = localMeritsTotal ?? meritsTotal;
+  const meritsLocked = currentMerits !== null || meritsSaved;
 
   async function handleMeritsSubmit(event: Event) {
     event.preventDefault();
@@ -62,6 +68,7 @@ export default function MeritsForm({
         merits: meritsNum,
       });
       setMeritsMessage(resp.message);
+      setMeritsSaved(true);
       if (resp.merits_position != null) setLocalMeritsPosition(resp.merits_position);
       if (resp.merits_total != null) setLocalMeritsTotal(resp.merits_total);
     } catch (error: unknown) {
@@ -73,7 +80,7 @@ export default function MeritsForm({
 
   return (
     <div className="mt-6 rounded-2xl border border-brand-yellow/60 bg-brand-yellow/5 p-6 shadow-[0_10px_25px_rgba(255,200,50,0.1)]">
-      <h3 className="text-lg font-semibold text-brand-yellow mb-3">Añadir o editar méritos</h3>
+      <h3 className="text-lg font-semibold text-brand-yellow mb-3">{meritsLocked ? 'Méritos guardados' : 'Añadir méritos'}</h3>
       <form onSubmit={handleMeritsSubmit} className="flex flex-col gap-3">
         <label className="block text-sm text-gray-300">
           Puntuación de méritos:
@@ -82,27 +89,34 @@ export default function MeritsForm({
             step="0.01"
             min="0"
             value={meritsValue}
+            disabled={meritsLocked}
             onInput={(e) => setMeritsValue((e.target as HTMLInputElement).value)}
-            className="w-full mt-1 px-4 py-3 rounded-lg bg-[#1f2229] border border-[#555] text-white focus:ring-2 focus:ring-brand-yellow focus:border-transparent transition-all"
+            className={`w-full mt-1 px-4 py-3 rounded-lg border border-[#555] text-white transition-all ${meritsLocked ? 'bg-[#2a2d33] opacity-60 cursor-not-allowed' : 'bg-[#1f2229] focus:ring-2 focus:ring-brand-yellow focus:border-transparent'}`}
           />
         </label>
-        <button
-          type="submit"
-          disabled={meritsSubmitting}
-          className="btn-brand w-full text-base disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-        >
-          {meritsSubmitting ? 'Guardando...' : 'Guardar méritos'}
-        </button>
+        {!meritsLocked && (
+          <button
+            type="submit"
+            disabled={meritsSubmitting}
+            className="btn-brand w-full text-base disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {meritsSubmitting ? 'Guardando...' : 'Guardar méritos'}
+          </button>
+        )}
         {meritsMessage && (
           <p className="text-sm text-green-300 bg-green-500/10 border border-green-500/30 p-3 rounded-md">{meritsMessage}</p>
         )}
       </form>
       {effectivePosition != null && effectiveTotal != null && (
         <div className="mt-4 p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/30">
+          <p className="text-sm text-indigo-200">CONCURSO - OPOSICION</p>
           <p className="text-sm text-indigo-200">
             Eres el número <span className="font-bold text-indigo-100">{effectivePosition}</span> de{' '}
             <span className="font-bold text-indigo-100">{effectiveTotal}</span> personas aprobadas que han metido sus méritos
           </p>
+          <p className="text-sm text-indigo-200">Número de aprobados <span className="font-bold text-indigo-100">{aprobados}</span> de{' '}
+            <span className="font-bold text-indigo-100">{totalSubmissions}</span>
+            </p>
         </div>
       )}
     </div>

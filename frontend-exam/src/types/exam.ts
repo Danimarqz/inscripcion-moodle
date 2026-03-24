@@ -33,6 +33,7 @@ export type ExamOut = {
   merits?: number | null;
   merits_position?: number | null;
   merits_total?: number | null;
+  passed_count?: number | null;
 };
 
 export type Question = {
@@ -274,6 +275,7 @@ export type ExamUiState = {
   merits: number | null;
   meritsPosition: number | null;
   meritsTotal: number | null;
+  passedCount: number | null;
 };
 
 export type ExamResultPayload = {
@@ -294,6 +296,7 @@ export type ExamResultPayload = {
   merits: number | null;
   meritsPosition: number | null;
   meritsTotal: number | null;
+  passedCount: number | null;
 };
 
 export type ExamUiAction =
