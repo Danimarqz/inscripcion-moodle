@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"slices"
 	"sort"
 	"strings"
@@ -476,6 +477,10 @@ func (s *Service) UpdateMerits(req UpdateMeritsRequest) (*UpdateMeritsResponse, 
 		return nil, ErrNotPassed
 	}
 
+	if req.Merits != nil && *req.Merits > submission.Exam.MaxMerits {
+		return nil, fmt.Errorf("el valor de méritos no puede superar %.2f", submission.Exam.MaxMerits)
+	}
+
 	submission.Merits = req.Merits
 	if err := s.db.Model(&submission).Update("merits", req.Merits).Error; err != nil {
 		return nil, err
@@ -487,11 +492,17 @@ func (s *Service) UpdateMerits(req UpdateMeritsRequest) (*UpdateMeritsResponse, 
 	}
 
 	if req.Merits != nil && threshold != nil {
-		pos, total, err := s.submissionRepo.GetMeritsRanking(context.Background(), s.db, req.ExamID, submission.ID, *threshold)
+		pos, total, err := s.submissionRepo.GetMeritsRanking(context.Background(), s.db, req.ExamID, submission.ID, *threshold, submission.Exam.ExamWeight)
 		if err == nil {
 			resp.MeritsPosition = pos
 			resp.MeritsTotal = total
 		}
+	}
+
+	if req.Merits != nil && submission.Score != nil {
+		ew := submission.Exam.ExamWeight
+		ws := math.Round((*submission.Score*ew+*req.Merits*(1-ew))*1000) / 1000
+		resp.WeightedScore = &ws
 	}
 
 	return resp, nil
@@ -719,6 +730,8 @@ func (s *Service) buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submiss
 	isPassed := evaluatePassStatus(submission.Score, threshold)
 	payload.IsPassed = isPassed
 	payload.CanEditMerits = isPassed != nil && *isPassed
+	mm := exam.MaxMerits
+	payload.MaxMerits = &mm
 
 	if threshold != nil {
 		var passedCount int64
@@ -730,11 +743,20 @@ func (s *Service) buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submiss
 	}
 
 	if payload.CanEditMerits && submission.Merits != nil {
-		pos, total, err := submissionRepo.GetMeritsRanking(context.Background(), tx, exam.ID, submission.ID, *threshold)
+		pos, total, err := submissionRepo.GetMeritsRanking(context.Background(), tx, exam.ID, submission.ID, *threshold, exam.ExamWeight)
 		if err == nil {
 			payload.MeritsPosition = pos
 			payload.MeritsTotal = total
 		}
+	}
+
+	ew := exam.ExamWeight
+	payload.ExamWeight = &ew
+
+	// Compute weighted score when both score and merits are available
+	if submission.Score != nil && submission.Merits != nil {
+		ws := math.Round((*submission.Score*exam.ExamWeight+*submission.Merits*(1-exam.ExamWeight))*1000) / 1000
+		payload.WeightedScore = &ws
 	}
 
 	return payload, nil

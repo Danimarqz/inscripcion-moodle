@@ -38,6 +38,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
   const [secondaryMaxScores, setSecondaryMaxScores] = useState('');
   const [passingCriteriaType, setPassingCriteriaType] = useState('disabled');
   const [passingCriteriaValue, setPassingCriteriaValue] = useState<number | null>(null);
+  const [examWeight, setExamWeight] = useState(0.5);
+  const [maxMerits, setMaxMerits] = useState(100);
 
   useEffect(() => {
     if (authenticating) return;
@@ -71,6 +73,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setSecondaryMaxScores('');
       setPassingCriteriaType('disabled');
       setPassingCriteriaValue(null);
+      setExamWeight(0.5);
+      setMaxMerits(100);
       setAll([{ ...DEFAULT_QUESTION }]);
       setError(null);
       return;
@@ -91,6 +95,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setSecondaryMaxScores(examData.secondary_max_scores ?? '');
       setPassingCriteriaType(examData.passing_criteria_type ?? 'disabled');
       setPassingCriteriaValue(examData.passing_criteria_value ?? null);
+      setExamWeight(examData.exam_weight ?? 0.5);
+      setMaxMerits(examData.max_merits ?? 100);
 
       const normalizedQuestions = (examData.questions.length
         ? examData.questions
@@ -155,6 +161,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
       secondary_max_scores: secondaryMaxScores,
       passing_criteria_type: passingCriteriaType,
       passing_criteria_value: passingCriteriaType !== 'disabled' ? passingCriteriaValue : null,
+      exam_weight: examWeight,
+      max_merits: maxMerits,
       questions: questions.map((q) => ({
         id: 'id' in q ? q.id : undefined,
         correct_option: q.correct_option.toUpperCase(),
@@ -491,6 +499,55 @@ export default function ExamForm({ examId }: ExamFormProps) {
             </label>
           )}
         </div>
+      </fieldset>
+
+      <fieldset className="mb-6 border border-[#444] rounded-lg p-4" disabled={isBusy}>
+        <legend className="font-bold text-brand-pink px-2">Ponderacion nota final</legend>
+        <p className="text-xs text-gray-400 mb-4">
+          Configura el peso del examen y meritos en la nota final ponderada. Deben sumar 1.
+        </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
+          <label className="block text-brand-pink font-bold flex-1">
+            Peso del examen:
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              max="1"
+              value={examWeight}
+              onInput={(e) => {
+                const v = parseFloat((e.target as HTMLInputElement).value);
+                if (!isNaN(v)) setExamWeight(Math.min(1, Math.max(0, v)));
+              }}
+              className="w-full mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+              disabled={isBusy}
+            />
+          </label>
+          <div className="flex-1">
+            <span className="block text-brand-pink font-bold">Peso de meritos:</span>
+            <span className="block mt-1 px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-gray-300">
+              {(1 - examWeight).toFixed(2)}
+            </span>
+          </div>
+        </div>
+        <label className="block text-brand-pink font-bold mt-4">
+          Tope de meritos:
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={maxMerits}
+            onInput={(e) => {
+              const v = parseFloat((e.target as HTMLInputElement).value);
+              if (!isNaN(v) && v > 0) setMaxMerits(v);
+            }}
+            className="w-full mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+            disabled={isBusy}
+          />
+          <span className="text-xs text-gray-400 block mt-1">
+            Valor maximo que un alumno puede introducir como meritos. Por defecto 100.
+          </span>
+        </label>
       </fieldset>
 
       <fieldset className="border border-[#444] p-4 rounded-lg" disabled={isBusy}>

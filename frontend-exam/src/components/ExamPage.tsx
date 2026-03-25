@@ -50,6 +50,7 @@ export default function ExamPage({
   const [formError, setFormError] = useState<string | null>(null);
   const [autoCheckDisabled, setAutoCheckDisabled] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [savedMerits, setSavedMerits] = useState<number | null>(null);
 
   const [examUiState, dispatchExamUi] = useExamUi();
   const {
@@ -70,7 +71,10 @@ export default function ExamPage({
     secondaryMaxScores,
     isPassed,
     canEditMerits,
+    maxMerits,
     merits: currentMerits,
+    weightedScore,
+    examWeight,
     meritsPosition,
     meritsTotal,
     passedCount,
@@ -288,6 +292,8 @@ export default function ExamPage({
         maxScore={maxScore}
         secondaryMaxScores={secondaryMaxScores}
         isPassed={isPassed}
+        merits={savedMerits ?? currentMerits}
+        examWeight={examWeight}
         meritsPosition={meritsPosition}
         meritsTotal={meritsTotal}
       />
@@ -301,10 +307,14 @@ export default function ExamPage({
       canEditMerits={canEditMerits}
       hasPreviousSubmission={hasPreviousSubmission}
       currentMerits={currentMerits}
+      maxMerits={maxMerits}
+      score={latestScore}
+      examWeight={examWeight}
       meritsPosition={meritsPosition}
       meritsTotal={meritsTotal}
       aprobados={passedCount}
       totalSubmissions={totalSubmissions}
+      onMeritsSaved={setSavedMerits}
     />
   );
 
@@ -399,7 +409,7 @@ export default function ExamPage({
                </label>
                <input
                  type="number"
-                 step="0.01"
+                 step="0.001"
                  min="0"
                  placeholder="0"
                  name="merits"

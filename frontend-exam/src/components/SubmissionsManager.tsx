@@ -283,6 +283,7 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
             email: fullSubmission.email ?? user?.email ?? '',
             dni: fullSubmission.dni || user?.dni || '',
             answers: initialAnswers,
+            merits: fullSubmission.merits ?? undefined,
         }
       }));
     } catch (err) {
@@ -374,7 +375,7 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
     try {
       await updateSubmissionAttempt(
         editing.submissionId,
-        { name: trimmedName, surname: trimmedSurname, email: trimmedEmail, dni: normalizedDni, answers: answersPayload },
+        { name: trimmedName, surname: trimmedSurname, email: trimmedEmail, dni: normalizedDni, answers: answersPayload, merits: editing.merits ?? null },
         token,
       );
       setNeedsStats(true); 

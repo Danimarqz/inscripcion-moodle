@@ -14,6 +14,8 @@ export type Exam = {
   secondary_max_scores?: string;
   passing_criteria_type?: string;
   passing_criteria_value?: number | null;
+  exam_weight?: number;
+  max_merits?: number;
 };
 export type ExamOut = {
   score?: number | null;
@@ -30,7 +32,10 @@ export type ExamOut = {
   secondary_max_scores?: string | null;
   is_passed?: boolean | null;
   can_edit_merits?: boolean;
+  max_merits?: number | null;
   merits?: number | null;
+  weighted_score?: number | null;
+  exam_weight?: number | null;
   merits_position?: number | null;
   merits_total?: number | null;
   passed_count?: number | null;
@@ -109,6 +114,7 @@ export type SubmissionUpdatePayload = {
   name: string;
   surname: string;
   answers: Answer[];
+  merits?: number | null;
 };
 
 export type ExamQuestionsResponse = {
@@ -148,6 +154,8 @@ export type ExamCreateWithQuestions = {
   secondary_max_scores?: string;
   passing_criteria_type?: string;
   passing_criteria_value?: number | null;
+  exam_weight?: number;
+  max_merits?: number;
   questions: QuestionCreate[];
 };
 
@@ -173,6 +181,8 @@ export type ExamEdit = {
   secondary_max_scores?: string;
   passing_criteria_type?: string;
   passing_criteria_value?: number | null;
+  exam_weight?: number;
+  max_merits?: number;
   questions: QuestionEdit[];
 };
 
@@ -250,6 +260,7 @@ export type UpdateMeritsPayload = {
 export type UpdateMeritsResponse = {
   message: string;
   merits: number | null;
+  weighted_score?: number | null;
   merits_position?: number | null;
   merits_total?: number | null;
 };
@@ -272,7 +283,10 @@ export type ExamUiState = {
   secondaryMaxScores: string | null;
   isPassed: boolean | null;
   canEditMerits: boolean;
+  maxMerits: number | null;
   merits: number | null;
+  weightedScore: number | null;
+  examWeight: number | null;
   meritsPosition: number | null;
   meritsTotal: number | null;
   passedCount: number | null;
@@ -293,7 +307,10 @@ export type ExamResultPayload = {
   secondary_max_scores?: string | null;
   isPassed: boolean | null;
   canEditMerits: boolean;
+  maxMerits: number | null;
   merits: number | null;
+  weightedScore: number | null;
+  examWeight: number | null;
   meritsPosition: number | null;
   meritsTotal: number | null;
   passedCount: number | null;

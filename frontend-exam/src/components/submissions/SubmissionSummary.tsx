@@ -17,6 +17,8 @@ interface SubmissionSummaryProps {
   maxScore?: number | null;
   secondaryMaxScores?: string | null;
   isPassed?: boolean | null;
+  merits?: number | null;
+  examWeight?: number | null;
   meritsPosition?: number | null;
   meritsTotal?: number | null;
 }
@@ -38,6 +40,8 @@ export default function SubmissionSummary({
   maxScore,
   secondaryMaxScores,
   isPassed,
+  merits,
+  examWeight,
   meritsPosition,
   meritsTotal,
 }: SubmissionSummaryProps) {
@@ -87,6 +91,18 @@ export default function SubmissionSummary({
             });
           })()
         )}
+        {typeof score === 'number' && typeof merits === 'number' && typeof examWeight === 'number' && (() => {
+          const weightedScore = parseFloat((score * examWeight + merits * (1 - examWeight)).toFixed(3));
+          return (
+            <div className="flex-1 min-w-[180px] rounded-xl bg-[#2a1f2a] border border-purple-500/30 p-4">
+              <p className="text-xs uppercase tracking-widest text-purple-300/80">Nota ponderada</p>
+              <p className="text-2xl font-bold text-purple-200">{weightedScore.toFixed(3)}</p>
+              <p className="text-xs text-purple-200/50 mt-1">
+                Examen {(examWeight * 100).toFixed(0)}% + Méritos {((1 - examWeight) * 100).toFixed(0)}%
+              </p>
+            </div>
+          );
+        })()}
         {showScoreFull && typeof correctAnswers === 'number' && typeof totalQuestions === 'number' && (
           <div className="flex-1 min-w-[180px] rounded-xl bg-[#1f252a] border border-teal-500/30 p-4">
             <p className="text-xs uppercase tracking-widest text-teal-300/80">Aciertos</p>
@@ -103,7 +119,7 @@ export default function SubmissionSummary({
         )}
         {showPercentile && typeof percentile === 'number' && (
           <div className="flex-1 min-w-[180px] rounded-xl bg-[#1f2330] border border-indigo-500/30 p-4">
-            <p className="text-xs uppercase tracking-widest text-indigo-300/80">Percentil</p>
+            <p className="text-xs uppercase tracking-widest text-indigo-300/80">Percentil (examen)</p>
             <p className="text-2xl font-bold text-indigo-200">{Math.round(percentile)}</p>
             {typeof position === 'number' && typeof totalSubmissions === 'number' && (
               <p className="text-sm text-indigo-200/70 mt-1">
@@ -113,14 +129,6 @@ export default function SubmissionSummary({
           </div>
         )}
       </div>
-      {typeof meritsPosition === 'number' && typeof meritsTotal === 'number' && (
-        <div className="mt-4 p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/30">
-          <p className="text-sm text-indigo-200">
-            Ranking de méritos: posición <span className="font-bold text-indigo-100">{meritsPosition}</span> de{' '}
-            <span className="font-bold text-indigo-100">{meritsTotal}</span> aprobados con méritos
-          </p>
-        </div>
-      )}
       {Array.isArray(review) && review.length > 0 && (
         <div className="mt-6">
           <h3 className="text-base font-semibold text-brand-yellow mb-3">

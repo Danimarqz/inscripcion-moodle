@@ -222,7 +222,7 @@ export default function SubmissionList({
                     <span className="text-sm font-semibold text-brand-blue">Méritos</span>
                     <input
                       type="number"
-                      step="0.01"
+                      step="0.001"
                       value={editingState.merits ?? 0}
                       onInput={(event) =>
                          onUpdateField(

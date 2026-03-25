@@ -40,6 +40,10 @@ func (s *Service) UpdateSubmission(submissionID uint, req SubmissionUpdateReques
 		return nil, err
 	}
 
+	if req.Merits != nil {
+		submission.Merits = req.Merits
+	}
+
 	if err := s.submissionRepo.Update(context.Background(), s.db, submission); err != nil {
 		return nil, err
 	}

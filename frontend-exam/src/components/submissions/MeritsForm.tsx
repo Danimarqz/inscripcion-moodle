@@ -9,10 +9,14 @@ interface MeritsFormProps {
   canEditMerits: boolean;
   hasPreviousSubmission: boolean;
   currentMerits: number | null;
+  maxMerits: number | null;
+  score: number | null;
+  examWeight: number | null;
   meritsPosition: number | null;
   meritsTotal: number | null;
   aprobados: number | null;
   totalSubmissions: number | null;
+  onMeritsSaved?: (merits: number) => void;
 }
 
 export default function MeritsForm({
@@ -22,10 +26,14 @@ export default function MeritsForm({
   canEditMerits,
   hasPreviousSubmission,
   currentMerits,
+  maxMerits,
+  score,
+  examWeight,
   meritsPosition,
   meritsTotal,
   aprobados,
   totalSubmissions,
+  onMeritsSaved,
 }: MeritsFormProps) {
   const [meritsValue, setMeritsValue] = useState('');
   const [meritsSubmitting, setMeritsSubmitting] = useState(false);
@@ -46,15 +54,17 @@ export default function MeritsForm({
   const effectiveTotal = localMeritsTotal ?? meritsTotal;
   const meritsLocked = currentMerits !== null || meritsSaved;
 
+  // Compute weighted score client-side from current values
+
   async function handleMeritsSubmit(event: Event) {
     event.preventDefault();
     setMeritsMessage(null);
 
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedDni = normalizeDni(dni);
-    const meritsNum = meritsValue ? parseFloat(meritsValue) : null;
+    const submitMerits = meritsValue ? parseFloat(meritsValue) : null;
 
-    if (meritsNum !== null && isNaN(meritsNum)) {
+    if (submitMerits !== null && isNaN(submitMerits)) {
       setMeritsMessage('El valor de méritos no es válido.');
       return;
     }
@@ -65,12 +75,13 @@ export default function MeritsForm({
         email: normalizedEmail,
         dni: normalizedDni,
         exam_id: examId,
-        merits: meritsNum,
+        merits: submitMerits,
       });
       setMeritsMessage(resp.message);
       setMeritsSaved(true);
       if (resp.merits_position != null) setLocalMeritsPosition(resp.merits_position);
       if (resp.merits_total != null) setLocalMeritsTotal(resp.merits_total);
+      if (submitMerits !== null && onMeritsSaved) onMeritsSaved(submitMerits);
     } catch (error: unknown) {
       setMeritsMessage(error instanceof Error ? error.message : 'Error al guardar méritos');
     } finally {
@@ -86,14 +97,16 @@ export default function MeritsForm({
           Puntuación de méritos:
           <input
             type="number"
-            step="0.01"
+            step="0.001"
             min="0"
+            max={maxMerits ?? 100}
             value={meritsValue}
             disabled={meritsLocked}
             onInput={(e) => setMeritsValue((e.target as HTMLInputElement).value)}
             className={`w-full mt-1 px-4 py-3 rounded-lg border border-[#555] text-white transition-all ${meritsLocked ? 'bg-[#2a2d33] opacity-60 cursor-not-allowed' : 'bg-[#1f2229] focus:ring-2 focus:ring-brand-yellow focus:border-transparent'}`}
           />
         </label>
+
         {!meritsLocked && (
           <button
             type="submit"

@@ -38,6 +38,8 @@ type SubmissionPayload struct {
 	Message            string         `json:"message"`
 	Score              *float64       `json:"score"`
 	Merits             *float64       `json:"merits"`
+	WeightedScore      *float64       `json:"weighted_score,omitempty"`
+	ExamWeight         *float64       `json:"exam_weight,omitempty"`
 	Percentile         *float64       `json:"percentile"`
 	Position           *int           `json:"position"`
 	TotalSubmissions   *int           `json:"total_submissions"`
@@ -50,6 +52,7 @@ type SubmissionPayload struct {
 	SecondaryMaxScores string         `json:"secondary_max_scores,omitempty"`
 	IsPassed           *bool          `json:"is_passed"`
 	CanEditMerits      bool           `json:"can_edit_merits"`
+	MaxMerits          *float64       `json:"max_merits,omitempty"`
 	MeritsPosition     *int           `json:"merits_position,omitempty"`
 	MeritsTotal        *int           `json:"merits_total,omitempty"`
 	PassedCount        *int           `json:"passed_count,omitempty"`
@@ -65,6 +68,7 @@ type UpdateMeritsRequest struct {
 type UpdateMeritsResponse struct {
 	Message        string   `json:"message"`
 	Merits         *float64 `json:"merits"`
+	WeightedScore  *float64 `json:"weighted_score,omitempty"`
 	MeritsPosition *int     `json:"merits_position,omitempty"`
 	MeritsTotal    *int     `json:"merits_total,omitempty"`
 }

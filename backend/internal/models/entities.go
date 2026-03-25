@@ -56,6 +56,8 @@ type Exam struct {
 	PassingCriteriaType  string               `gorm:"column:passing_criteria_type;default:'disabled'" json:"passing_criteria_type"`
 	PassingCriteriaValue *float64             `gorm:"column:passing_criteria_value" json:"passing_criteria_value"`
 	PassingThreshold     *float64             `gorm:"column:passing_threshold" json:"passing_threshold"`
+	ExamWeight           float64              `gorm:"column:exam_weight;default:0.5" json:"exam_weight"`
+	MaxMerits            float64              `gorm:"column:max_merits;default:100" json:"max_merits"`
 	Questions            []Question           `gorm:"foreignKey:ExamID" json:"questions"`
 	Submissions          []UserExamSubmission `gorm:"foreignKey:ExamID" json:"submissions"`
 }

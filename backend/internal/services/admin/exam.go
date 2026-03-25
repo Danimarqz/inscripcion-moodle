@@ -58,6 +58,8 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 		SecondaryMaxScores:   req.SecondaryMaxScores,
 		PassingCriteriaType:  req.PassingCriteriaType,
 		PassingCriteriaValue: req.PassingCriteriaValue,
+		ExamWeight:           req.ExamWeight,
+		MaxMerits:            req.MaxMerits,
 		Questions:            questions,
 	}
 
@@ -150,6 +152,19 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 	}
 	if req.PassingCriteriaValue != nil {
 		exam.PassingCriteriaValue = req.PassingCriteriaValue
+	}
+
+	if req.ExamWeight != nil {
+		if *req.ExamWeight < 0 || *req.ExamWeight > 1 {
+			return nil, ErrInvalidExamWeight
+		}
+		exam.ExamWeight = *req.ExamWeight
+	}
+	if req.MaxMerits != nil {
+		if *req.MaxMerits <= 0 {
+			return nil, ErrInvalidMaxMerits
+		}
+		exam.MaxMerits = *req.MaxMerits
 	}
 
 	if req.PassingCriteriaType != nil || req.PassingCriteriaValue != nil {

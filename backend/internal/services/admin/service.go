@@ -18,6 +18,8 @@ var (
 	ErrExamNotFound           = errors.New("el examen no existe")
 	ErrExamNoQuestions        = errors.New("el examen debe tener al menos una pregunta")
 	ErrInvalidOption          = errors.New("opcion de respuesta no valida")
+	ErrInvalidExamWeight      = errors.New("el peso del examen debe estar entre 0 y 1")
+	ErrInvalidMaxMerits       = errors.New("el tope de méritos debe ser mayor que 0")
 )
 
 type Service struct {

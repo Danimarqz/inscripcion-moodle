@@ -23,6 +23,8 @@ type CreateExamRequest struct {
 	SecondaryMaxScores   string          `json:"secondary_max_scores,omitempty"`
 	PassingCriteriaType  string          `json:"passing_criteria_type"`
 	PassingCriteriaValue *float64        `json:"passing_criteria_value,omitempty"`
+	ExamWeight           float64         `json:"exam_weight"`
+	MaxMerits            float64         `json:"max_merits"`
 	Questions            []QuestionInput `json:"questions"`
 }
 
@@ -39,6 +41,8 @@ type EditExamRequest struct {
 	SecondaryMaxScores   *string         `json:"secondary_max_scores,omitempty"`
 	PassingCriteriaType  *string         `json:"passing_criteria_type,omitempty"`
 	PassingCriteriaValue *float64        `json:"passing_criteria_value,omitempty"`
+	ExamWeight           *float64        `json:"exam_weight,omitempty"`
+	MaxMerits            *float64        `json:"max_merits,omitempty"`
 	Questions            []QuestionInput `json:"questions"`
 }
 
@@ -65,6 +69,7 @@ type SubmissionUpdateRequest struct {
 	Email   string                  `json:"email"`
 	DNI     string                  `json:"dni"`
 	Answers []SubmissionAnswerInput `json:"answers"`
+	Merits  *float64                `json:"merits,omitempty"`
 }
 
 type CreateOfficialResultRequest struct {
