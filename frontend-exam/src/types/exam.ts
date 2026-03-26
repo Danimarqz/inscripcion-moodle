@@ -156,6 +156,8 @@ export type ExamCreateWithQuestions = {
   passing_criteria_value?: number | null;
   exam_weight?: number;
   max_merits?: number;
+  display_exam_weight?: number | null;
+  skip_weights?: boolean;
   questions: QuestionCreate[];
 };
 
@@ -183,6 +185,9 @@ export type ExamEdit = {
   passing_criteria_value?: number | null;
   exam_weight?: number;
   max_merits?: number;
+  display_exam_weight?: number | null;
+  clear_display_weight?: boolean;
+  skip_weights?: boolean;
   questions: QuestionEdit[];
 };
 

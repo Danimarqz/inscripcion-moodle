@@ -17,6 +17,7 @@ interface MeritsFormProps {
   aprobados: number | null;
   totalSubmissions: number | null;
   onMeritsSaved?: (merits: number) => void;
+  onWeightedScoreUpdate?: (ws: number) => void;
 }
 
 export default function MeritsForm({
@@ -34,6 +35,7 @@ export default function MeritsForm({
   aprobados,
   totalSubmissions,
   onMeritsSaved,
+  onWeightedScoreUpdate,
 }: MeritsFormProps) {
   const [meritsValue, setMeritsValue] = useState('');
   const [meritsSubmitting, setMeritsSubmitting] = useState(false);
@@ -82,6 +84,7 @@ export default function MeritsForm({
       if (resp.merits_position != null) setLocalMeritsPosition(resp.merits_position);
       if (resp.merits_total != null) setLocalMeritsTotal(resp.merits_total);
       if (submitMerits !== null && onMeritsSaved) onMeritsSaved(submitMerits);
+      if (resp.weighted_score != null && onWeightedScoreUpdate) onWeightedScoreUpdate(resp.weighted_score);
     } catch (error: unknown) {
       setMeritsMessage(error instanceof Error ? error.message : 'Error al guardar méritos');
     } finally {

@@ -20,6 +20,7 @@ var (
 	ErrInvalidOption          = errors.New("opcion de respuesta no valida")
 	ErrInvalidExamWeight      = errors.New("el peso del examen debe estar entre 0 y 1")
 	ErrInvalidMaxMerits       = errors.New("el tope de méritos debe ser mayor que 0")
+	ErrInvalidDisplayWeight   = errors.New("el peso de visualización debe estar entre 0 y 1")
 )
 
 type Service struct {

@@ -20,7 +20,7 @@ type SubmissionRepository interface {
 	Update(ctx context.Context, db *gorm.DB, submission *models.UserExamSubmission) error
 	SaveAnswer(ctx context.Context, db *gorm.DB, answer *models.UserAnswer) error   // Phase 1: dual-write
 	CreateAnswer(ctx context.Context, db *gorm.DB, answer *models.UserAnswer) error // Phase 1: dual-write
-	GetMeritsRanking(ctx context.Context, db *gorm.DB, examID uint, submissionID uint, passingThreshold float64, examWeight float64) (position *int, total *int, err error)
+	GetMeritsRanking(ctx context.Context, db *gorm.DB, examID uint, submissionID uint, passingThreshold float64, examWeight float64, skipWeights bool) (position *int, total *int, err error)
 }
 
 type submissionRepository struct{}
@@ -179,9 +179,7 @@ func (r *submissionRepository) CreateAnswer(ctx context.Context, db *gorm.DB, an
 	return db.WithContext(ctx).Create(answer).Error
 }
 
-func (r *submissionRepository) GetMeritsRanking(ctx context.Context, db *gorm.DB, examID uint, submissionID uint, passingThreshold float64, examWeight float64) (position *int, total *int, err error) {
-	meritsWeight := 1 - examWeight
-
+func (r *submissionRepository) GetMeritsRanking(ctx context.Context, db *gorm.DB, examID uint, submissionID uint, passingThreshold float64, examWeight float64, skipWeights bool) (position *int, total *int, err error) {
 	var totalCount int64
 	if err := db.WithContext(ctx).Model(&models.UserExamSubmission{}).
 		Where("exam_id = ? AND score >= ? AND merits IS NOT NULL", examID, passingThreshold).
@@ -190,12 +188,25 @@ func (r *submissionRepository) GetMeritsRanking(ctx context.Context, db *gorm.DB
 	}
 	totalInt := int(totalCount)
 
-	var betterCount int64
+	var scoreExpr string
+	var scoreArgs []any
+	if skipWeights {
+		scoreExpr = "(score + merits)"
+	} else {
+		meritsWeight := 1 - examWeight
+		scoreExpr = "(score * ?) + (merits * ?)"
+		scoreArgs = []any{examWeight, meritsWeight}
+	}
+
 	subquery := db.WithContext(ctx).Model(&models.UserExamSubmission{}).
-		Select("(score * ?) + (merits * ?)", examWeight, meritsWeight).
+		Select(scoreExpr, scoreArgs...).
 		Where("id = ?", submissionID)
+
+	betterArgs := []any{examID, passingThreshold}
+	betterArgs = append(betterArgs, scoreArgs...)
+	var betterCount int64
 	if err := db.WithContext(ctx).Model(&models.UserExamSubmission{}).
-		Where("exam_id = ? AND score >= ? AND merits IS NOT NULL AND ((score * ?) + (merits * ?)) > (?)", examID, passingThreshold, examWeight, meritsWeight, subquery).
+		Where("exam_id = ? AND score >= ? AND merits IS NOT NULL AND "+scoreExpr+" > (?)", append(betterArgs, subquery)...).
 		Count(&betterCount).Error; err != nil {
 		return nil, nil, err
 	}

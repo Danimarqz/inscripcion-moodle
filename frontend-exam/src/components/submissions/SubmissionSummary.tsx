@@ -18,6 +18,7 @@ interface SubmissionSummaryProps {
   secondaryMaxScores?: string | null;
   isPassed?: boolean | null;
   merits?: number | null;
+  weightedScore?: number | null;
   examWeight?: number | null;
   meritsPosition?: number | null;
   meritsTotal?: number | null;
@@ -41,6 +42,7 @@ export default function SubmissionSummary({
   secondaryMaxScores,
   isPassed,
   merits,
+  weightedScore,
   examWeight,
   meritsPosition,
   meritsTotal,
@@ -91,18 +93,17 @@ export default function SubmissionSummary({
             });
           })()
         )}
-        {typeof score === 'number' && typeof merits === 'number' && typeof examWeight === 'number' && (() => {
-          const weightedScore = parseFloat((score * examWeight + merits * (1 - examWeight)).toFixed(3));
-          return (
-            <div className="flex-1 min-w-[180px] rounded-xl bg-[#2a1f2a] border border-purple-500/30 p-4">
-              <p className="text-xs uppercase tracking-widest text-purple-300/80">Nota ponderada</p>
-              <p className="text-2xl font-bold text-purple-200">{weightedScore.toFixed(3)}</p>
+        {typeof weightedScore === 'number' && (
+          <div className="flex-1 min-w-[180px] rounded-xl bg-[#2a1f2a] border border-purple-500/30 p-4">
+            <p className="text-xs uppercase tracking-widest text-purple-300/80">Nota ponderada</p>
+            <p className="text-2xl font-bold text-purple-200">{weightedScore.toFixed(3)}</p>
+            {typeof examWeight === 'number' && (
               <p className="text-xs text-purple-200/50 mt-1">
                 Examen {(examWeight * 100).toFixed(0)}% + Méritos {((1 - examWeight) * 100).toFixed(0)}%
               </p>
-            </div>
-          );
-        })()}
+            )}
+          </div>
+        )}
         {showScoreFull && typeof correctAnswers === 'number' && typeof totalQuestions === 'number' && (
           <div className="flex-1 min-w-[180px] rounded-xl bg-[#1f252a] border border-teal-500/30 p-4">
             <p className="text-xs uppercase tracking-widest text-teal-300/80">Aciertos</p>

@@ -40,6 +40,9 @@ export default function ExamForm({ examId }: ExamFormProps) {
   const [passingCriteriaValue, setPassingCriteriaValue] = useState<number | null>(null);
   const [examWeight, setExamWeight] = useState(0.5);
   const [maxMerits, setMaxMerits] = useState(100);
+  const [skipWeights, setSkipWeights] = useState(false);
+  const [displayWeightOverride, setDisplayWeightOverride] = useState(false);
+  const [displayExamWeight, setDisplayExamWeight] = useState(0.5);
 
   useEffect(() => {
     if (authenticating) return;
@@ -97,6 +100,9 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setPassingCriteriaValue(examData.passing_criteria_value ?? null);
       setExamWeight(examData.exam_weight ?? 0.5);
       setMaxMerits(examData.max_merits ?? 100);
+      setSkipWeights(Boolean(examData.skip_weights));
+      setDisplayWeightOverride(examData.display_exam_weight != null);
+      setDisplayExamWeight(examData.display_exam_weight ?? examData.exam_weight ?? 0.5);
 
       const normalizedQuestions = (examData.questions.length
         ? examData.questions
@@ -163,6 +169,9 @@ export default function ExamForm({ examId }: ExamFormProps) {
       passing_criteria_value: passingCriteriaType !== 'disabled' ? passingCriteriaValue : null,
       exam_weight: examWeight,
       max_merits: maxMerits,
+      skip_weights: skipWeights,
+      display_exam_weight: displayWeightOverride ? displayExamWeight : null,
+      ...(examToEdit && !displayWeightOverride ? { clear_display_weight: true } : {}),
       questions: questions.map((q) => ({
         id: 'id' in q ? q.id : undefined,
         correct_option: q.correct_option.toUpperCase(),
@@ -504,32 +513,88 @@ export default function ExamForm({ examId }: ExamFormProps) {
       <fieldset className="mb-6 border border-[#444] rounded-lg p-4" disabled={isBusy}>
         <legend className="font-bold text-brand-pink px-2">Ponderacion nota final</legend>
         <p className="text-xs text-gray-400 mb-4">
-          Configura el peso del examen y meritos en la nota final ponderada. Deben sumar 1.
+          Configura el peso del examen y meritos en la nota final ponderada.
         </p>
-        <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
-          <label className="block text-brand-pink font-bold flex-1">
-            Peso del examen:
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              max="1"
-              value={examWeight}
-              onInput={(e) => {
-                const v = parseFloat((e.target as HTMLInputElement).value);
-                if (!isNaN(v)) setExamWeight(Math.min(1, Math.max(0, v)));
-              }}
-              className="w-full mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
-              disabled={isBusy}
-            />
-          </label>
-          <div className="flex-1">
-            <span className="block text-brand-pink font-bold">Peso de meritos:</span>
-            <span className="block mt-1 px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-gray-300">
-              {(1 - examWeight).toFixed(2)}
-            </span>
+        <label className="flex items-center gap-2 mb-4 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={skipWeights}
+            onChange={(e) => setSkipWeights((e.target as HTMLInputElement).checked)}
+            disabled={isBusy}
+            className="accent-brand-pink"
+          />
+          <span className="text-brand-pink font-bold">Ignorar pesos (sumar directamente)</span>
+          <span className="text-xs text-gray-400">Nota ponderada = nota examen + meritos</span>
+        </label>
+        {!skipWeights && (
+          <div className="flex flex-col gap-4 sm:flex-row sm:gap-6 mb-4">
+            <label className="block text-brand-pink font-bold flex-1">
+              Peso del examen:
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max="1"
+                value={examWeight}
+                onInput={(e) => {
+                  const v = parseFloat((e.target as HTMLInputElement).value);
+                  if (!isNaN(v)) setExamWeight(Math.min(1, Math.max(0, v)));
+                }}
+                className="w-full mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+                disabled={isBusy}
+              />
+            </label>
+            <div className="flex-1">
+              <span className="block text-brand-pink font-bold">Peso de meritos:</span>
+              <span className="block mt-1 px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-gray-300">
+                {(1 - examWeight).toFixed(2)}
+              </span>
+            </div>
           </div>
-        </div>
+        )}
+        <label className="flex items-center gap-2 mt-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={displayWeightOverride}
+            onChange={(e) => {
+              setDisplayWeightOverride((e.target as HTMLInputElement).checked);
+              if ((e.target as HTMLInputElement).checked) setDisplayExamWeight(examWeight);
+            }}
+            disabled={isBusy}
+            className="accent-brand-pink"
+          />
+          <span className="text-brand-pink font-bold">Mostrar pesos diferentes a los alumnos</span>
+        </label>
+        {displayWeightOverride && (
+          <div className="flex flex-col gap-4 sm:flex-row sm:gap-6 mt-3 ml-6 p-3 rounded border border-purple-500/30 bg-[#2a1f2a]/30">
+            <label className="block text-purple-300 font-bold flex-1">
+              Peso examen (visible):
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max="1"
+                value={displayExamWeight}
+                onInput={(e) => {
+                  const v = parseFloat((e.target as HTMLInputElement).value);
+                  if (!isNaN(v)) setDisplayExamWeight(Math.min(1, Math.max(0, v)));
+                }}
+                className="w-full mt-1 px-3 py-2 rounded border border-purple-500/30 bg-[#2a2d33] text-white focus:outline-none focus:border-purple-400"
+                disabled={isBusy}
+              />
+            </label>
+            <div className="flex-1">
+              <span className="block text-purple-300 font-bold">Peso meritos (visible):</span>
+              <span className="block mt-1 px-3 py-2 rounded border border-purple-500/30 bg-[#1f2229] text-gray-300">
+                {(1 - displayExamWeight).toFixed(2)}
+              </span>
+            </div>
+            <p className="text-xs text-purple-300/60 sm:col-span-2">
+              Los alumnos veran estos pesos, pero el calculo real {skipWeights ? 'suma directamente' : 'usa los pesos configurados arriba'}.
+            </p>
+          </div>
+        )}
+
         <label className="block text-brand-pink font-bold mt-4">
           Tope de meritos:
           <input

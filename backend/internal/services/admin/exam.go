@@ -45,6 +45,10 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 		return nil, err
 	}
 
+	if req.DisplayExamWeight != nil && (*req.DisplayExamWeight < 0 || *req.DisplayExamWeight > 1) {
+		return nil, ErrInvalidDisplayWeight
+	}
+
 	exam := &models.Exam{
 		Name:                 req.Name,
 		IsActive:             req.IsActive,
@@ -60,6 +64,8 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 		PassingCriteriaValue: req.PassingCriteriaValue,
 		ExamWeight:           req.ExamWeight,
 		MaxMerits:            req.MaxMerits,
+		DisplayExamWeight:    req.DisplayExamWeight,
+		SkipWeights:          req.SkipWeights,
 		Questions:            questions,
 	}
 
@@ -165,6 +171,17 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 			return nil, ErrInvalidMaxMerits
 		}
 		exam.MaxMerits = *req.MaxMerits
+	}
+	if req.ClearDisplayWeight != nil && *req.ClearDisplayWeight {
+		exam.DisplayExamWeight = nil
+	} else if req.DisplayExamWeight != nil {
+		if *req.DisplayExamWeight < 0 || *req.DisplayExamWeight > 1 {
+			return nil, ErrInvalidDisplayWeight
+		}
+		exam.DisplayExamWeight = req.DisplayExamWeight
+	}
+	if req.SkipWeights != nil {
+		exam.SkipWeights = *req.SkipWeights
 	}
 
 	if req.PassingCriteriaType != nil || req.PassingCriteriaValue != nil {

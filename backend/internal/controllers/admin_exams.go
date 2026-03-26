@@ -91,7 +91,7 @@ func (h *AdminController) getExam(w http.ResponseWriter, r *http.Request) {
 func (h *AdminController) handleAdminError(w http.ResponseWriter, err error) {
 	w.WriteHeader(http.StatusBadRequest)
 	switch {
-	case errors.Is(err, admin.ErrExamNameConflict), errors.Is(err, admin.ErrQuestionNotFound), errors.Is(err, admin.ErrActiveQuestions), errors.Is(err, admin.ErrInvalidExamWeight), errors.Is(err, admin.ErrInvalidMaxMerits):
+	case errors.Is(err, admin.ErrExamNameConflict), errors.Is(err, admin.ErrQuestionNotFound), errors.Is(err, admin.ErrActiveQuestions), errors.Is(err, admin.ErrInvalidExamWeight), errors.Is(err, admin.ErrInvalidMaxMerits), errors.Is(err, admin.ErrInvalidDisplayWeight):
 		writeJSON(w, genericError{Message: err.Error()})
 	default:
 		w.WriteHeader(http.StatusInternalServerError)

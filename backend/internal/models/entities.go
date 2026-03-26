@@ -58,6 +58,8 @@ type Exam struct {
 	PassingThreshold     *float64             `gorm:"column:passing_threshold" json:"passing_threshold"`
 	ExamWeight           float64              `gorm:"column:exam_weight;default:0.5" json:"exam_weight"`
 	MaxMerits            float64              `gorm:"column:max_merits;default:100" json:"max_merits"`
+	DisplayExamWeight    *float64             `gorm:"column:display_exam_weight" json:"display_exam_weight"`
+	SkipWeights          bool                 `gorm:"column:skip_weights;default:false" json:"skip_weights"`
 	Questions            []Question           `gorm:"foreignKey:ExamID" json:"questions"`
 	Submissions          []UserExamSubmission `gorm:"foreignKey:ExamID" json:"submissions"`
 }

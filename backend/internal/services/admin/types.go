@@ -25,6 +25,8 @@ type CreateExamRequest struct {
 	PassingCriteriaValue *float64        `json:"passing_criteria_value,omitempty"`
 	ExamWeight           float64         `json:"exam_weight"`
 	MaxMerits            float64         `json:"max_merits"`
+	DisplayExamWeight    *float64        `json:"display_exam_weight,omitempty"`
+	SkipWeights          bool            `json:"skip_weights"`
 	Questions            []QuestionInput `json:"questions"`
 }
 
@@ -43,6 +45,9 @@ type EditExamRequest struct {
 	PassingCriteriaValue *float64        `json:"passing_criteria_value,omitempty"`
 	ExamWeight           *float64        `json:"exam_weight,omitempty"`
 	MaxMerits            *float64        `json:"max_merits,omitempty"`
+	DisplayExamWeight    *float64        `json:"display_exam_weight,omitempty"`
+	ClearDisplayWeight   *bool           `json:"clear_display_weight,omitempty"`
+	SkipWeights          *bool           `json:"skip_weights,omitempty"`
 	Questions            []QuestionInput `json:"questions"`
 }
 

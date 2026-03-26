@@ -492,7 +492,7 @@ func (s *Service) UpdateMerits(req UpdateMeritsRequest) (*UpdateMeritsResponse, 
 	}
 
 	if req.Merits != nil && threshold != nil {
-		pos, total, err := s.submissionRepo.GetMeritsRanking(context.Background(), s.db, req.ExamID, submission.ID, *threshold, submission.Exam.ExamWeight)
+		pos, total, err := s.submissionRepo.GetMeritsRanking(context.Background(), s.db, req.ExamID, submission.ID, *threshold, submission.Exam.ExamWeight, submission.Exam.SkipWeights)
 		if err == nil {
 			resp.MeritsPosition = pos
 			resp.MeritsTotal = total
@@ -500,8 +500,13 @@ func (s *Service) UpdateMerits(req UpdateMeritsRequest) (*UpdateMeritsResponse, 
 	}
 
 	if req.Merits != nil && submission.Score != nil {
-		ew := submission.Exam.ExamWeight
-		ws := math.Round((*submission.Score*ew+*req.Merits*(1-ew))*1000) / 1000
+		var ws float64
+		if submission.Exam.SkipWeights {
+			ws = math.Round((*submission.Score+*req.Merits)*1000) / 1000
+		} else {
+			ew := submission.Exam.ExamWeight
+			ws = math.Round((*submission.Score*ew+*req.Merits*(1-ew))*1000) / 1000
+		}
 		resp.WeightedScore = &ws
 	}
 
@@ -743,21 +748,30 @@ func (s *Service) buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submiss
 	}
 
 	if payload.CanEditMerits && submission.Merits != nil {
-		pos, total, err := submissionRepo.GetMeritsRanking(context.Background(), tx, exam.ID, submission.ID, *threshold, exam.ExamWeight)
+		pos, total, err := submissionRepo.GetMeritsRanking(context.Background(), tx, exam.ID, submission.ID, *threshold, exam.ExamWeight, exam.SkipWeights)
 		if err == nil {
 			payload.MeritsPosition = pos
 			payload.MeritsTotal = total
 		}
 	}
 
-	ew := exam.ExamWeight
-	payload.ExamWeight = &ew
-
-	// Compute weighted score when both score and merits are available
+	// Compute weighted score
 	if submission.Score != nil && submission.Merits != nil {
-		ws := math.Round((*submission.Score*exam.ExamWeight+*submission.Merits*(1-exam.ExamWeight))*1000) / 1000
+		var ws float64
+		if exam.SkipWeights {
+			ws = math.Round((*submission.Score+*submission.Merits)*1000) / 1000
+		} else {
+			ws = math.Round((*submission.Score*exam.ExamWeight+*submission.Merits*(1-exam.ExamWeight))*1000) / 1000
+		}
 		payload.WeightedScore = &ws
 	}
+
+	// Send display weights to the student (override if configured)
+	displayEW := exam.ExamWeight
+	if exam.DisplayExamWeight != nil {
+		displayEW = *exam.DisplayExamWeight
+	}
+	payload.ExamWeight = &displayEW
 
 	return payload, nil
 }

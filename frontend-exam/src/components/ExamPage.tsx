@@ -51,6 +51,7 @@ export default function ExamPage({
   const [autoCheckDisabled, setAutoCheckDisabled] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [savedMerits, setSavedMerits] = useState<number | null>(null);
+  const [updatedWeightedScore, setUpdatedWeightedScore] = useState<number | null>(null);
 
   const [examUiState, dispatchExamUi] = useExamUi();
   const {
@@ -293,6 +294,7 @@ export default function ExamPage({
         secondaryMaxScores={secondaryMaxScores}
         isPassed={isPassed}
         merits={savedMerits ?? currentMerits}
+        weightedScore={updatedWeightedScore ?? weightedScore}
         examWeight={examWeight}
         meritsPosition={meritsPosition}
         meritsTotal={meritsTotal}
@@ -315,6 +317,7 @@ export default function ExamPage({
       aprobados={passedCount}
       totalSubmissions={totalSubmissions}
       onMeritsSaved={setSavedMerits}
+      onWeightedScoreUpdate={setUpdatedWeightedScore}
     />
   );
 
