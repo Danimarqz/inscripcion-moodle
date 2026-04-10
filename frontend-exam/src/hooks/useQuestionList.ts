@@ -37,8 +37,11 @@ export function useQuestionList<T extends QuestionShape>(
     [],
   );
 
-  const addQuestion = useCallback(() => {
-    setQuestions((prev) => [...prev, { ...DEFAULT_QUESTION_STATE } as T]);
+  const addQuestion = useCallback((initial?: Partial<QuestionShape>) => {
+    setQuestions((prev) => [
+      ...prev,
+      { ...DEFAULT_QUESTION_STATE, ...initial } as T,
+    ]);
   }, []);
 
   const removeQuestion = useCallback((index: number) => {

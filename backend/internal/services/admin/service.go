@@ -21,6 +21,7 @@ var (
 	ErrInvalidExamWeight      = errors.New("el peso del examen debe estar entre 0 y 1")
 	ErrInvalidMaxMerits       = errors.New("el tope de méritos debe ser mayor que 0")
 	ErrInvalidDisplayWeight   = errors.New("el peso de visualización debe estar entre 0 y 1")
+	ErrInvalidQuestionNumbers = errors.New("los números de pregunta deben formar la secuencia 1..N sin huecos ni duplicados")
 )
 
 type Service struct {

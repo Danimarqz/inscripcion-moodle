@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"gorm.io/gorm"
@@ -38,6 +39,10 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 	}
 	if exists > 0 {
 		return nil, ErrExamNameConflict
+	}
+
+	if err := validateQuestionNumbers(req.Questions); err != nil {
+		return nil, err
 	}
 
 	questions, err := createQuestions(req.Questions)
@@ -82,8 +87,6 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 func createQuestions(inputs []QuestionInput) ([]models.Question, error) {
 	questions := make([]models.Question, 0, len(inputs))
 
-	count := 1
-
 	for _, input := range inputs {
 		isActive := true
 		isCancelled := false
@@ -94,9 +97,6 @@ func createQuestions(inputs []QuestionInput) ([]models.Question, error) {
 			isCancelled = *input.IsCancelled
 		}
 
-		name := count
-		count++
-
 		normalizedOption := strings.ToUpper(strings.TrimSpace(input.CorrectOption))
 		if normalizedOption == "" {
 			return nil, ErrInvalidOption
@@ -104,7 +104,7 @@ func createQuestions(inputs []QuestionInput) ([]models.Question, error) {
 
 		model := models.Question{
 			ID:            0,
-			Name:          name,
+			Name:          *input.Name,
 			IsActive:      isActive,
 			IsCancelled:   isCancelled,
 			CorrectOption: normalizedOption,
@@ -115,6 +115,30 @@ func createQuestions(inputs []QuestionInput) ([]models.Question, error) {
 		questions = append(questions, model)
 	}
 	return questions, nil
+}
+
+// validateQuestionNumbers ensures every QuestionInput has an explicit positive
+// Name and that the set of names forms a contiguous 1..N sequence (no gaps, no
+// duplicates). This is the single source of truth for the contiguity rule; the
+// (exam_id, name) unique constraint at the DB level is a belt-and-braces backup.
+func validateQuestionNumbers(inputs []QuestionInput) error {
+	if len(inputs) == 0 {
+		return nil
+	}
+	names := make([]int, 0, len(inputs))
+	for _, input := range inputs {
+		if input.Name == nil || *input.Name <= 0 {
+			return ErrInvalidQuestionNumbers
+		}
+		names = append(names, *input.Name)
+	}
+	sort.Ints(names)
+	for i, n := range names {
+		if n != i+1 {
+			return ErrInvalidQuestionNumbers
+		}
+	}
+	return nil
 }
 
 func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, error) {
@@ -186,6 +210,12 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 
 	if req.PassingCriteriaType != nil || req.PassingCriteriaValue != nil {
 		exam.PassingThreshold = examservice.ComputePassingThreshold(s.db, exam, s.examRepo)
+	}
+
+	if len(req.Questions) > 0 {
+		if err := validateQuestionNumbers(req.Questions); err != nil {
+			return nil, err
+		}
 	}
 
 	inputQuestionIDs := make(map[uint]struct{})
@@ -264,7 +294,6 @@ func (s *Service) mergeQuestions(examID uint, existing []models.Question, inputs
 	}
 
 	questions := make([]models.Question, 0, len(inputs))
-	count := 1
 
 	for _, input := range inputs {
 		var model models.Question
@@ -289,8 +318,7 @@ func (s *Service) mergeQuestions(examID uint, existing []models.Question, inputs
 		}
 		model.ExamID = examID
 
-		model.Name = count
-		count++
+		model.Name = *input.Name
 
 		questions = append(questions, model)
 	}

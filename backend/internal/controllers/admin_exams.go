@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/inscripcion-moodle/go-backend/internal/services/admin"
 )
@@ -91,8 +92,19 @@ func (h *AdminController) getExam(w http.ResponseWriter, r *http.Request) {
 func (h *AdminController) handleAdminError(w http.ResponseWriter, err error) {
 	w.WriteHeader(http.StatusBadRequest)
 	switch {
-	case errors.Is(err, admin.ErrExamNameConflict), errors.Is(err, admin.ErrQuestionNotFound), errors.Is(err, admin.ErrActiveQuestions), errors.Is(err, admin.ErrInvalidExamWeight), errors.Is(err, admin.ErrInvalidMaxMerits), errors.Is(err, admin.ErrInvalidDisplayWeight):
+	case errors.Is(err, admin.ErrExamNameConflict),
+		errors.Is(err, admin.ErrQuestionNotFound),
+		errors.Is(err, admin.ErrActiveQuestions),
+		errors.Is(err, admin.ErrInvalidExamWeight),
+		errors.Is(err, admin.ErrInvalidMaxMerits),
+		errors.Is(err, admin.ErrInvalidDisplayWeight),
+		errors.Is(err, admin.ErrInvalidQuestionNumbers):
 		writeJSON(w, genericError{Message: err.Error()})
+	case strings.Contains(err.Error(), "uk_question_exam_name"):
+		// Safety net: service-layer validateQuestionNumbers should have
+		// caught this, but the DB unique constraint is our last line of
+		// defence against duplicate (exam_id, name) pairs.
+		writeJSON(w, genericError{Message: admin.ErrInvalidQuestionNumbers.Error()})
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
 		writeJSON(w, genericError{Message: "operation failed"})

@@ -10,19 +10,18 @@ import { useAdminAuth } from '../hooks/useAdminAuth';
 import { useQuestionList } from '../hooks/useQuestionList';
 import { useAsyncTask } from '../hooks/useAsyncTask';
 import QuestionCardFrame from './questions/QuestionCardFrame';
-import QuestionSection from './questions/QuestionSection';
 import { ANSWER_OPTIONS, type AnswerOption } from '../constants/answerOptions';
 
 interface ExamFormProps {
   examId?: number;
 }
 
-const DEFAULT_QUESTION: QuestionCreate = { correct_option: 'A', is_active: true, is_cancelled: false };
+const DEFAULT_QUESTION: QuestionCreate = { correct_option: 'A', is_active: true, is_cancelled: false, name: 1 };
 
 export default function ExamForm({ examId }: ExamFormProps) {
   const { token, loading: authenticating, error: authError } = useAdminAuth();
   const { loading, error, run, setError } = useAsyncTask();
-  const { questions, setAll, updateQuestion, addQuestion, removeQuestion } =
+  const { questions, setAll, updateQuestion, addQuestion } =
     useQuestionList<QuestionCreate | QuestionEdit>([{ ...DEFAULT_QUESTION }]);
 
   const [examToEdit, setExamToEdit] = useState<ExamEdit | null>(null);
@@ -107,10 +106,11 @@ export default function ExamForm({ examId }: ExamFormProps) {
       const normalizedQuestions = (examData.questions.length
         ? examData.questions
         : [{ ...DEFAULT_QUESTION } as QuestionEdit]
-      ).map((question) => ({
+      ).map((question, idx) => ({
         ...question,
         is_active: question.is_active ?? true,
         is_cancelled: question.is_cancelled ?? false,
+        name: typeof question.name === 'number' && question.name > 0 ? question.name : idx + 1,
       }));
 
       setAll(normalizedQuestions as (QuestionCreate | QuestionEdit)[]);
@@ -149,6 +149,21 @@ export default function ExamForm({ examId }: ExamFormProps) {
       return;
     }
 
+    const names = questions.map((q) => q.name);
+    if (names.some((n) => typeof n !== 'number' || !Number.isInteger(n) || (n as number) <= 0)) {
+      setError('Cada pregunta debe tener un número entero positivo en el campo Nº.');
+      return;
+    }
+    const sortedNames = [...(names as number[])].sort((a, b) => a - b);
+    for (let i = 0; i < sortedNames.length; i += 1) {
+      if (sortedNames[i] !== i + 1) {
+        setError(
+          `Los números de pregunta deben formar la secuencia 1..${questions.length} sin huecos ni duplicados.`,
+        );
+        return;
+      }
+    }
+
     if (!token) {
       setError('No autorizado: token no disponible.');
       return;
@@ -177,7 +192,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
         correct_option: q.correct_option.toUpperCase(),
         is_active: q.is_active !== false,
         is_cancelled: q.is_cancelled === true,
-        name: typeof q.name === 'number' ? q.name : undefined,
+        name: q.name as number,
       })),
     };
 
@@ -198,28 +213,47 @@ export default function ExamForm({ examId }: ExamFormProps) {
   const isBusy = loading || authenticating;
   const formError = authError || error;
 
-  const questionEntries = useMemo(
-    () => questions.map((question, index) => ({ index, question })),
-    [questions],
-  );
-
-  const activeEntries = questionEntries.filter(({ question }) => question.is_active !== false);
-  const reserveEntries = questionEntries.filter(({ question }) => question.is_active === false);
+  const sortedEntries = useMemo(() => {
+    const entries = questions.map((question, index) => ({ index, question }));
+    entries.sort((a, b) => {
+      const aName = typeof a.question.name === 'number' ? a.question.name : Number.POSITIVE_INFINITY;
+      const bName = typeof b.question.name === 'number' ? b.question.name : Number.POSITIVE_INFINITY;
+      if (aName !== bName) return aName - bName;
+      return a.index - b.index;
+    });
+    return entries;
+  }, [questions]);
 
   function handleToggleState(index: number, nextState: boolean) {
     updateQuestion(index, 'is_active', nextState);
   }
 
-  function renderQuestionCard(
-    entry: { index: number; question: QuestionCreate | QuestionEdit },
-    position: number,
-    isReserve: boolean,
-  ) {
+  function handleAddQuestion() {
+    const nextNumber = questions.length + 1;
+    addQuestion({ name: nextNumber });
+  }
+
+  // Remove a question and renumber the survivors so the set stays 1..N-1.
+  function handleRemoveQuestion(index: number) {
+    const removed = questions[index];
+    const removedName = typeof removed?.name === 'number' ? removed.name : null;
+    const remaining = questions
+      .filter((_, i) => i !== index)
+      .map((q) => {
+        if (removedName == null || typeof q.name !== 'number' || q.name <= removedName) {
+          return q;
+        }
+        return { ...q, name: q.name - 1 };
+      });
+    setAll(remaining);
+  }
+
+  function renderQuestionCard(entry: { index: number; question: QuestionCreate | QuestionEdit }) {
     const { index, question } = entry;
-    const key = question.id ?? `${isReserve ? 'reserve' : 'active'}-${index}`;
+    const isReserve = question.is_active === false;
+    const key = question.id ?? `q-${index}`;
     const isCancelled = question.is_cancelled === true;
-    const displayName = question.name ?? position;
-    const label = `${isReserve ? 'Reserva' : 'Pregunta'} ${displayName}`;
+    const label = `${isReserve ? 'Reserva' : 'Pregunta'} ${question.name ?? '?'}`;
     const badgeConfig = isCancelled
       ? {
           text: 'Anulada',
@@ -254,6 +288,22 @@ export default function ExamForm({ examId }: ExamFormProps) {
         meta={meta}
       >
         <label className="block font-bold text-brand-pink mb-2">
+          Nº:
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={typeof question.name === 'number' ? question.name : ''}
+            onInput={(e) => {
+              const raw = (e.target as HTMLInputElement).value;
+              const parsed = parseInt(raw, 10);
+              updateQuestion(index, 'name', Number.isFinite(parsed) && parsed > 0 ? parsed : undefined);
+            }}
+            className="w-24 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/50 mb-3"
+            disabled={isBusy}
+          />
+        </label>
+        <label className="block font-bold text-brand-pink mb-2">
           Opcion correcta:
           <select
             value={(question.correct_option ?? 'A').toUpperCase()}
@@ -271,7 +321,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
         <div className="flex flex-wrap gap-3 mt-4">
           <button
             type="button"
-            onClick={() => removeQuestion(index)}
+            onClick={() => handleRemoveQuestion(index)}
             disabled={questions.length === 1 || isBusy}
             className="bg-red-600 text-white border-none rounded px-3 py-1 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             aria-label={`Eliminar ${label.toLowerCase()}`}
@@ -618,25 +668,19 @@ export default function ExamForm({ examId }: ExamFormProps) {
       <fieldset className="border border-[#444] p-4 rounded-lg" disabled={isBusy}>
         <legend className="font-bold text-xl mb-4 text-brand-pink">Preguntas</legend>
 
-        <QuestionSection
-          title="Preguntas activas"
-          entries={activeEntries}
-          emptyMessage="Debe haber al menos una pregunta activa para poder publicar el examen."
-          renderEntry={(entry, position) => renderQuestionCard(entry, position, false)}
-        />
+        <p className="text-xs text-gray-400 mb-4">
+          Las preguntas se ordenan por el número (Nº) que asignes. Usa el toggle para
+          marcar una como reserva sin cambiar su posición; así puedes intercalar reservas
+          entre las preguntas normales.
+        </p>
 
-        <QuestionSection
-          title="Preguntas de reserva"
-          description="Las preguntas de reserva no puntuan salvo que sustituyan a una activa invalidada."
-          entries={reserveEntries}
-          emptyMessage="No hay preguntas de reserva configuradas."
-          emptyMessageClassName="text-sm text-gray-400 bg-gray-500/10 border border-gray-500/30 p-3 rounded"
-          renderEntry={(entry, position) => renderQuestionCard(entry, position, true)}
-        />
+        <section className="mt-2">
+          {sortedEntries.map((entry) => renderQuestionCard(entry))}
+        </section>
 
         <button
           type="button"
-          onClick={addQuestion}
+          onClick={handleAddQuestion}
           className="bg-brand-blue text-white border-none rounded px-4 py-2 cursor-pointer mt-6 hover:bg-brand-blue/80"
           disabled={isBusy}
         >

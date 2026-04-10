@@ -84,8 +84,9 @@ export default function ExamPage({
   const { questions, loading, error: questionsError } = useExamQuestions(examId);
   const {
     userAnswers, setAnswer, clearAnswer,
-    activeEntries, reserveEntries, resetAnswers,
+    entries, resetAnswers,
   } = useAnswerManagement(questions);
+  const hasActiveQuestions = entries.some(({ question }) => question.is_active !== false);
   const eligibility = useEligibilityCheck(studentName, studentSurname, dni, examId);
 
   useEffect(() => {
@@ -267,7 +268,7 @@ export default function ExamPage({
       </main>
     );
 
-  if (questions.length === 0 || activeEntries.length === 0)
+  if (questions.length === 0 || !hasActiveQuestions)
     return (
       <main>
         <p className="info-message">No hay preguntas activas disponibles para este examen.</p>
@@ -399,8 +400,7 @@ export default function ExamPage({
         {!hasPreviousSubmission && (
           <>
             <QuestionList
-              activeEntries={activeEntries}
-              reserveEntries={reserveEntries}
+              entries={entries}
               userAnswers={userAnswers}
               onSetAnswer={setAnswer}
               onClearAnswer={clearAnswer}
