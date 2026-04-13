@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/url"
 	"strconv"
 	"strings"
@@ -38,7 +39,7 @@ var (
 	extraCourses = []int{16, 11}
 )
 
-func (s *Service) createMoodleUser(ctx context.Context, data Data) (bool, error) {
+func (s *Service) createMoodleUser(ctx context.Context, data Data) (bool, string, error) {
 	username := strings.ToLower(strings.TrimSpace(data.Email))
 	courseKey := strings.TrimSpace(strings.ToLower(data.Course))
 	payload := url.Values{
@@ -67,22 +68,33 @@ func (s *Service) createMoodleUser(ctx context.Context, data Data) (bool, error)
 		if errors.Is(err, moodle.ErrUserAlreadyExists) {
 			users, findErr := s.findExistingUser(ctx, data.Email)
 			if findErr != nil {
-				return true, findErr
+				return true, "", findErr
 			}
 			if len(users) == 0 {
-				return true, fmt.Errorf("moodle user exists but no user found")
+				return true, "", fmt.Errorf("moodle user exists but no user found")
 			}
-			userID = users[0]["id"]
-			return true, s.enrolUserInCourses(ctx, userID, resolveCourses(data.Course))
+			userID := users[0].ID
+			moodleUsername := users[0].Username
+
+			// Actualizar la contraseña al DNI en mayúsculas
+			updatePayload := url.Values{
+				"users[0][id]":       {strconv.Itoa(userID)},
+				"users[0][password]": {generatePassword(data.DNI)},
+			}
+			if _, updateErr := s.callMoodle(ctx, "core_user_update_users", updatePayload); updateErr != nil {
+				log.Printf("failed to update existing moodle user password %s: %v", data.Email, updateErr)
+			}
+
+			return true, moodleUsername, s.enrolUserInCourses(ctx, userID, resolveCourses(data.Course))
 		}
-		return false, err
+		return false, "", err
 	}
 	userID, err = parseUserID(body)
 	if err != nil {
-		return false, err
+		return false, "", err
 	}
 
-	return false, s.enrolUserInCourses(ctx, userID, resolveCourses(data.Course))
+	return false, username, s.enrolUserInCourses(ctx, userID, resolveCourses(data.Course))
 }
 
 func courseCustomField(course string) []struct {
@@ -140,7 +152,7 @@ func (s *Service) enrolUserInCourse(ctx context.Context, userID, courseID int) e
 	return err
 }
 
-func (s *Service) findExistingUser(ctx context.Context, email string) ([]map[string]int, error) {
+func (s *Service) findExistingUser(ctx context.Context, email string) ([]moodle.MoodleUser, error) {
 	if s.moodleClient == nil {
 		return nil, moodle.ErrNotConfigured
 	}
@@ -153,14 +165,10 @@ func (s *Service) findExistingUser(ctx context.Context, email string) ([]map[str
 		return nil, err
 	}
 
-	result := make([]map[string]int, 0, len(users))
-	for _, user := range users {
-		result = append(result, map[string]int{"id": user.ID})
-	}
-	if len(result) == 0 {
+	if len(users) == 0 {
 		return nil, errors.New("usuario no encontrado")
 	}
-	return result, nil
+	return users, nil
 }
 
 func parseUserID(body []byte) (int, error) {

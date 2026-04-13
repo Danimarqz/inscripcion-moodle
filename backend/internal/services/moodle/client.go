@@ -23,8 +23,9 @@ var (
 )
 
 type MoodleUser struct {
-	ID   int
-	Auth string
+	ID       int
+	Auth     string
+	Username string
 }
 
 type EnrolledUser struct {
@@ -75,17 +76,69 @@ func (c *Client) FindUsersByField(ctx context.Context, field, value string) ([]M
 	if c == nil {
 		return nil, ErrNotConfigured
 	}
-	if c.db == nil {
-		return nil, ErrMoodleDBNotConfigured
+
+	// Try DB if configured
+	if c.db != nil {
+		if !strings.EqualFold(field, "email") {
+			return nil, fmt.Errorf("unsupported search field for db %q", field)
+		}
+		user, err := c.findUserByEmailDB(ctx, value)
+		if err == nil {
+			return []MoodleUser{user}, nil
+		}
+		if !errors.Is(err, ErrUserNotFound) {
+			log.Printf("moodle: database lookup failed: %v", err)
+		}
 	}
-	if !strings.EqualFold(field, "email") {
-		return nil, fmt.Errorf("unsupported search field %q", field)
-	}
-	user, err := c.findUserByEmailDB(ctx, value)
+
+	// Fallback to Moodle API
+	payload := url.Values{}
+	payload.Set("field", field)
+	payload.Set("values[0]", value)
+
+	body, err := c.call(ctx, "core_user_get_users_by_field", payload)
 	if err != nil {
 		return nil, err
 	}
-	return []MoodleUser{user}, nil
+
+	var raw []map[string]any
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, err
+	}
+
+	if len(raw) == 0 {
+		return nil, ErrUserNotFound
+	}
+
+	users := make([]MoodleUser, 0, len(raw))
+	for _, item := range raw {
+		idVal, ok := item["id"]
+		if !ok {
+			continue
+		}
+		id, err := ToInt(idVal)
+		if err != nil {
+			continue
+		}
+
+		auth := ""
+		if authVal, ok := item["auth"]; ok {
+			if str, ok := authVal.(string); ok {
+				auth = str
+			}
+		}
+
+		users = append(users, MoodleUser{
+			ID:   id,
+			Auth: auth,
+		})
+	}
+
+	if len(users) == 0 {
+		return nil, ErrUserNotFound
+	}
+
+	return users, nil
 }
 
 func (c *Client) GetEnrolledUsers(ctx context.Context, courseID int, userIDs []int) ([]EnrolledUser, error) {

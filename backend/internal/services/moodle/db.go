@@ -103,9 +103,9 @@ func (c *Client) findUserByEmailDB(ctx context.Context, email string) (MoodleUse
 		return MoodleUser{}, fmt.Errorf("invalid email")
 	}
 
-	query := fmt.Sprintf("SELECT id, auth FROM %suser WHERE LOWER(email) = ? LIMIT 1", c.tablePrefix)
+	query := fmt.Sprintf("SELECT id, auth, username FROM %suser WHERE LOWER(email) = ? LIMIT 1", c.tablePrefix)
 	var user MoodleUser
-	if err := c.db.QueryRowContext(ctx, query, normalized).Scan(&user.ID, &user.Auth); err != nil {
+	if err := c.db.QueryRowContext(ctx, query, normalized).Scan(&user.ID, &user.Auth, &user.Username); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return MoodleUser{}, ErrUserNotFound
 		}

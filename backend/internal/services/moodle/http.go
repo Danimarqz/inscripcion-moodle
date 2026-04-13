@@ -61,24 +61,34 @@ func Call(ctx context.Context, cfg *config.Config, client *http.Client, function
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("moodle error: %s", strings.TrimSpace(string(body)))
+		return nil, fmt.Errorf("moodle error on %s: %s", function, strings.TrimSpace(string(body)))
 	}
 
 	var decoded map[string]interface{}
 	if err := json.Unmarshal(body, &decoded); err == nil {
 		if exception, ok := decoded["exception"]; ok && exception != nil {
 			msg := strings.ToLower(fmt.Sprint(decoded["message"]))
-			if strings.Contains(msg, "username already exists") || strings.Contains(msg, "email address already exists") {
+			debugInfo := strings.ToLower(fmt.Sprint(decoded["debuginfo"]))
+			errorCode := strings.ToLower(fmt.Sprint(decoded["errorcode"]))
+
+			isAlreadyExists := strings.Contains(msg, "already exists") ||
+				strings.Contains(msg, "ya existe") ||
+				strings.Contains(msg, "correo") ||
+				strings.Contains(debugInfo, "already exists") ||
+				strings.Contains(debugInfo, "ya existe") ||
+				strings.Contains(debugInfo, "email address already exists")
+
+			if isAlreadyExists {
 				return nil, ErrUserAlreadyExists
 			}
-			return nil, fmt.Errorf("moodle exception: %v", decoded["message"])
+			return nil, fmt.Errorf("moodle exception on %s (code:%s): %v | debug: %v", function, errorCode, decoded["message"], decoded["debuginfo"])
 		}
 	}
 
 	return body, nil
 }
 
-func ToInt(value interface{}) (int, error) {
+func ToInt(value any) (int, error) {
 	switch v := value.(type) {
 	case float64:
 		return int(v), nil

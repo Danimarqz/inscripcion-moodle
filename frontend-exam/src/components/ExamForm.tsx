@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type {
   ExamCreateWithQuestions,
   ExamEdit,
@@ -212,17 +212,27 @@ export default function ExamForm({ examId }: ExamFormProps) {
 
   const isBusy = loading || authenticating;
   const formError = authError || error;
+  const errorRef = useRef<HTMLParagraphElement | null>(null);
 
-  const sortedEntries = useMemo(() => {
-    const entries = questions.map((question, index) => ({ index, question }));
-    entries.sort((a, b) => {
-      const aName = typeof a.question.name === 'number' ? a.question.name : Number.POSITIVE_INFINITY;
-      const bName = typeof b.question.name === 'number' ? b.question.name : Number.POSITIVE_INFINITY;
-      if (aName !== bName) return aName - bName;
-      return a.index - b.index;
-    });
-    return entries;
-  }, [questions]);
+  // Scroll the error banner into view whenever a new error appears, so an
+  // admin who clicked Guardar from the bottom of a long form actually sees
+  // why it failed instead of silently staring at an unchanged page.
+  useEffect(() => {
+    if (formError && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [formError]);
+
+  // Render in array insertion order, NOT sorted by `name`. Sorting while the
+  // admin is typing into a Nº input would make the card jump out of view and
+  // steal focus. Backend returns questions already sorted by name on load, so
+  // the initial display is correct; the admin edits numbers in place and the
+  // student view (which is read-only) is what actually renders in numeric
+  // order.
+  const questionEntries = useMemo(
+    () => questions.map((question, index) => ({ index, question })),
+    [questions],
+  );
 
   function handleToggleState(index: number, nextState: boolean) {
     updateQuestion(index, 'is_active', nextState);
@@ -354,7 +364,15 @@ export default function ExamForm({ examId }: ExamFormProps) {
       <h2 className="text-3xl font-bold text-center mb-8">{examToEdit ? 'Editar Examen' : 'Crear Examen'}</h2>
 
       {formError && (
-        <p className="text-center text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mb-6">{formError}</p>
+        <p
+          ref={errorRef}
+          role="alert"
+          aria-live="assertive"
+          tabIndex={-1}
+          className="text-center text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mb-6"
+        >
+          {formError}
+        </p>
       )}
 
       <div className="mb-6">
@@ -669,13 +687,14 @@ export default function ExamForm({ examId }: ExamFormProps) {
         <legend className="font-bold text-xl mb-4 text-brand-pink">Preguntas</legend>
 
         <p className="text-xs text-gray-400 mb-4">
-          Las preguntas se ordenan por el número (Nº) que asignes. Usa el toggle para
-          marcar una como reserva sin cambiar su posición; así puedes intercalar reservas
-          entre las preguntas normales.
+          El campo <strong>Nº</strong> define la posición final de cada pregunta para el
+          alumno. Puedes editarlos libremente (incluyendo reservas intercaladas entre
+          preguntas normales); las tarjetas no se reordenan mientras escribes para no
+          perder el foco. Al guardar, los números deben formar la secuencia 1..{questions.length}.
         </p>
 
         <section className="mt-2">
-          {sortedEntries.map((entry) => renderQuestionCard(entry))}
+          {questionEntries.map((entry) => renderQuestionCard(entry))}
         </section>
 
         <button
