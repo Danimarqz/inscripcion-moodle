@@ -180,6 +180,17 @@ func (r *submissionRepository) CreateAnswer(ctx context.Context, db *gorm.DB, an
 }
 
 func (r *submissionRepository) GetMeritsRanking(ctx context.Context, db *gorm.DB, examID uint, submissionID uint, passingThreshold float64, examWeight float64, skipWeights bool) (position *int, total *int, err error) {
+	// Check if official score override is enabled
+	var exam models.Exam
+	useOfficial := false
+	if err := db.WithContext(ctx).Select("use_official_scores").First(&exam, examID).Error; err == nil {
+		useOfficial = exam.UseOfficialScores
+	}
+
+	if useOfficial {
+		return r.getMeritsRankingWithOfficialScores(ctx, db, examID, submissionID, passingThreshold, examWeight, skipWeights)
+	}
+
 	var totalCount int64
 	if err := db.WithContext(ctx).Model(&models.UserExamSubmission{}).
 		Where("exam_id = ? AND score >= ? AND merits IS NOT NULL", examID, passingThreshold).
@@ -210,6 +221,53 @@ func (r *submissionRepository) GetMeritsRanking(ctx context.Context, db *gorm.DB
 		Count(&betterCount).Error; err != nil {
 		return nil, nil, err
 	}
+	pos := int(betterCount) + 1
+	return &pos, &totalInt, nil
+}
+
+func (r *submissionRepository) getMeritsRankingWithOfficialScores(ctx context.Context, db *gorm.DB, examID uint, submissionID uint, passingThreshold float64, examWeight float64, skipWeights bool) (position *int, total *int, err error) {
+	var scoreExpr string
+	if skipWeights {
+		scoreExpr = "(COALESCE(o.score, s.score) + COALESCE(o.merits, s.merits))"
+	} else {
+		meritsWeight := 1 - examWeight
+		scoreExpr = fmt.Sprintf("(COALESCE(o.score, s.score) * %f + COALESCE(o.merits, s.merits) * %f)", examWeight, meritsWeight)
+	}
+
+	baseJoin := `
+		FROM user_exam_submission s
+		LEFT JOIN exam_official_result o
+			ON o.exam_id = s.exam_id AND o.user_id = s.user_id
+		WHERE s.exam_id = ?
+			AND COALESCE(o.score, s.score) >= ?
+			AND COALESCE(o.merits, s.merits) IS NOT NULL`
+
+	// Total count
+	var totalCount int64
+	countSQL := "SELECT COUNT(*) " + baseJoin
+	if err := db.WithContext(ctx).Raw(countSQL, examID, passingThreshold).Scan(&totalCount).Error; err != nil {
+		return nil, nil, err
+	}
+	totalInt := int(totalCount)
+
+	// Get current submission's weighted score
+	var myScore sql.NullFloat64
+	myScoreSQL := fmt.Sprintf("SELECT %s %s AND s.id = ?", scoreExpr, baseJoin)
+	if err := db.WithContext(ctx).Raw(myScoreSQL, examID, passingThreshold, submissionID).Scan(&myScore).Error; err != nil {
+		return nil, nil, err
+	}
+
+	if !myScore.Valid {
+		return nil, &totalInt, nil
+	}
+
+	// Count submissions with a better score
+	betterSQL := fmt.Sprintf("SELECT COUNT(*) %s AND %s > ?", baseJoin, scoreExpr)
+	var betterCount int64
+	if err := db.WithContext(ctx).Raw(betterSQL, examID, passingThreshold, myScore.Float64).Scan(&betterCount).Error; err != nil {
+		return nil, nil, err
+	}
+
 	pos := int(betterCount) + 1
 	return &pos, &totalInt, nil
 }

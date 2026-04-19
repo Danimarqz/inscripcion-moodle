@@ -271,13 +271,19 @@ export default function SubmissionList({
                     </div>
                   ))}
                 </div>
-                <div className="flex flex-wrap gap-3 mt-6">
+                <div className="sticky bottom-0 z-10 bg-[#14161d] border-t border-brand-blue-soft py-3 -mx-4 px-4 mt-6 shadow-[0_-4px_12px_rgba(0,0,0,0.3)] flex flex-wrap gap-3">
                   <button
                     className="py-2 px-4 rounded bg-brand-blue text-white font-semibold hover:bg-[#12b2d4] transition-colors cursor-pointer disabled:opacity-60"
                     onClick={() => onSave(submission.id)}
                     disabled={isSaving}
                   >
                     {isSaving ? 'Guardando...' : 'Guardar cambios'}
+                  </button>
+                  <button
+                    className="py-2 px-4 rounded border border-brand-pink-soft text-brand-pink hover:bg-brand-pink-soft transition-colors cursor-pointer"
+                    onClick={() => onCancelEditing(submission.id)}
+                  >
+                    Cancelar
                   </button>
                 </div>
               </div>

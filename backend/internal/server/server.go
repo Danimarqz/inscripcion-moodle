@@ -45,7 +45,7 @@ func New(cfg *config.Config) (*Server, error) {
 
 	examRepo := repository.NewExamRepository()
 	submissionRepo := repository.NewSubmissionRepository()
-	examService := examservice.NewService(db, examRepo, submissionRepo, cfg.SMTPUser)
+	examService := examservice.NewService(db, examRepo, submissionRepo, cfg.SMTPFrom)
 
 	// Initialize background worker pools
 	email.InitWorkerPool(3)

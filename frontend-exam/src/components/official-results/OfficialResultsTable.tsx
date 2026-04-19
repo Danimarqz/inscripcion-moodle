@@ -42,6 +42,8 @@ export default function OfficialResultsTable({
       nombre: result.nombre,
       apellido_1: result.apellido_1,
       apellido_2: result.apellido_2 || '',
+      score: result.score ?? null,
+      merits: result.merits ?? null,
     });
   };
 
@@ -82,8 +84,8 @@ export default function OfficialResultsTable({
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-full text-sm text-left border border-brand-blue-soft rounded-xl overflow-hidden">
-          <thead className="bg-[#1f2229] text-brand-yellow uppercase text-xs tracking-[0.3em]">
+        <table className="w-full text-sm text-left border border-brand-blue-soft rounded-xl">
+          <thead className="bg-[#1f2229] text-brand-yellow uppercase text-xs tracking-wider">
             <tr>
               <SortableHeader
                 label="DNI"
@@ -107,6 +109,8 @@ export default function OfficialResultsTable({
                 direction={sortDirection}
                 onSort={onSort}
               />
+              <th className="px-2 py-2 text-left cursor-default whitespace-nowrap">Nota</th>
+              <th className="px-2 py-2 text-left cursor-default whitespace-nowrap">Méritos</th>
               <SortableHeader
                 label="Usuario asociado"
                 sortKey="usuario"
@@ -206,6 +210,38 @@ export default function OfficialResultsTable({
                         className="w-1/2 px-2 py-1 rounded bg-[#14161d] border border-brand-blue text-white text-xs"
                       />
                     </td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={editPayload.score ?? ''}
+                        onInput={(e) => {
+                          const val = (e.target as HTMLInputElement).value;
+                          setEditPayload({
+                            ...editPayload,
+                            score: val === '' ? null : Number(val),
+                          });
+                        }}
+                        className="w-20 px-2 py-1 rounded bg-[#14161d] border border-brand-blue text-white text-xs"
+                        placeholder="--"
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={editPayload.merits ?? ''}
+                        onInput={(e) => {
+                          const val = (e.target as HTMLInputElement).value;
+                          setEditPayload({
+                            ...editPayload,
+                            merits: val === '' ? null : Number(val),
+                          });
+                        }}
+                        className="w-20 px-2 py-1 rounded bg-[#14161d] border border-brand-blue text-white text-xs"
+                        placeholder="--"
+                      />
+                    </td>
                     <td className="px-3 py-2 text-brand-pink text-xs">{associatedUser}</td>
                     <td className="px-3 py-2 text-xs text-brand-yellow">
                       {new Date(result.created_at).toLocaleString()}
@@ -241,9 +277,15 @@ export default function OfficialResultsTable({
                   <td className="px-3 py-2 text-white text-xs">{result.result_type || 'General'}</td>
                   <td className="px-3 py-2 text-white font-semibold">{result.nombre}</td>
                   <td className="px-3 py-2 text-white">{surname}</td>
-                  <td className="px-3 py-2 text-brand-pink">
+                  <td className="px-2 py-2 text-white text-xs font-mono whitespace-nowrap">
+                    {result.score != null ? result.score.toFixed(2) : '--'}
+                  </td>
+                  <td className="px-2 py-2 text-white text-xs font-mono whitespace-nowrap">
+                    {result.merits != null ? result.merits.toFixed(2) : '--'}
+                  </td>
+                  <td className="px-2 py-2 text-brand-pink max-w-[200px]">
                     <div className="flex flex-col gap-1">
-                      <span className="text-xs">{associatedUser}</span>
+                      <span className="text-xs truncate block" title={associatedUser}>{associatedUser}</span>
                       {moodleUserId ? (
                         <a
                           href={`https://moodle.opositatcae.es/user/view.php?id=${moodleUserId}`}
@@ -260,11 +302,11 @@ export default function OfficialResultsTable({
                       )}
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-xs text-brand-yellow">
-                    {new Date(result.created_at).toLocaleString()}
+                  <td className="px-2 py-2 text-xs text-brand-yellow whitespace-nowrap">
+                    {new Date(result.created_at).toLocaleDateString()}
                   </td>
-                  <td className="px-3 py-2 text-center whitespace-nowrap">
-                    <div className="flex items-center justify-center gap-2">
+                  <td className="px-2 py-2 text-center whitespace-nowrap">
+                    <div className="flex items-center justify-center gap-1">
                       <button
                         onClick={() => startEditing(result)}
                         className="p-1 hover:text-brand-blue text-gray-400 transition-colors"
@@ -313,6 +355,22 @@ export default function OfficialResultsTable({
           </tbody>
         </table>
       </div>
+      {editingId !== null && (
+        <div className="sticky bottom-0 z-10 bg-[#14161d] border-t border-brand-blue-soft py-3 px-4 mt-2 shadow-[0_-4px_12px_rgba(0,0,0,0.3)] flex justify-end gap-3">
+          <button
+            onClick={() => handleSave(editingId)}
+            className="px-4 py-2 rounded bg-green-500 text-white text-sm font-bold hover:bg-green-600 transition-colors cursor-pointer"
+          >
+            GUARDAR
+          </button>
+          <button
+            onClick={cancelEditing}
+            className="px-4 py-2 rounded bg-gray-500 text-white text-sm font-bold hover:bg-gray-600 transition-colors cursor-pointer"
+          >
+            CANCELAR
+          </button>
+        </div>
+      )}
       <PaginationControls
         totalItems={totalResults}
         pageSize={pageSize}

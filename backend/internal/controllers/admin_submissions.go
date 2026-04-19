@@ -171,7 +171,7 @@ func (h *AdminController) sendSubmissionEmails(w http.ResponseWriter, r *http.Re
 
 	toAddress := strings.TrimSpace(h.cfg.AdminEmail)
 	if toAddress == "" {
-		toAddress = strings.TrimSpace(h.cfg.SMTPUser)
+		toAddress = strings.TrimSpace(h.cfg.SMTPFrom)
 	}
 	if toAddress == "" {
 		http.Error(w, "admin email not configured", http.StatusInternalServerError)

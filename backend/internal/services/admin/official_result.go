@@ -103,6 +103,8 @@ func (s *Service) CreateOfficialResult(examID uint, req CreateOfficialResultRequ
 	if req.ResultType != "" {
 		newResult.ResultType = req.ResultType
 	}
+	newResult.Score = req.Score
+	newResult.Merits = req.Merits
 
 	if err := s.officialRepo.Create(context.Background(), s.db, &newResult); err != nil {
 		return nil, err
@@ -131,6 +133,12 @@ func (s *Service) UpdateOfficialResult(id uint, req EditOfficialResultRequest) (
 	}
 	if req.ResultType != nil {
 		result.ResultType = *req.ResultType
+	}
+	if req.Score != nil {
+		result.Score = req.Score
+	}
+	if req.Merits != nil {
+		result.Merits = req.Merits
 	}
 
 	result.Normalize()

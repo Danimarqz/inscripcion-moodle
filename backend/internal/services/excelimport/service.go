@@ -1,12 +1,14 @@
 package excelimport
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 
 	"log"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"sync"
@@ -49,9 +51,11 @@ func (r *gormExamRepository) Find(ctx context.Context, id uint) (*models.Exam, e
 }
 
 func (s *Service) ImportOfficialResultsExcel(ctx context.Context, examID uint, r io.Reader, replaceExisting bool) (*models.ExcelImportResult, error) {
-	if _, err := s.repo.Find(ctx, examID); err != nil {
+	exam, err := s.repo.Find(ctx, examID)
+	if err != nil {
 		return nil, fmt.Errorf("exam %d not found: %w", examID, err)
 	}
+	useOfficialScores := exam.UseOfficialScores
 
 	f, err := excelize.OpenReader(r)
 	if err != nil {
@@ -74,7 +78,7 @@ func (s *Service) ImportOfficialResultsExcel(ctx context.Context, examID uint, r
 		return nil, fmt.Errorf("excel import not configured with database")
 	}
 
-	totalRows, imported, err := s.storeOfficialResults(ctx, examID, rows, replaceExisting)
+	totalRows, imported, err := s.storeOfficialResults(ctx, examID, rows, replaceExisting, useOfficialScores)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +91,7 @@ func (s *Service) ImportOfficialResultsExcel(ctx context.Context, examID uint, r
 	}, nil
 }
 
-func (s *Service) storeOfficialResults(ctx context.Context, examID uint, rows *excelize.Rows, replaceExisting bool) (totalRows int, imported int, err error) {
+func (s *Service) storeOfficialResults(ctx context.Context, examID uint, rows *excelize.Rows, replaceExisting bool, useOfficialScores bool) (totalRows int, imported int, err error) {
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if replaceExisting {
 			if err := tx.Where("exam_id = ?", examID).Delete(&models.ExamOfficialResult{}).Error; err != nil {
@@ -136,7 +140,7 @@ func (s *Service) storeOfficialResults(ctx context.Context, examID uint, rows *e
 					if len(rowData) == 0 {
 						continue
 					}
-					if res, ok := parseOfficialResultRow(examID, rowData); ok {
+					if res, ok := parseOfficialResultRow(examID, rowData, useOfficialScores); ok {
 						resultChan <- res
 					}
 				}
@@ -188,7 +192,7 @@ func cleanNameField(s string) string {
 	return helpers.NormalizeName(s)
 }
 
-func parseOfficialResultRow(examID uint, row []string) (models.ExamOfficialResult, bool) {
+func parseOfficialResultRow(examID uint, row []string, useOfficialScores bool) (models.ExamOfficialResult, bool) {
 	if len(row) < 4 {
 		return models.ExamOfficialResult{}, false
 	}
@@ -201,10 +205,6 @@ func parseOfficialResultRow(examID uint, row []string) (models.ExamOfficialResul
 	resultType := "General"
 	if len(row) >= 5 {
 		val := strings.TrimSpace(row[4])
-		// Normalize or validate if needed. For now, take as is if valid, or default.
-		// Allowed types: General, Promoción interna, Discapacidad, Otros
-		// We can do a simple check or just cleaner upper/case.
-		// Let's Capitalize first letter.
 		if val != "" {
 			resultType = val
 		}
@@ -219,12 +219,51 @@ func parseOfficialResultRow(examID uint, row []string) (models.ExamOfficialResul
 		apellido2Ptr = &apellido2
 	}
 
-	return models.ExamOfficialResult{
+	result := models.ExamOfficialResult{
 		ExamID:     examID,
 		DniMasked:  dni,
 		Apellido1:  apellido1,
 		Apellido2:  apellido2Ptr,
 		Nombre:     nombre,
 		ResultType: resultType,
-	}, true
+	}
+
+	if useOfficialScores {
+		if len(row) >= 6 {
+			if v, err := strconv.ParseFloat(strings.TrimSpace(row[5]), 64); err == nil {
+				result.Score = &v
+			}
+		}
+		if len(row) >= 7 {
+			if v, err := strconv.ParseFloat(strings.TrimSpace(row[6]), 64); err == nil {
+				result.Merits = &v
+			}
+		}
+	}
+
+	return result, true
+}
+
+func GenerateOfficialResultsTemplate(useOfficialScores bool) (*bytes.Buffer, error) {
+	f := excelize.NewFile()
+	defer func() {
+		_ = f.Close()
+	}()
+
+	sheet := f.GetSheetName(0)
+	headers := []string{"DNI", "Apellido1", "Apellido2", "Nombre", "Tipo"}
+	if useOfficialScores {
+		headers = append(headers, "Nota", "Meritos")
+	}
+
+	for i, h := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		_ = f.SetCellValue(sheet, cell, h)
+	}
+
+	buf, err := f.WriteToBuffer()
+	if err != nil {
+		return nil, fmt.Errorf("failed to write template: %w", err)
+	}
+	return buf, nil
 }

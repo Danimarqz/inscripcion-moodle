@@ -60,6 +60,7 @@ type Exam struct {
 	MaxMerits            float64              `gorm:"column:max_merits;default:100" json:"max_merits"`
 	DisplayExamWeight    *float64             `gorm:"column:display_exam_weight" json:"display_exam_weight"`
 	SkipWeights          bool                 `gorm:"column:skip_weights;default:false" json:"skip_weights"`
+	UseOfficialScores    bool                 `gorm:"column:use_official_scores;default:false" json:"use_official_scores"`
 	Questions            []Question           `gorm:"foreignKey:ExamID" json:"questions"`
 	Submissions          []UserExamSubmission `gorm:"foreignKey:ExamID" json:"submissions"`
 }
@@ -146,6 +147,8 @@ type ExamOfficialResult struct {
 	Apellido2  *string   `gorm:"column:apellido_2" json:"apellido_2,omitempty"`
 	Nombre     string    `gorm:"column:nombre" json:"nombre"`
 	ResultType string    `gorm:"column:result_type;default:'General'" json:"result_type"`
+	Score      *float64  `gorm:"column:score" json:"score,omitempty"`
+	Merits     *float64  `gorm:"column:merits" json:"merits,omitempty"`
 	CreatedAt  time.Time `gorm:"column:created_at" json:"created_at"`
 	Exam       Exam      `gorm:"foreignKey:ExamID" json:"exam"`
 	User       *ExamUser `gorm:"foreignKey:UserID" json:"user"`

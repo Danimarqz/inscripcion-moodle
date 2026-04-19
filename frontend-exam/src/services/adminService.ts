@@ -400,3 +400,24 @@ export async function deleteSubmissionAttempt(submissionId: number, token: strin
     token,
   });
 }
+
+export async function downloadOfficialResultsTemplate(examId: number, token: string): Promise<void> {
+  const API_URL = import.meta.env.PUBLIC_API_URL;
+  const response = await fetch(
+    `${API_URL}/admin/exams/${examId}/results/official/template`,
+    {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+  if (!response.ok) {
+    throw new Error('Error descargando plantilla');
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'plantilla_resultados_oficiales.xlsx';
+  a.click();
+  URL.revokeObjectURL(url);
+}

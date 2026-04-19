@@ -35,6 +35,7 @@ var (
 		"xunta":       89,
 		"sas":         19,
 		"sermas":      20,
+		"sepad":			133,
 	}
 	extraCourses = []int{16, 11}
 )

@@ -11,7 +11,9 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/inscripcion-moodle/go-backend/internal/constants"
+	"github.com/inscripcion-moodle/go-backend/internal/models"
 	"github.com/inscripcion-moodle/go-backend/internal/services/admin"
+	"github.com/inscripcion-moodle/go-backend/internal/services/excelimport"
 )
 
 func (h *AdminController) createOfficialResult(w http.ResponseWriter, r *http.Request) {
@@ -161,4 +163,29 @@ func (h *AdminController) deleteOfficialResult(w http.ResponseWriter, r *http.Re
 
 	log.Printf("AUDIT: deleteOfficialResult: id=%d", id)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *AdminController) downloadOfficialResultsTemplate(w http.ResponseWriter, r *http.Request) {
+	examID, err := parseUintURLParam(r, "exam_id")
+	if err != nil {
+		http.Error(w, constants.InvalidExamID, http.StatusBadRequest)
+		return
+	}
+
+	var exam models.Exam
+	if err := h.db.First(&exam, examID).Error; err != nil {
+		http.Error(w, constants.ExamNotFound, http.StatusNotFound)
+		return
+	}
+
+	buf, err := excelimport.GenerateOfficialResultsTemplate(exam.UseOfficialScores)
+	if err != nil {
+		http.Error(w, "failed to generate template", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	w.Header().Set("Content-Disposition", "attachment; filename=plantilla_resultados_oficiales.xlsx")
+	w.WriteHeader(http.StatusOK)
+	_, _ = io.Copy(w, buf)
 }

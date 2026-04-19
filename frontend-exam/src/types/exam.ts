@@ -16,6 +16,7 @@ export type Exam = {
   passing_criteria_value?: number | null;
   exam_weight?: number;
   max_merits?: number;
+  use_official_scores?: boolean;
 };
 export type ExamOut = {
   score?: number | null;
@@ -158,6 +159,7 @@ export type ExamCreateWithQuestions = {
   max_merits?: number;
   display_exam_weight?: number | null;
   skip_weights?: boolean;
+  use_official_scores?: boolean;
   questions: QuestionCreate[];
 };
 
@@ -188,6 +190,7 @@ export type ExamEdit = {
   display_exam_weight?: number | null;
   clear_display_weight?: boolean;
   skip_weights?: boolean;
+  use_official_scores?: boolean;
   questions: QuestionEdit[];
 };
 
@@ -214,6 +217,8 @@ export type ExamOfficialResult = {
   apellido_2?: string | null;
   nombre: string;
   result_type: string;
+  score?: number | null;
+  merits?: number | null;
   created_at: string;
 };
 
@@ -223,6 +228,8 @@ export type CreateOfficialResultPayload = {
   apellido_2?: string | null;
   nombre: string;
   result_type: string;
+  score?: number | null;
+  merits?: number | null;
 };
 
 export type EditOfficialResultPayload = {
@@ -231,6 +238,8 @@ export type EditOfficialResultPayload = {
   apellido_2?: string | null;
   nombre?: string;
   result_type?: string;
+  score?: number | null;
+  merits?: number | null;
 };
 
 

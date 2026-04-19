@@ -471,8 +471,19 @@ func (s *Service) UpdateMerits(req UpdateMeritsRequest) (*UpdateMeritsResponse, 
 		return nil, ErrMeritsAlreadySet
 	}
 
+	// Use official score for pass evaluation when override is enabled
+	effectiveScore := submission.Score
+	if submission.Exam.UseOfficialScores && submission.UserID != 0 {
+		var official models.ExamOfficialResult
+		if err := s.db.Where("exam_id = ? AND user_id = ?", submission.Exam.ID, submission.UserID).First(&official).Error; err == nil {
+			if official.Score != nil {
+				effectiveScore = official.Score
+			}
+		}
+	}
+
 	threshold := submission.Exam.PassingThreshold
-	isPassed := evaluatePassStatus(submission.Score, threshold)
+	isPassed := evaluatePassStatus(effectiveScore, threshold)
 	if isPassed == nil || !*isPassed {
 		return nil, ErrNotPassed
 	}
@@ -499,13 +510,13 @@ func (s *Service) UpdateMerits(req UpdateMeritsRequest) (*UpdateMeritsResponse, 
 		}
 	}
 
-	if req.Merits != nil && submission.Score != nil {
+	if req.Merits != nil && effectiveScore != nil {
 		var ws float64
 		if submission.Exam.SkipWeights {
-			ws = math.Round((*submission.Score+*req.Merits)*1000) / 1000
+			ws = math.Round((*effectiveScore+*req.Merits)*1000) / 1000
 		} else {
 			ew := submission.Exam.ExamWeight
-			ws = math.Round((*submission.Score*ew+*req.Merits*(1-ew))*1000) / 1000
+			ws = math.Round((*effectiveScore*ew+*req.Merits*(1-ew))*1000) / 1000
 		}
 		resp.WeightedScore = &ws
 	}
@@ -679,7 +690,29 @@ func evaluatePassStatus(score *float64, threshold *float64) *bool {
 	return &passed
 }
 
+// applyOfficialScoreOverride overrides submission score/merits in memory when
+// the exam has UseOfficialScores enabled and a linked official result exists.
+func applyOfficialScoreOverride(db *gorm.DB, exam *models.Exam, submission *models.UserExamSubmission) {
+	if !exam.UseOfficialScores || submission.UserID == 0 {
+		return
+	}
+	var official models.ExamOfficialResult
+	if err := db.Where("exam_id = ? AND user_id = ?", exam.ID, submission.UserID).First(&official).Error; err != nil {
+		return
+	}
+	if official.Score != nil {
+		v := *official.Score
+		submission.Score = &v
+	}
+	if official.Merits != nil {
+		v := *official.Merits
+		submission.Merits = &v
+	}
+}
+
 func (s *Service) buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submission *models.UserExamSubmission, message string, breakdown *ScoreBreakdown, examRepo repository.ExamRepository, submissionRepo repository.SubmissionRepository) (*SubmissionPayload, error) {
+	applyOfficialScoreOverride(tx, exam, submission)
+
 	payload := &SubmissionPayload{
 		Message:            message,
 		Merits:             submission.Merits,

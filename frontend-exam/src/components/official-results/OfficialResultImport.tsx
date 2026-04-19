@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { importOfficialResults } from '../../services/adminService';
+import { importOfficialResults, downloadOfficialResultsTemplate } from '../../services/adminService';
 import type { ImportOfficialResultsSummary } from '../../types/exam';
 
 interface OfficialResultImportProps {
@@ -90,6 +90,23 @@ export default function OfficialResultImport({
           {importing ? 'Importando...' : 'Importar Excel'}
         </button>
       </form>
+
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              await downloadOfficialResultsTemplate(Number(examId), token);
+            } catch (err) {
+              onError(err instanceof Error ? err.message : String(err));
+            }
+          }}
+          className="py-2 px-4 rounded font-semibold bg-brand-yellow text-[#14161d] text-sm hover:bg-yellow-400 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+          disabled={!examId}
+        >
+          Descargar plantilla
+        </button>
+      </div>
 
       <label className="flex items-center gap-2 cursor-pointer group">
         <input

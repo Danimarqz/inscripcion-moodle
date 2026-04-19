@@ -33,6 +33,7 @@ type Config struct {
 	ServerWriteTimeout time.Duration
 	ServerIdleTimeout  time.Duration
 	SMTPUser           string
+	SMTPFrom           string
 	SMTPPass           string
 	SMTPServer         string
 	SMTPPort           int
@@ -90,6 +91,7 @@ func Load() (*Config, error) {
 		TokenAlgorithm:     parseEnvString("ALGORITHM", "HS256"),
 		TokenTTLMinutes:    tokenTTL,
 		SMTPUser:           os.Getenv("SMTP_USER"),
+		SMTPFrom:           os.Getenv("SMTP_FROM"),
 		SMTPPass:           os.Getenv("SMTP_PASS"),
 		SMTPServer:         parseEnvString("SMTP_SERVER", "smtp.gmail.com"),
 		SMTPPort:           parseEnvInt("SMTP_PORT", 587),

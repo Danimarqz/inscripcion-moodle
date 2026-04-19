@@ -108,11 +108,11 @@ func SendEmail(cfg *config.Config, to []string, subject, body string, attachment
 		return errors.New("no valid recipients specified")
 	}
 
-	msg, err := buildMessage(cfg.SMTPUser, strings.Join(to, ", "), subject, body, attachments, bcc)
+	msg, err := buildMessage(cfg.SMTPFrom, strings.Join(to, ", "), subject, body, attachments, bcc)
 	if err != nil {
 		return err
 	}
-	return smtp.SendMail(addr, auth, cfg.SMTPUser, recipients, msg)
+	return smtp.SendMail(addr, auth, cfg.SMTPFrom, recipients, msg)
 }
 
 func buildMessage(from, to, subject, body string, attachments []Attachment, bcc []string) ([]byte, error) {

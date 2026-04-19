@@ -164,7 +164,29 @@ func (r *examRepository) RecalculateScores(ctx context.Context, db *gorm.DB, exa
 }
 
 func (r *examRepository) RecalculatePercentiles(ctx context.Context, db *gorm.DB, examID uint) error {
-	const percentileSQL = `
+	var exam models.Exam
+	if err := db.WithContext(ctx).Select("use_official_scores").First(&exam, examID).Error; err != nil {
+		// Fallback to standard percentile if exam not found
+		exam.UseOfficialScores = false
+	}
+
+	var percentileSQL string
+	if exam.UseOfficialScores {
+		percentileSQL = `
+UPDATE user_exam_submission AS u
+JOIN (
+    SELECT
+        s.id,
+        ROUND(CUME_DIST() OVER (ORDER BY COALESCE(o.score, s.score) ASC) * 100, 2) AS pct
+    FROM user_exam_submission s
+    LEFT JOIN exam_official_result o
+        ON o.exam_id = s.exam_id AND o.user_id = s.user_id AND o.score IS NOT NULL
+    WHERE s.exam_id = ? AND (s.score IS NOT NULL OR o.score IS NOT NULL)
+) ranked ON ranked.id = u.id
+SET u.percentile = ranked.pct
+WHERE u.exam_id = ?`
+	} else {
+		percentileSQL = `
 UPDATE user_exam_submission AS u
 JOIN (
     SELECT
@@ -175,6 +197,7 @@ JOIN (
 ) ranked ON ranked.id = u.id
 SET u.percentile = ranked.pct
 WHERE u.exam_id = ?`
+	}
 
 	if err := db.WithContext(ctx).Exec(percentileSQL, examID, examID).Error; err != nil {
 		log.Printf("ERROR: RecalculatePercentiles SQL failed: %v", err)

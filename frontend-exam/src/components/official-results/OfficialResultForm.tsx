@@ -17,12 +17,16 @@ export default function OfficialResultForm({ examId, token, onSuccess, onError }
     apellido2: string;
     nombre: string;
     resultType: string;
+    score: string;
+    merits: string;
   }>({
     dni: '',
     apellido1: '',
     apellido2: '',
     nombre: '',
     resultType: 'General',
+    score: '',
+    merits: '',
   });
 
   async function handleCreateResult(event: Event) {
@@ -55,6 +59,8 @@ export default function OfficialResultForm({ examId, token, onSuccess, onError }
       nombre,
       ...(apellido2 ? { apellido_2: apellido2 } : {}),
       result_type: resultType,
+      ...(manualResult.score !== '' ? { score: Number(manualResult.score) } : {}),
+      ...(manualResult.merits !== '' ? { merits: Number(manualResult.merits) } : {}),
     };
 
     setCreating(true);
@@ -62,7 +68,7 @@ export default function OfficialResultForm({ examId, token, onSuccess, onError }
 
     try {
       await createOfficialResult(examNumericId, payload, token);
-      setManualResult({ dni: '', apellido1: '', apellido2: '', nombre: '', resultType: 'General' });
+      setManualResult({ dni: '', apellido1: '', apellido2: '', nombre: '', resultType: 'General', score: '', merits: '' });
       onSuccess('Registro agregado correctamente.');
     } catch (err) {
       onError(err instanceof Error ? err.message : String(err));
@@ -73,7 +79,7 @@ export default function OfficialResultForm({ examId, token, onSuccess, onError }
 
   return (
     <form
-      className="grid gap-3 md:grid-cols-[repeat(6,minmax(0,1fr))] items-end bg-[#14161d] border border-brand-blue-soft rounded-2xl p-4 shadow-xl"
+      className="grid gap-3 md:grid-cols-[repeat(8,minmax(0,1fr))] items-end bg-[#14161d] border border-brand-blue-soft rounded-2xl p-4 shadow-xl"
       onSubmit={handleCreateResult}
     >
       <div className="flex flex-col gap-1">
@@ -153,6 +159,34 @@ export default function OfficialResultForm({ examId, token, onSuccess, onError }
           <option value="Discapacidad">Discapacidad</option>
           <option value="Otros">Otros</option>
         </select>
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-brand-pink font-semibold uppercase tracking-[0.25em]">Nota</label>
+        <input
+          type="number"
+          step="0.0001"
+          value={manualResult.score}
+          onInput={(event) =>
+            setManualResult((prev) => ({ ...prev, score: (event.target as HTMLInputElement).value }))
+          }
+          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
+          placeholder="Opcional"
+          disabled={!examId || creating}
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-brand-pink font-semibold uppercase tracking-[0.25em]">Meritos</label>
+        <input
+          type="number"
+          step="0.0001"
+          value={manualResult.merits}
+          onInput={(event) =>
+            setManualResult((prev) => ({ ...prev, merits: (event.target as HTMLInputElement).value }))
+          }
+          className="px-3 py-2 rounded border border-[#444] bg-[#1f2229] text-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
+          placeholder="Opcional"
+          disabled={!examId || creating}
+        />
       </div>
       <div className="flex md:justify-end">
         <button
