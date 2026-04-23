@@ -19,6 +19,6 @@
     "typescript": "^5.9.3"
   },
   "devDependencies": {
-    "@astrojs/node": "^10.0.3"
+    "@astrojs/node": "^10.0.5"
   }
 }
