@@ -266,7 +266,10 @@ export default function ExamForm({ examId }: ExamFormProps) {
     const isReserve = question.is_active === false;
     const key = question.id ?? `q-${index}`;
     const isCancelled = question.is_cancelled === true;
-    const label = `${isReserve ? 'Reserva' : 'Pregunta'} ${question.name ?? '?'}`;
+    const customLabel = typeof question.label === 'string' ? question.label.trim() : '';
+    const label = customLabel
+      ? customLabel
+      : `${isReserve ? 'Reserva' : 'Pregunta'} ${question.name ?? '?'}`;
     const badgeConfig = isCancelled
       ? {
           text: 'Anulada',
@@ -300,22 +303,40 @@ export default function ExamForm({ examId }: ExamFormProps) {
         badgeClassName={badgeConfig.className}
         meta={meta}
       >
-        <label className="block font-bold text-brand-pink mb-2">
-          Nº:
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={typeof question.name === 'number' ? question.name : ''}
-            onInput={(e) => {
-              const raw = (e.target as HTMLInputElement).value;
-              const parsed = parseInt(raw, 10);
-              updateQuestion(index, 'name', Number.isFinite(parsed) && parsed > 0 ? parsed : undefined);
-            }}
-            className="w-24 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/50 mb-3"
-            disabled={isBusy}
-          />
-        </label>
+        <div className="flex flex-wrap gap-4 mb-3">
+          <label className="block font-bold text-brand-pink">
+            Nº:
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={typeof question.name === 'number' ? question.name : ''}
+              onInput={(e) => {
+                const raw = (e.target as HTMLInputElement).value;
+                const parsed = parseInt(raw, 10);
+                updateQuestion(index, 'name', Number.isFinite(parsed) && parsed > 0 ? parsed : undefined);
+              }}
+              className="block w-24 mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/50"
+              disabled={isBusy}
+            />
+          </label>
+          <label className="block font-bold text-brand-pink">
+            Etiqueta:
+            <input
+              type="text"
+              maxLength={32}
+              placeholder="R1, Extra…"
+              value={question.label ?? ''}
+              onInput={(e) => {
+                const raw = (e.currentTarget as HTMLInputElement).value;
+                const trimmed = raw.trim();
+                updateQuestion(index, 'label', trimmed === '' ? null : raw);
+              }}
+              className="block w-40 mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/50"
+              disabled={isBusy}
+            />
+          </label>
+        </div>
         <label className="block font-bold text-brand-pink mb-2">
           Opcion correcta:
           <select

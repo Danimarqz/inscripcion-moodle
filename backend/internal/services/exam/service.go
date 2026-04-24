@@ -860,6 +860,19 @@ func fetchScoreBreakdownFromDB(tx *gorm.DB, exam *models.Exam, answersData *mode
 	return breakdown, nil
 }
 
+func effectiveQuestionLabel(q models.Question) string {
+	if q.Label != nil {
+		if trimmed := strings.TrimSpace(*q.Label); trimmed != "" {
+			return trimmed
+		}
+	}
+	prefix := "Pregunta"
+	if !q.IsActive {
+		prefix = "Reserva"
+	}
+	return fmt.Sprintf("%s %d", prefix, q.Name)
+}
+
 func buildAnswersReview(tx *gorm.DB, exam *models.Exam, submission *models.UserExamSubmission) ([]AnswerReview, error) {
 	questions := exam.Questions
 	if len(questions) == 0 {
@@ -898,7 +911,7 @@ func buildAnswersReview(tx *gorm.DB, exam *models.Exam, submission *models.UserE
 		}
 		review = append(review, AnswerReview{
 			QuestionID:     question.ID,
-			QuestionLabel:  new(question.Name),
+			QuestionLabel:  effectiveQuestionLabel(question),
 			SelectedOption: selectedPtr,
 			CorrectOption:  correctPtr,
 			IsCorrect:      has && correctPtr != nil && selectedPtr != nil && strings.EqualFold(*selectedPtr, *correctPtr),

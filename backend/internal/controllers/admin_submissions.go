@@ -73,10 +73,14 @@ func (h *AdminController) downloadSubmissionEmails(w http.ResponseWriter, r *htt
 		return
 	}
 
-	filename := fmt.Sprintf("emails_exam_%d.txt", examID)
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	filename := fmt.Sprintf("emails_exam_%d.csv", examID)
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
-	if _, err := w.Write([]byte(strings.Join(emails, "\n"))); err != nil {
+	body := "email"
+	if len(emails) > 0 {
+		body += "\n" + strings.Join(emails, "\n")
+	}
+	if _, err := w.Write([]byte(body)); err != nil {
 		log.Printf("failed to write emails response: %v", err)
 	}
 }

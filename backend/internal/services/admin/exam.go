@@ -106,6 +106,7 @@ func createQuestions(inputs []QuestionInput) ([]models.Question, error) {
 		model := models.Question{
 			ID:            0,
 			Name:          *input.Name,
+			Label:         normalizeLabel(input.Label),
 			IsActive:      isActive,
 			IsCancelled:   isCancelled,
 			CorrectOption: normalizedOption,
@@ -323,6 +324,7 @@ func (s *Service) mergeQuestions(examID uint, existing []models.Question, inputs
 		model.ExamID = examID
 
 		model.Name = *input.Name
+		model.Label = normalizeLabel(input.Label)
 
 		questions = append(questions, model)
 	}

@@ -1,0 +1,2 @@
+ALTER TABLE question
+  ADD COLUMN label VARCHAR(32) NULL AFTER name;

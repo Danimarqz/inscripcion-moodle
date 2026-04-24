@@ -1,11 +1,19 @@
 package admin
 
-func questionInputNames(inputs []QuestionInput) []int {
-	names := make([]int, 0, len(inputs))
-	for _, q := range inputs {
-		if q.Name != nil && *q.Name > 0 {
-			names = append(names, *q.Name)
-		}
+import "strings"
+
+const maxQuestionLabelLen = 32
+
+func normalizeLabel(l *string) *string {
+	if l == nil {
+		return nil
 	}
-	return names
+	s := strings.TrimSpace(*l)
+	if s == "" {
+		return nil
+	}
+	if len([]rune(s)) > maxQuestionLabelLen {
+		s = string([]rune(s)[:maxQuestionLabelLen])
+	}
+	return &s
 }

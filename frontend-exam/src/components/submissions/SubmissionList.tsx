@@ -242,7 +242,11 @@ export default function SubmissionList({
                       className="flex flex-col gap-4 rounded border border-[#444] bg-[#171a23] p-4"
                     >
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-brand-pink">Pregunta {index + 1}</span>
+                        <span className="font-semibold text-brand-pink">
+                          {question.label?.trim()
+                            ? question.label.trim()
+                            : `Pregunta ${question.name ?? index + 1}`}
+                        </span>
                         {question.is_active === false && (
                           <span className="text-xs font-semibold px-2 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/50">
                             Reserva

@@ -406,17 +406,18 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
         type: filterType,
       });
       const lines = content.split(/\r?\n/).map((line) => line.trim()).filter((line) => line !== '');
-      if (lines.length === 0) { setDownloadError('No hay correos para descargar con los filtros actuales.'); return; }
-      const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+      const emailCount = lines.length > 0 && lines[0].toLowerCase() === 'email' ? lines.length - 1 : lines.length;
+      if (emailCount === 0) { setDownloadError('No hay correos para descargar con los filtros actuales.'); return; }
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `emails_${examId}.txt`;
+      anchor.download = `emails_${examId}.csv`;
       document.body.appendChild(anchor);
       anchor.click();
       document.body.removeChild(anchor);
       URL.revokeObjectURL(url);
-      setDownloadMessage(`Descargados ${lines.length} emails.`);
+      setDownloadMessage(`Descargados ${emailCount} emails.`);
     } catch (err) {
       setDownloadError(err instanceof Error ? err.message : String(err));
     } finally {

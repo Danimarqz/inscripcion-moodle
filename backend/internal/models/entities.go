@@ -70,12 +70,13 @@ func (Exam) TableName() string {
 }
 
 type Question struct {
-	ID            uint   `gorm:"column:id;primaryKey" json:"id"`
-	ExamID        uint   `gorm:"column:exam_id;index:idx_question_exam_id" json:"exam_id"`
-	Name          int    `gorm:"column:name" json:"name"`
-	CorrectOption string `gorm:"column:correct_option" json:"correct_option"`
-	IsActive      bool   `gorm:"column:is_active" json:"is_active"`
-	IsCancelled   bool   `gorm:"column:is_cancelled" json:"is_cancelled"`
+	ID            uint    `gorm:"column:id;primaryKey" json:"id"`
+	ExamID        uint    `gorm:"column:exam_id;index:idx_question_exam_id" json:"exam_id"`
+	Name          int     `gorm:"column:name" json:"name"`
+	Label         *string `gorm:"column:label" json:"label,omitempty"`
+	CorrectOption string  `gorm:"column:correct_option" json:"correct_option"`
+	IsActive      bool    `gorm:"column:is_active" json:"is_active"`
+	IsCancelled   bool    `gorm:"column:is_cancelled" json:"is_cancelled"`
 }
 
 func (Question) TableName() string {

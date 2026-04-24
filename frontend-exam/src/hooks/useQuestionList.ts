@@ -7,6 +7,7 @@ type QuestionShape = {
   is_active?: boolean;
   is_cancelled?: boolean;
   name?: number;
+  label?: string | null;
 };
 
 type UpdateField = keyof QuestionShape;

@@ -45,6 +45,7 @@ export type ExamOut = {
 export type Question = {
   id: number;
   name: number;
+  label?: string | null;
   correct_option?: string;
   is_active: boolean;
   is_cancelled?: boolean;
@@ -137,6 +138,7 @@ export type OfficialResultCheckResponse = {
 export type QuestionCreate = {
   id?: number;
   name?: number;
+  label?: string | null;
   correct_option: string;
   is_active?: boolean;
   is_cancelled?: boolean;
@@ -166,6 +168,7 @@ export type ExamCreateWithQuestions = {
 export type QuestionEdit = {
   id?: number;
   name?: number;
+  label?: string | null;
   correct_option: string;
   is_active?: boolean;
   is_cancelled?: boolean;
@@ -196,7 +199,7 @@ export type ExamEdit = {
 
 export type AnswerReview = {
   question_id: number;
-  question_label?: number | null;
+  question_label?: string | null;
   selected_option?: string | null;
   correct_option?: string | null;
   is_correct: boolean;

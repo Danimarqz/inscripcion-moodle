@@ -3,11 +3,12 @@ package admin
 import "github.com/inscripcion-moodle/go-backend/internal/models"
 
 type QuestionInput struct {
-	ID            *uint  `json:"id,omitempty"`
-	Name          *int   `json:"name,omitempty"`
-	CorrectOption string `json:"correct_option"`
-	IsActive      *bool  `json:"is_active,omitempty"`
-	IsCancelled   *bool  `json:"is_cancelled,omitempty"`
+	ID            *uint   `json:"id,omitempty"`
+	Name          *int    `json:"name,omitempty"`
+	Label         *string `json:"label,omitempty"`
+	CorrectOption string  `json:"correct_option"`
+	IsActive      *bool   `json:"is_active,omitempty"`
+	IsCancelled   *bool   `json:"is_cancelled,omitempty"`
 }
 
 type CreateExamRequest struct {

@@ -75,7 +75,7 @@ type UpdateMeritsResponse struct {
 
 type AnswerReview struct {
 	QuestionID     uint    `json:"question_id"`
-	QuestionLabel  *int    `json:"question_label"`
+	QuestionLabel  string  `json:"question_label"`
 	SelectedOption *string `json:"selected_option"`
 	CorrectOption  *string `json:"correct_option"`
 	IsCorrect      bool    `json:"is_correct"`

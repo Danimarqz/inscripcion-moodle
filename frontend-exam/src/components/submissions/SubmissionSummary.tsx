@@ -147,7 +147,7 @@ export default function SubmissionSummary({
               </thead>
               <tbody>
                 {review.map((item, index) => {
-                  const questionNumber = item.question_label ?? index + 1;
+                  const questionLabel = item.question_label ?? `Pregunta ${index + 1}`;
                   const selected = item.selected_option ?? 'Sin marcar';
                   const correct = item.correct_option ?? '-';
                   const isAnswered = Boolean(item.selected_option);
@@ -169,7 +169,7 @@ export default function SubmissionSummary({
                   return (
                     <tr key={`${item.question_id}-${index}`} className={rowClass}>
                       <td className="px-4 py-2 font-semibold text-white">
-                        Pregunta {questionNumber}
+                        {questionLabel}
                       </td>
                       <td className="px-4 py-2">
                         <span
