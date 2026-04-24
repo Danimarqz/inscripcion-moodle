@@ -84,3 +84,6 @@ pnpm-debug.log*
 .idea/
 
 # politica-de-privacidad.astro
+
+# Local deploy script (contiene host/usuario de produccion)
+deploy.ps1
