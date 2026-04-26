@@ -196,6 +196,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
         is_active: q.is_active !== false,
         is_cancelled: q.is_cancelled === true,
         name: q.name as number,
+        label: q.label ?? null,
       })),
     };
 

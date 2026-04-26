@@ -196,6 +196,7 @@ func (s *Service) GetQuestionStubs(ctx context.Context, examID uint) ([]Question
 		stubs = append(stubs, QuestionStub{
 			ID:          question.ID,
 			Name:        question.Name,
+			Label:       question.Label,
 			IsActive:    question.IsActive,
 			IsCancelled: question.IsCancelled,
 		})
@@ -861,14 +862,14 @@ func fetchScoreBreakdownFromDB(tx *gorm.DB, exam *models.Exam, answersData *mode
 }
 
 func effectiveQuestionLabel(q models.Question) string {
-	if q.Label != nil {
-		if trimmed := strings.TrimSpace(*q.Label); trimmed != "" {
-			return trimmed
-		}
-	}
 	prefix := "Pregunta"
 	if !q.IsActive {
 		prefix = "Reserva"
+	}
+	if q.Label != nil {
+		if trimmed := strings.TrimSpace(*q.Label); trimmed != "" {
+			return fmt.Sprintf("%s %s", prefix, trimmed)
+		}
 	}
 	return fmt.Sprintf("%s %d", prefix, q.Name)
 }

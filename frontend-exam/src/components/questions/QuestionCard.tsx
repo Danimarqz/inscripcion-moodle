@@ -27,7 +27,8 @@ function QuestionCard({
   const isCancelled = question.is_cancelled === true;
   const displayName = question.name ?? position;
   const customLabel = question.label?.trim();
-  const label = customLabel ? customLabel : `${isReserve ? 'Reserva' : 'Pregunta'} ${displayName}`;
+  const prefix = isReserve ? 'Reserva' : 'Pregunta';
+  const label = `${prefix} ${customLabel || displayName}`;
   const badgeConfig = isCancelled
     ? {
         text: 'Anulada',

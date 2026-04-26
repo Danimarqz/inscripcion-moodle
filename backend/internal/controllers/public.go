@@ -30,13 +30,6 @@ const (
 	moodleSyncTimeout    = 15 * time.Second
 )
 
-type QuestionStub struct {
-	ID          uint `json:"id"`
-	Name        int  `json:"name"`
-	IsActive    bool `json:"is_active"`
-	IsCancelled bool `json:"is_cancelled"`
-}
-
 type PublicController struct {
 	db           *gorm.DB
 	cache        *cache.Cache

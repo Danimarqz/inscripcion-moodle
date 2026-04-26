@@ -90,8 +90,9 @@ type ScoreBreakdown struct {
 }
 
 type QuestionStub struct {
-	ID          uint `json:"id"`
-	Name        int  `json:"name"`
-	IsActive    bool `json:"is_active"`
-	IsCancelled bool `json:"is_cancelled"`
+	ID          uint    `json:"id"`
+	Name        int     `json:"name"`
+	Label       *string `json:"label,omitempty"`
+	IsActive    bool    `json:"is_active"`
+	IsCancelled bool    `json:"is_cancelled"`
 }
