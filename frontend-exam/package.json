@@ -12,7 +12,7 @@
     "@astrojs/check": "^0.9.8",
     "@astrojs/preact": "^5.1.2",
     "@tailwindcss/vite": "^4.1.11",
-    "astro": "^6.1.9",
+    "astro": "^6.3.1",
     "preact": "^10.27.0",
     "preact-render-to-string": "^6.5.13",
     "tailwindcss": "^4.1.11",
