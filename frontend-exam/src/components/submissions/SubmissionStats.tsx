@@ -9,7 +9,6 @@ interface SubmissionStatsProps {
 export default function SubmissionStats({
   totalSubmissions,
   averageScore,
-  needsStats,
   selectedExamName,
   loading,
 }: SubmissionStatsProps) {

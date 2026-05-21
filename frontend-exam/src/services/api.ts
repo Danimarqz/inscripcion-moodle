@@ -4,6 +4,7 @@ const TIMEOUT_MS = 15_000;
 
 interface RequestOptions extends RequestInit {
   token?: string;
+  timeoutMs?: number;
 }
 
 export class ApiError extends Error {
@@ -15,12 +16,12 @@ export class ApiError extends Error {
 
 export async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   // Discard any caller-supplied signal; we manage our own timeout.
-  const { token, headers, signal: _ignored, ...rest } = options;
+  const { token, headers, signal: _ignored, timeoutMs, ...rest } = options;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(
     () => controller.abort(new DOMException('Request timed out', 'TimeoutError')),
-    TIMEOUT_MS,
+    timeoutMs ?? TIMEOUT_MS,
   );
 
   const defaultHeaders: HeadersInit = {

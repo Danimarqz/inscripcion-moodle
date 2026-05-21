@@ -49,6 +49,12 @@ type Config struct {
 	MoodleDBPrefix     string
 	GSheetAPI          string
 	MoodleExamCourseID int
+	ApacheLogDir       string
+	ApacheLogPattern   string
+	LogsCacheTTL       time.Duration
+	IPHashSalt         string
+	LogsSummaryDir     string
+	LogsWarmupConcurrency int
 }
 
 func Load() (*Config, error) {
@@ -107,6 +113,12 @@ func Load() (*Config, error) {
 		MoodleDBPrefix:     parseEnvString("MOODLE_DB_PREFIX", "mdl_"),
 		GSheetAPI:          os.Getenv("API_GSHEET"),
 		MoodleExamCourseID: parseEnvInt("MOODLE_EXAM_COURSE_ID", 49),
+		ApacheLogDir:       parseEnvString("APACHE_LOG_DIR", "/opt/bitnami/apache2/logs"),
+		ApacheLogPattern:   parseEnvString("APACHE_LOG_PATTERN", "access_log*"),
+		LogsCacheTTL:       time.Duration(parseEnvInt("LOGS_CACHE_TTL_SECONDS", 300)) * time.Second,
+		IPHashSalt:         os.Getenv("IP_HASH_SALT"),
+		LogsSummaryDir:     parseEnvString("LOGS_SUMMARY_DIR", "/home/bitnami/logs-summaries"),
+		LogsWarmupConcurrency: parseEnvInt("LOGS_WARMUP_CONCURRENCY", 1),
 	}, nil
 }
 

@@ -87,3 +87,5 @@ pnpm-debug.log*
 
 # Local deploy script (contiene host/usuario de produccion)
 deploy.ps1
+deploy.sh
+deploy.env

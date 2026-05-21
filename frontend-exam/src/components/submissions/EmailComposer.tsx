@@ -1,4 +1,3 @@
-import type { JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 
 export type EmailCandidate = {
@@ -74,7 +73,7 @@ export default function EmailComposer({
     };
   }, [isDragging]);
 
-  const handleStartDrag = (event: JSX.TargetedEvent<HTMLHeadingElement, PointerEvent>) => {
+  const handleStartDrag = (event: PointerEvent) => {
     event.preventDefault();
     const rect = dialogRef.current?.getBoundingClientRect();
     if (!rect) {
@@ -87,7 +86,7 @@ export default function EmailComposer({
       y: event.clientY - currentY,
     };
     setIsDragging(true);
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    (event.currentTarget as Element | null)?.setPointerCapture?.(event.pointerId);
   };
 
   const dialogStyle = {
@@ -139,9 +138,10 @@ export default function EmailComposer({
                 <input
                   type="file"
                   multiple
-                  onInput={(event: JSX.TargetedEvent<HTMLInputElement, Event>) => {
-                    onAddAttachments(event.currentTarget.files);
-                    event.currentTarget.value = '';
+                  onInput={(event: Event) => {
+                    const input = event.currentTarget as HTMLInputElement;
+                    onAddAttachments(input.files);
+                    input.value = '';
                   }}
                   className="text-xs text-white cursor-pointer"
                   disabled={sending}

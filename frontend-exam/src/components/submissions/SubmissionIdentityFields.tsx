@@ -1,5 +1,3 @@
-import type { JSX } from 'preact';
-
 import { normalizeDni } from '../../utils/validation';
 
 interface SubmissionIdentityFieldsProps {
@@ -11,7 +9,7 @@ interface SubmissionIdentityFieldsProps {
   onSurnameChange: (value: string) => void;
   onEmailChange: (value: string) => void;
   onDniChange: (value: string) => void;
-  onBlurCheck: (event: JSX.TargetedFocusEvent<HTMLInputElement>) => void;
+  onBlurCheck: (event: FocusEvent) => void;
   eligibilityError: string | null;
 }
 

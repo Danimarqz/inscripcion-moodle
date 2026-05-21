@@ -1,0 +1,19 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import AdminLogsPage from "../../components/AdminLogsPage.tsx";
+---
+
+<Layout title="Analítica de logs">
+  <section class="max-w-6xl mx-auto my-12 space-y-6 text-white px-4">
+    <header class="space-y-2">
+      <h1 class="text-3xl font-bold text-brand-pink">Analítica de logs</h1>
+      <p class="text-sm text-gray-400">
+        Análisis de los logs de acceso de Apache. Las IPs se muestran como
+        identificadores anónimos (hash con sal); no es posible recuperar la IP
+        original.
+      </p>
+    </header>
+
+    <AdminLogsPage client:only="preact" />
+  </section>
+</Layout>

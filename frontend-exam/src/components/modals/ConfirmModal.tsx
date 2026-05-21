@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import type { JSX } from 'preact';
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -51,7 +50,7 @@ export default function ConfirmModal({
     };
   }, [isDragging]);
 
-  const handleStartDrag = (event: JSX.TargetedPointerEvent<HTMLHeadingElement>) => {
+  const handleStartDrag = (event: PointerEvent) => {
     event.preventDefault();
     const rect = dialogRef.current?.getBoundingClientRect();
     if (!rect) return;

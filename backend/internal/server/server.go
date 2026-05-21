@@ -20,6 +20,7 @@ import (
 	"github.com/inscripcion-moodle/go-backend/internal/services/auth"
 	"github.com/inscripcion-moodle/go-backend/internal/services/email"
 	examservice "github.com/inscripcion-moodle/go-backend/internal/services/exam"
+	"github.com/inscripcion-moodle/go-backend/internal/services/logs"
 	"github.com/inscripcion-moodle/go-backend/internal/services/moodle"
 	"github.com/inscripcion-moodle/go-backend/internal/storage"
 )
@@ -50,6 +51,8 @@ func New(cfg *config.Config) (*Server, error) {
 	// Initialize background worker pools
 	email.InitWorkerPool(3)
 	moodle.InitSyncWorkerPool(5)
+	logs.SetIPHashSalt(cfg.IPHashSalt)
+	logs.SetSummaryDir(cfg.LogsSummaryDir)
 
 	publicController := controllers.NewPublicController(db, cache, cfg, examService)
 	registerController := controllers.NewRegisterController(cfg)
@@ -58,6 +61,7 @@ func New(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 	adminController := controllers.NewAdminController(db, cache, authService, cfg)
+	logsController := controllers.NewLogsController(cache, cfg)
 	router := chi.NewRouter()
 	router.Use(chimiddleware.RequestID)
 	router.Use(chimiddleware.RealIP)
@@ -83,15 +87,19 @@ func New(cfg *config.Config) (*Server, error) {
 	router.Get("/exams/{exam_id}/questions", publicController.GetQuestionStubs)
 	router.Post("/check_submission", publicController.CheckSubmission)
 	router.Post("/update-merits", publicController.UpdateMerits)
+	router.Get("/logs/stats", logsController.GetStats)
+	router.Get("/logs/sites", logsController.GetSites)
 	router.Route("/admin", func(r chi.Router) {
 		adminController.RegisterRoutes(r)
 	})
 
+	// WriteTimeout must accommodate the slowest endpoint; /logs/stats can
+	// take dozens of seconds when parsing many gzipped files without cache.
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Port),
 		Handler:      router,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		WriteTimeout: 240 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 

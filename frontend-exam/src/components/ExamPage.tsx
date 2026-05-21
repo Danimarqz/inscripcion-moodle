@@ -1,4 +1,3 @@
-import type { JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 
 import type {
@@ -134,7 +133,7 @@ export default function ExamPage({
     }
   }
 
-  const handleCheckSubmissionBlur = (_event: JSX.TargetedFocusEvent<HTMLInputElement>) => {
+  const handleCheckSubmissionBlur = (_event: FocusEvent) => {
     void checkUserSubmission();
   };
 

@@ -149,15 +149,21 @@ export async function fetchSubmissionEmailList(
 
 const DOWNLOAD_TIMEOUT_MS = 30_000;
 
-function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(
     () => controller.abort(new DOMException('Request timed out', 'TimeoutError')),
     timeoutMs,
   );
-  return fetch(url, { ...init, signal: controller.signal }).finally(() =>
-    clearTimeout(timeoutId),
-  );
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export async function downloadSubmissionEmails(

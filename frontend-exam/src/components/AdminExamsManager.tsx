@@ -3,7 +3,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { deleteExam, getAdminExams } from '../services/adminService';
 import type { Exam } from '../types/exam';
 import { useAdminAuth } from '../hooks/useAdminAuth';
-import { removeAuthToken, redirectToLogin } from '../utils/adminAuth';
+import { redirectToLogin } from '../utils/adminAuth';
 
 export default function AdminExamsManager() {
   const { token, loading: authenticating, error: authError } = useAdminAuth();

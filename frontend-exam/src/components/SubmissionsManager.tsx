@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, useRef } from 'preact/hooks';
+import { useEffect, useMemo, useState, useRef } from 'preact/hooks';
 
-import type { AdminSubmission, AdminSubmissionsResponse, Exam, QuestionEdit } from '../types/exam';
+import type { AdminSubmission, Exam, QuestionEdit } from '../types/exam';
 import {
   deleteSubmissionAttempt,
   downloadSubmissionEmails,

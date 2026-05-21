@@ -28,8 +28,6 @@ export default function MeritsForm({
   hasPreviousSubmission,
   currentMerits,
   maxMerits,
-  score,
-  examWeight,
   meritsPosition,
   meritsTotal,
   aprobados,

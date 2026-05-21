@@ -41,11 +41,8 @@ export default function SubmissionSummary({
   maxScore,
   secondaryMaxScores,
   isPassed,
-  merits,
   weightedScore,
   examWeight,
-  meritsPosition,
-  meritsTotal,
 }: SubmissionSummaryProps) {
   const trimmedMessage = message.trim();
   if (!trimmedMessage) return null;

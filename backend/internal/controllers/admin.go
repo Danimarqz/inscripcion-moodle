@@ -101,5 +101,8 @@ func (h *AdminController) RegisterRoutes(r chi.Router) {
 		r.Get("/exams/{exam_id}/results/official/template", h.downloadOfficialResultsTemplate)
 		r.Post("/exams/{exam_id}/results/official/sync-moodle", h.syncOfficialResultsMoodle)
 		r.Get("/exams/{exam_id}/results/analysis", h.downloadSubmissionsAnalysis)
+		r.Post("/logs/warmup", h.startWarmup)
+		r.Get("/logs/warmup/status", h.warmupStatus)
+		r.Post("/logs/warmup/cancel", h.cancelWarmup)
 	})
 }
