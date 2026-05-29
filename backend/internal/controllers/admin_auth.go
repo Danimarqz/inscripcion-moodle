@@ -65,6 +65,35 @@ func (h *AdminController) createAdmin(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(constants.AdminCreated))
 }
 
+const adminCookieName = "admin_token"
+
+// setAuthCookie stores the JWT in an httpOnly cookie so client JS can never read
+// it (XSS can't exfiltrate the session). SameSite=Lax + Secure; front and API
+// share the host in prod so the cookie is first-party.
+func (h *AdminController) setAuthCookie(w http.ResponseWriter, token string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     adminCookieName,
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   h.cfg.CookieSecure,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   h.cfg.TokenTTLMinutes * 60,
+	})
+}
+
+func (h *AdminController) clearAuthCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     adminCookieName,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   h.cfg.CookieSecure,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+}
+
 func (h *AdminController) login(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		if err := r.Body.Close(); err != nil {
@@ -122,24 +151,38 @@ func (h *AdminController) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.setAuthCookie(w, token)
 	writeJSON(w, tokenResponse{AccessToken: token})
+}
+
+// logout clears the auth cookie. No auth required so an expired session can
+// still log out cleanly.
+func (h *AdminController) logout(w http.ResponseWriter, r *http.Request) {
+	h.clearAuthCookie(w)
+	writeJSON(w, map[string]string{"detail": "logout"})
 }
 
 func (h *AdminController) requireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
+		// Prefer the httpOnly cookie; fall back to the Authorization header for
+		// API clients and during the localStorage->cookie transition.
+		token := ""
+		if c, err := r.Cookie(adminCookieName); err == nil && c.Value != "" {
+			token = c.Value
+		} else if authHeader := r.Header.Get("Authorization"); authHeader != "" {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+				http.Error(w, constants.InvalidAuthHeader, http.StatusUnauthorized)
+				return
+			}
+			token = parts[1]
+		}
+		if token == "" {
 			http.Error(w, constants.MissingAuthHeader, http.StatusUnauthorized)
 			return
 		}
 
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			http.Error(w, constants.InvalidAuthHeader, http.StatusUnauthorized)
-			return
-		}
-
-		username, err := h.auth.ParseToken(parts[1])
+		username, err := h.auth.ParseToken(token)
 		if err != nil {
 			http.Error(w, constants.InvalidToken, http.StatusUnauthorized)
 			return

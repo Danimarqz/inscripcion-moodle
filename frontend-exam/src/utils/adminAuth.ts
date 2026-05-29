@@ -1,19 +1,18 @@
-const STORAGE_KEY = 'admin_access_token';
 const LOGIN_ROUTE = '/admin/login';
 
-function getStorage(): Storage | null {
-  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
-    return null;
-  }
+// Sentinel returned after a reload, when the real JWT lives only in the
+// httpOnly cookie (unreadable by JS). It is a truthy "we have a session" marker
+// for client-side guards; it is NEVER sent to the API (see api.ts).
+export const SESSION_MARKER = 'cookie-session';
 
-  try {
-    return window.localStorage;
-  } catch (error) {
-    return null;
-  }
-}
+// Admin auth lives in an httpOnly cookie set by the backend. We keep an
+// IN-MEMORY mirror only so existing client-side `token` guards keep working
+// within a session; nothing is persisted to localStorage anymore.
+let sessionToken: string | null = null;
 
 function isTokenExpired(token: string): boolean {
+  // The session marker has no exp; treat it as live (the cookie/server decides).
+  if (token === SESSION_MARKER) return false;
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return true;
@@ -26,23 +25,18 @@ function isTokenExpired(token: string): boolean {
 }
 
 export function getAuthToken(): string | null {
-  const storage = getStorage();
-  const token = storage ? storage.getItem(STORAGE_KEY) : null;
-  if (token && isTokenExpired(token)) {
-    removeAuthToken();
-    return null;
+  if (sessionToken && isTokenExpired(sessionToken)) {
+    sessionToken = null;
   }
-  return token;
+  return sessionToken;
 }
 
 export function saveAuthToken(token: string): void {
-  const storage = getStorage();
-  storage?.setItem(STORAGE_KEY, token);
+  sessionToken = token;
 }
 
 export function removeAuthToken(): void {
-  const storage = getStorage();
-  storage?.removeItem(STORAGE_KEY);
+  sessionToken = null;
 }
 
 export function redirectToLogin(): void {

@@ -1,4 +1,5 @@
 import { useAdminAuth } from "../hooks/useAdminAuth";
+import { adminLogout } from "../services/adminService";
 import { removeAuthToken, redirectToLogin } from "../utils/adminAuth";
 
 interface AdminDashboardProps {
@@ -14,7 +15,8 @@ export default function AdminDashboard({ className = "" }: AdminDashboardProps) 
 
   const containerClass = [baseContainerClass, className].filter(Boolean).join(" ");
 
-  function handleLogout() {
+  async function handleLogout() {
+    await adminLogout();
     removeAuthToken();
     redirectToLogin();
   }

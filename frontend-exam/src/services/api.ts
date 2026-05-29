@@ -27,13 +27,20 @@ export async function request<T>(endpoint: string, options: RequestOptions = {})
   const defaultHeaders: HeadersInit = {
     'Content-Type': 'application/json',
   };
-  if (token) {
+  // Admin auth now rides the httpOnly cookie (sent via credentials:'include').
+  // Only attach a Bearer header when given a real JWT — the in-memory session
+  // marker (a non-JWT placeholder used after a reload) must not be sent.
+  if (token && token.includes('.')) {
     defaultHeaders['Authorization'] = `Bearer ${token}`;
   }
 
   try {
     const response = await fetch(`${API_URL}${endpoint}`, {
       headers: { ...defaultHeaders, ...headers },
+      // Send the auth cookie only for admin endpoints. Public/student requests
+      // stay uncredentialed so they keep working under a wildcard CORS origin
+      // (a credentialed request requires a specific Access-Control-Allow-Origin).
+      credentials: endpoint.startsWith('/admin') ? 'include' : 'same-origin',
       signal: controller.signal,
       ...rest,
     });

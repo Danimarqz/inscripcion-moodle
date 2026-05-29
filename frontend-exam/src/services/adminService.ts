@@ -61,12 +61,23 @@ export async function deleteExam(examId: number, token: string): Promise<void> {
   });
 }
 
-export async function validateAdminToken(token: string): Promise<boolean> {
+// checkAdminSession verifies the current session via the httpOnly cookie
+// (credentials are sent by request()); no token argument needed.
+export async function checkAdminSession(): Promise<boolean> {
   try {
-    await request('/admin/check-token', { method: 'GET', token });
+    await request('/admin/check-token', { method: 'GET' });
     return true;
   } catch {
     return false;
+  }
+}
+
+// adminLogout clears the server-side auth cookie.
+export async function adminLogout(): Promise<void> {
+  try {
+    await request('/admin/logout', { method: 'POST' });
+  } catch {
+    // best-effort: even if the request fails, the client clears its state
   }
 }
 

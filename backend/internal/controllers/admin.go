@@ -77,6 +77,7 @@ func (h *AdminController) RegisterRoutes(r chi.Router) {
 	loginLimiter := middleware.NewRateLimiter(5, time.Minute)
 	r.Post("/create-admin", h.createAdmin)
 	r.With(loginLimiter.Middleware).Post("/login", h.login)
+	r.Post("/logout", h.logout)
 	r.Group(func(r chi.Router) {
 		r.Use(h.requireAuth)
 		r.Get("/check-token", h.checkToken)

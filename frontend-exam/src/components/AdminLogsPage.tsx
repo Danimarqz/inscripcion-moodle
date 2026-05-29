@@ -9,7 +9,7 @@ import {
 } from '../services/logsService';
 import type { LogStats } from '../types/logs';
 import LogsHitsChart from './LogsHitsChart';
-import { getAuthToken } from '../utils/adminAuth';
+import { useAdminAuth } from '../hooks/useAdminAuth';
 
 function defaultRange() {
   const to = new Date();
@@ -30,14 +30,10 @@ export default function AdminLogsPage() {
   const [stats, setStats] = useState<LogStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [adminToken, setAdminToken] = useState<string | null>(null);
+  const { token: adminToken } = useAdminAuth();
   const [warmup, setWarmup] = useState<WarmupReport | null>(null);
   const [warmupError, setWarmupError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    setAdminToken(getAuthToken());
-  }, []);
 
   useEffect(() => {
     if (!adminToken) return;
