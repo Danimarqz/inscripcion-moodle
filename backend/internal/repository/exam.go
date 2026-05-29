@@ -5,11 +5,11 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"math"
 	"strings"
 
 	"github.com/inscripcion-moodle/go-backend/internal/helpers"
 	"github.com/inscripcion-moodle/go-backend/internal/models"
+	"github.com/inscripcion-moodle/go-backend/internal/scoring"
 	"gorm.io/gorm"
 )
 
@@ -26,6 +26,7 @@ type ExamRepository interface {
 	RecalculateScoresForSubmission(ctx context.Context, db *gorm.DB, examID uint, submissionID uint) error
 	RecalculatePercentiles(ctx context.Context, db *gorm.DB, examID uint) error
 	GetTop10AverageScore(ctx context.Context, db *gorm.DB, examID uint) (*float64, error)
+	CountActiveQuestions(ctx context.Context, db *gorm.DB, examID uint) (int, error)
 }
 
 type examRepository struct{}
@@ -108,14 +109,7 @@ func (r *examRepository) RecalculateScores(ctx context.Context, db *gorm.DB, exa
 		return err
 	}
 
-	penalty := 0.0
-	if exam.PenaltyValue != nil {
-		penalty = *exam.PenaltyValue
-	}
-	maxScore := 100.0
-	if exam.MaxScore != nil {
-		maxScore = *exam.MaxScore
-	}
+	cfg := scoring.ConfigFromExamFields(exam.ScoringMode, exam.SubtractsPoints, exam.PenaltyValue, exam.MaxScore, exam.PointsPerCorrect, exam.PointsPerWrong)
 
 	var questions []models.Question
 	if err := db.WithContext(ctx).Where("exam_id = ? AND is_active = 1 AND is_cancelled = 0", examID).
@@ -141,7 +135,7 @@ func (r *examRepository) RecalculateScores(ctx context.Context, db *gorm.DB, exa
 		if sub.AnswersData == nil {
 			continue
 		}
-		score := calculateScore(questions, map[uint]string(*sub.AnswersData), exam.SubtractsPoints, penalty, maxScore)
+		score := calculateScore(questions, map[uint]string(*sub.AnswersData), cfg)
 		updates = append(updates, scoreUpdate{id: sub.ID, score: score})
 	}
 
@@ -212,14 +206,7 @@ func (r *examRepository) RecalculateScoresForSubmission(ctx context.Context, db 
 		return err
 	}
 
-	penalty := 0.0
-	if exam.PenaltyValue != nil {
-		penalty = *exam.PenaltyValue
-	}
-	maxScore := 100.0
-	if exam.MaxScore != nil {
-		maxScore = *exam.MaxScore
-	}
+	cfg := scoring.ConfigFromExamFields(exam.ScoringMode, exam.SubtractsPoints, exam.PenaltyValue, exam.MaxScore, exam.PointsPerCorrect, exam.PointsPerWrong)
 
 	var questions []models.Question
 	if err := db.WithContext(ctx).Where("exam_id = ? AND is_active = 1 AND is_cancelled = 0", examID).
@@ -238,7 +225,7 @@ func (r *examRepository) RecalculateScoresForSubmission(ctx context.Context, db 
 		return r.RecalculatePercentiles(ctx, db, examID)
 	}
 
-	score := calculateScore(questions, map[uint]string(*submission.AnswersData), exam.SubtractsPoints, penalty, maxScore)
+	score := calculateScore(questions, map[uint]string(*submission.AnswersData), cfg)
 	if err := db.WithContext(ctx).Model(&models.UserExamSubmission{}).
 		Where("id = ?", submissionID).
 		Update("score", score).Error; err != nil {
@@ -246,6 +233,14 @@ func (r *examRepository) RecalculateScoresForSubmission(ctx context.Context, db 
 	}
 
 	return r.RecalculatePercentiles(ctx, db, examID)
+}
+
+func (r *examRepository) CountActiveQuestions(ctx context.Context, db *gorm.DB, examID uint) (int, error) {
+	var count int64
+	err := db.WithContext(ctx).Model(&models.Question{}).
+		Where("exam_id = ? AND is_active = 1 AND is_cancelled = 0", examID).
+		Count(&count).Error
+	return int(count), err
 }
 
 func (r *examRepository) GetTop10AverageScore(ctx context.Context, db *gorm.DB, examID uint) (*float64, error) {
@@ -260,9 +255,8 @@ func (r *examRepository) GetTop10AverageScore(ctx context.Context, db *gorm.DB, 
 	return nil, nil
 }
 
-func calculateScore(questions []models.Question, answers map[uint]string, subtracts bool, penalty, maxScore float64) float64 {
-	total := 0
-	netCorrect := 0.0
+func calculateScore(questions []models.Question, answers map[uint]string, cfg scoring.Config) float64 {
+	total, correct, incorrect := 0, 0, 0
 	for _, q := range questions {
 		if !q.IsActive || q.IsCancelled {
 			continue
@@ -273,13 +267,10 @@ func calculateScore(questions []models.Question, answers map[uint]string, subtra
 			continue
 		}
 		if strings.EqualFold(selected, strings.TrimSpace(q.CorrectOption)) {
-			netCorrect++
-		} else if subtracts && penalty > 0 {
-			netCorrect -= penalty
+			correct++
+		} else {
+			incorrect++
 		}
 	}
-	if total == 0 {
-		return 0
-	}
-	return math.Round(netCorrect/float64(total)*maxScore*100) / 100
+	return scoring.ComputeScore(correct, incorrect, total, cfg)
 }

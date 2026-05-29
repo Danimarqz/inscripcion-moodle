@@ -84,6 +84,11 @@ func (m *MockExamRepository) GetTop10AverageScore(ctx context.Context, db *gorm.
 	return args.Get(0).(*float64), args.Error(1)
 }
 
+func (m *MockExamRepository) CountActiveQuestions(ctx context.Context, db *gorm.DB, examID uint) (int, error) {
+	args := m.Called(ctx, db, examID)
+	return args.Int(0), args.Error(1)
+}
+
 type MockQuestionRepository struct {
 	mock.Mock
 }

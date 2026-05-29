@@ -11,6 +11,9 @@ export type Exam = {
   subtracts_points?: boolean;
   penalty_value?: number;
   max_score?: number;
+  scoring_mode?: 'legacy' | 'absolute';
+  points_per_correct?: number;
+  points_per_wrong?: number;
   secondary_max_scores?: string;
   passing_criteria_type?: string;
   passing_criteria_value?: number | null;
@@ -154,6 +157,9 @@ export type ExamCreateWithQuestions = {
   subtracts_points?: boolean;
   penalty_value?: number;
   max_score?: number;
+  scoring_mode?: 'legacy' | 'absolute';
+  points_per_correct?: number;
+  points_per_wrong?: number;
   secondary_max_scores?: string;
   passing_criteria_type?: string;
   passing_criteria_value?: number | null;
@@ -185,6 +191,9 @@ export type ExamEdit = {
   subtracts_points?: boolean;
   penalty_value?: number;
   max_score?: number;
+  scoring_mode?: 'legacy' | 'absolute';
+  points_per_correct?: number;
+  points_per_wrong?: number;
   secondary_max_scores?: string;
   passing_criteria_type?: string;
   passing_criteria_value?: number | null;

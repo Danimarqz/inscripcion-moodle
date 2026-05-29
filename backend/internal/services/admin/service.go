@@ -22,6 +22,8 @@ var (
 	ErrInvalidMaxMerits       = errors.New("el tope de méritos debe ser mayor que 0")
 	ErrInvalidDisplayWeight   = errors.New("el peso de visualización debe estar entre 0 y 1")
 	ErrInvalidQuestionNumbers = errors.New("los números de pregunta deben formar la secuencia 1..N sin huecos ni duplicados")
+	ErrInvalidScoringMode     = errors.New("modo de puntuación no válido")
+	ErrAbsoluteScoringConfig  = errors.New("el modo absoluto requiere puntos por acierto y por fallo no negativos")
 )
 
 type Service struct {

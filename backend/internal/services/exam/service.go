@@ -16,6 +16,7 @@ import (
 	"github.com/inscripcion-moodle/go-backend/internal/helpers"
 	"github.com/inscripcion-moodle/go-backend/internal/models"
 	"github.com/inscripcion-moodle/go-backend/internal/repository"
+	"github.com/inscripcion-moodle/go-backend/internal/scoring"
 )
 
 var (
@@ -355,15 +356,7 @@ func createSubmission(tx *gorm.DB, req SubmitExamRequest, userID uint) (*models.
 		answersMap[question.ID] = value
 	}
 
-	penalty := 0.0
-	if exam.PenaltyValue != nil {
-		penalty = *exam.PenaltyValue
-	}
-	maxScore := 100.0
-	if exam.MaxScore != nil {
-		maxScore = *exam.MaxScore
-	}
-	breakdown, err := CalculateScoreBreakdown(activeQuestions, answersMap, exam.SubtractsPoints, penalty, maxScore)
+	breakdown, err := CalculateScoreBreakdownCfg(activeQuestions, answersMap, ScoringConfigFromExam(&exam))
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -612,7 +605,30 @@ func CheckOfficialResultMatch(db *gorm.DB, req OfficialResultMatchRequest) (bool
 	return false, nil
 }
 
+// ScoringConfigFromExam resolves an exam's scoring fields (with nil pointers)
+// into a scoring.Config.
+func ScoringConfigFromExam(e *models.Exam) scoring.Config {
+	return scoring.ConfigFromExamFields(
+		e.ScoringMode, e.SubtractsPoints,
+		e.PenaltyValue, e.MaxScore, e.PointsPerCorrect, e.PointsPerWrong,
+	)
+}
+
+// CalculateScoreBreakdown is the legacy 5-arg entry point kept so existing
+// callers compile unchanged. It computes a LEGACY-mode breakdown.
 func CalculateScoreBreakdown(questions []models.Question, answers map[uint]string, subtracts bool, penalty float64, maxScore float64) (*ScoreBreakdown, error) {
+	return CalculateScoreBreakdownCfg(questions, answers, scoring.Config{
+		Mode: "legacy", Subtracts: subtracts, Penalty: penalty, MaxScore: maxScore,
+	})
+}
+
+// CalculateScoreBreakdownCfg counts answers once and computes the score per the
+// resolved scoring config.
+//
+// The LEGACY branch stays UNROUNDED here to preserve exact create-time parity
+// (RecalculateScores rounds later). The ABSOLUTE branch uses scoring.ComputeScore
+// (rounded, floored at 0).
+func CalculateScoreBreakdownCfg(questions []models.Question, answers map[uint]string, cfg scoring.Config) (*ScoreBreakdown, error) {
 	total := 0
 	correct := 0
 	incorrect := 0
@@ -640,12 +656,17 @@ func CalculateScoreBreakdown(questions []models.Question, answers map[uint]strin
 		return nil, errors.New("el examen no tiene preguntas activas no anuladas configuradas")
 	}
 
-	netCorrect := float64(correct)
-	if subtracts && penalty > 0 {
-		netCorrect -= float64(incorrect) * penalty
+	var score float64
+	switch cfg.Mode {
+	case "absolute":
+		score = scoring.ComputeScore(correct, incorrect, total, cfg)
+	default: // legacy: UNROUNDED to preserve exact create-time parity.
+		netCorrect := float64(correct)
+		if cfg.Subtracts && cfg.Penalty > 0 {
+			netCorrect -= float64(incorrect) * cfg.Penalty
+		}
+		score = netCorrect / float64(total) * cfg.MaxScore
 	}
-
-	score := netCorrect / float64(total) * maxScore
 
 	notAnswered := total - correct - incorrect
 
@@ -714,10 +735,23 @@ func applyOfficialScoreOverride(db *gorm.DB, exam *models.Exam, submission *mode
 func (s *Service) buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submission *models.UserExamSubmission, message string, breakdown *ScoreBreakdown, examRepo repository.ExamRepository, submissionRepo repository.SubmissionRepository) (*SubmissionPayload, error) {
 	applyOfficialScoreOverride(tx, exam, submission)
 
+	// In absolute mode the effective maximum is points_per_correct * active
+	// questions, not the stored legacy MaxScore (default 100). This keeps the
+	// student's "nota sobre X" and secondary bases correct.
+	effectiveMax := exam.MaxScore
+	if exam.ScoringMode == "absolute" && exam.PointsPerCorrect != nil {
+		n, err := examRepo.CountActiveQuestions(context.Background(), tx, exam.ID)
+		if err != nil {
+			return nil, err
+		}
+		m := *exam.PointsPerCorrect * float64(n)
+		effectiveMax = &m
+	}
+
 	payload := &SubmissionPayload{
 		Message:            message,
 		Merits:             submission.Merits,
-		MaxScore:           exam.MaxScore,
+		MaxScore:           effectiveMax,
 		SecondaryMaxScores: exam.SecondaryMaxScores,
 	}
 
@@ -846,15 +880,7 @@ func fetchScoreBreakdownFromDB(tx *gorm.DB, exam *models.Exam, answersData *mode
 		answerMap = map[uint]string(*answersData)
 	}
 
-	penalty := 0.0
-	if exam.PenaltyValue != nil {
-		penalty = *exam.PenaltyValue
-	}
-	maxScore := 100.0
-	if exam.MaxScore != nil {
-		maxScore = *exam.MaxScore
-	}
-	breakdown, err := CalculateScoreBreakdown(questions, answerMap, exam.SubtractsPoints, penalty, maxScore)
+	breakdown, err := CalculateScoreBreakdownCfg(questions, answerMap, ScoringConfigFromExam(exam))
 	if err != nil {
 		return nil, err
 	}

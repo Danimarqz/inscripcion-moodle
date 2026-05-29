@@ -41,17 +41,20 @@ func (a *AnswersJSON) Scan(value any) error {
 }
 
 type Exam struct {
-	ID                 uint                 `gorm:"column:id;primaryKey" json:"id"`
-	Name               string               `gorm:"column:name" json:"name"`
-	Slug               string               `gorm:"-" json:"slug"`
-	IsActive           bool                 `gorm:"column:is_active" json:"is_active"`
-	ShowScore          bool                 `gorm:"column:show_score" json:"show_score"`
-	ShowPercentile     bool                 `gorm:"column:show_percentile" json:"show_percentile"`
-	ShowScoreFull      bool                 `gorm:"column:show_score_full" json:"show_score_full"`
-	ValidatedTribunal  bool                 `gorm:"column:validated_tribunal" json:"validated_tribunal"`
-	SubtractsPoints    bool                 `gorm:"column:subtracts_points" json:"subtracts_points"`
-	PenaltyValue       *float64             `gorm:"column:penalty_value" json:"penalty_value"`
-	MaxScore           *float64             `gorm:"column:max_score;default:100.0" json:"max_score"`
+	ID                   uint                 `gorm:"column:id;primaryKey" json:"id"`
+	Name                 string               `gorm:"column:name" json:"name"`
+	Slug                 string               `gorm:"-" json:"slug"`
+	IsActive             bool                 `gorm:"column:is_active" json:"is_active"`
+	ShowScore            bool                 `gorm:"column:show_score" json:"show_score"`
+	ShowPercentile       bool                 `gorm:"column:show_percentile" json:"show_percentile"`
+	ShowScoreFull        bool                 `gorm:"column:show_score_full" json:"show_score_full"`
+	ValidatedTribunal    bool                 `gorm:"column:validated_tribunal" json:"validated_tribunal"`
+	SubtractsPoints      bool                 `gorm:"column:subtracts_points" json:"subtracts_points"`
+	PenaltyValue         *float64             `gorm:"column:penalty_value" json:"penalty_value"`
+	MaxScore             *float64             `gorm:"column:max_score;default:100.0" json:"max_score"`
+	ScoringMode          string               `gorm:"column:scoring_mode;default:'legacy'" json:"scoring_mode"`
+	PointsPerCorrect     *float64             `gorm:"column:points_per_correct" json:"points_per_correct"`
+	PointsPerWrong       *float64             `gorm:"column:points_per_wrong" json:"points_per_wrong"`
 	SecondaryMaxScores   string               `gorm:"column:secondary_max_scores" json:"secondary_max_scores"`
 	PassingCriteriaType  string               `gorm:"column:passing_criteria_type;default:'disabled'" json:"passing_criteria_type"`
 	PassingCriteriaValue *float64             `gorm:"column:passing_criteria_value" json:"passing_criteria_value"`

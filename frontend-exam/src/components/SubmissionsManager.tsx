@@ -185,9 +185,19 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
           try {
             const examData = await getExamById(examId, token);
             if (mounted && requestId === fetchRequestId.current) {
-              setQuestions(examData.questions ?? []);
+              const examQuestions = examData.questions ?? [];
+              setQuestions(examQuestions);
+              // Absolute mode: the effective max is points_per_correct * active
+              // questions, not the stored legacy max_score (default 100).
+              const activeCount = examQuestions.filter(
+                (q) => q.is_active !== false && q.is_cancelled !== true,
+              ).length;
+              const effectiveMax =
+                examData.scoring_mode === 'absolute' && examData.points_per_correct != null
+                  ? examData.points_per_correct * activeCount
+                  : examData.max_score;
               setExamConfig({
-                maxScore: examData.max_score,
+                maxScore: effectiveMax,
                 secondaryMaxScores: examData.secondary_max_scores,
               });
             }

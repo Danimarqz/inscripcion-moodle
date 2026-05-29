@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/inscripcion-moodle/go-backend/internal/models"
+	"github.com/inscripcion-moodle/go-backend/internal/scoring"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -92,4 +93,54 @@ func TestCalculateScoreBreakdown(t *testing.T) {
 			assert.Equal(t, tt.wantScore, got.Score)
 		})
 	}
+}
+
+// TestCalculateScoreBreakdownLegacyUnrounded guards that the legacy breakdown
+// path stays UNROUNDED at create time (RecalculateScores rounds later). If a
+// future change rounds here, this catches it.
+func TestCalculateScoreBreakdownLegacyUnrounded(t *testing.T) {
+	questions := []models.Question{
+		{ID: 1, IsActive: true, CorrectOption: "A"},
+		{ID: 2, IsActive: true, CorrectOption: "B"},
+		{ID: 3, IsActive: true, CorrectOption: "C"},
+	}
+	// 1 correct of 3, max 100 -> 33.3333... (must NOT be rounded to 33.33).
+	got, err := CalculateScoreBreakdown(questions, map[uint]string{1: "A"}, false, 0, 100.0)
+	assert.NoError(t, err)
+	assert.InDelta(t, 33.3333, got.Score, 0.0001)
+	assert.NotEqual(t, 33.33, got.Score)
+}
+
+func TestCalculateScoreBreakdownAbsolute(t *testing.T) {
+	questions := []models.Question{
+		{ID: 1, IsActive: true, CorrectOption: "A"},
+		{ID: 2, IsActive: true, CorrectOption: "B"},
+		{ID: 3, IsActive: true, CorrectOption: "C"},
+		{ID: 4, IsActive: true, CorrectOption: "D"},
+	}
+	cfg := scoring.Config{Mode: "absolute", PointsPerCorrect: 0.40, PointsPerWrong: 0.10}
+
+	t.Run("3 correct 1 wrong -> 1.10", func(t *testing.T) {
+		got, err := CalculateScoreBreakdownCfg(questions, map[uint]string{1: "A", 2: "B", 3: "C", 4: "A"}, cfg)
+		assert.NoError(t, err)
+		assert.Equal(t, 1.10, got.Score)
+		assert.Equal(t, 3, got.CorrectAnswers)
+		assert.Equal(t, 1, got.IncorrectAnswers)
+		assert.Equal(t, 0, got.NotAnswered)
+		assert.Equal(t, 4, got.TotalQuestions)
+	})
+
+	t.Run("all wrong floors at 0", func(t *testing.T) {
+		got, err := CalculateScoreBreakdownCfg(questions, map[uint]string{1: "B", 2: "A", 3: "A", 4: "A"}, cfg)
+		assert.NoError(t, err)
+		assert.Equal(t, 0.0, got.Score)
+		assert.Equal(t, 4, got.IncorrectAnswers)
+	})
+
+	t.Run("2 correct 1 wrong 1 blank", func(t *testing.T) {
+		got, err := CalculateScoreBreakdownCfg(questions, map[uint]string{1: "A", 2: "B", 3: "A"}, cfg)
+		assert.NoError(t, err)
+		assert.Equal(t, 0.70, got.Score) // 2*0.40 - 1*0.10 = 0.70
+		assert.Equal(t, 1, got.NotAnswered)
+	})
 }

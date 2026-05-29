@@ -33,6 +33,9 @@ export default function ExamForm({ examId }: ExamFormProps) {
   const [validatedTribunal, setValidatedTribunal] = useState(false);
   const [subtractsPoints, setSubtractsPoints] = useState(false);
   const [penaltyValue, setPenaltyValue] = useState(0);
+  const [scoringMode, setScoringMode] = useState<'legacy' | 'absolute'>('legacy');
+  const [pointsPerCorrect, setPointsPerCorrect] = useState(0.4);
+  const [pointsPerWrong, setPointsPerWrong] = useState(0.1);
   const [maxScore, setMaxScore] = useState(100);
   const [secondaryMaxScores, setSecondaryMaxScores] = useState('');
   const [passingCriteriaType, setPassingCriteriaType] = useState('disabled');
@@ -72,6 +75,9 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setValidatedTribunal(false);
       setSubtractsPoints(false);
       setPenaltyValue(0);
+      setScoringMode('legacy');
+      setPointsPerCorrect(0.4);
+      setPointsPerWrong(0.1);
       setMaxScore(100);
       setSecondaryMaxScores('');
       setPassingCriteriaType('disabled');
@@ -94,6 +100,9 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setValidatedTribunal(Boolean(examData.validated_tribunal));
       setSubtractsPoints(Boolean(examData.subtracts_points));
       setPenaltyValue(examData.penalty_value ?? 0);
+      setScoringMode((examData.scoring_mode as 'legacy' | 'absolute') ?? 'legacy');
+      setPointsPerCorrect(examData.points_per_correct ?? 0.4);
+      setPointsPerWrong(examData.points_per_wrong ?? 0.1);
       setMaxScore(examData.max_score ?? 100);
       setSecondaryMaxScores(examData.secondary_max_scores ?? '');
       setPassingCriteriaType(examData.passing_criteria_type ?? 'disabled');
@@ -180,6 +189,10 @@ export default function ExamForm({ examId }: ExamFormProps) {
       validated_tribunal: validatedTribunal,
       subtracts_points: subtractsPoints,
       penalty_value: subtractsPoints ? penaltyValue : 0,
+      scoring_mode: scoringMode,
+      ...(scoringMode === 'absolute'
+        ? { points_per_correct: pointsPerCorrect, points_per_wrong: pointsPerWrong }
+        : {}),
       max_score: maxScore,
       secondary_max_scores: secondaryMaxScores,
       passing_criteria_type: passingCriteriaType,
@@ -489,37 +502,89 @@ export default function ExamForm({ examId }: ExamFormProps) {
       <fieldset className="mb-6 border border-[#444] rounded-lg p-4" disabled={isBusy}>
         <legend className="font-bold text-brand-pink px-2">Configuración de corrección</legend>
         <div className="flex flex-col gap-4">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={subtractsPoints}
-              onChange={(e) => {
-                const checked = e.currentTarget.checked;
-                setSubtractsPoints(checked);
-                if (!checked) setPenaltyValue(0);
-                else if (penaltyValue === 0) setPenaltyValue(0.25);
-              }}
-              className="mr-1"
+          <label className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold text-brand-pink">Modo de puntuación:</span>
+            <select
+              value={scoringMode}
+              onChange={(e) => setScoringMode(e.currentTarget.value as 'legacy' | 'absolute')}
+              className="px-3 py-1 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
               disabled={isBusy}
-            />
-            <span className="font-bold text-brand-pink">Las preguntas mal contestadas restan puntos</span>
+            >
+              <option value="legacy">Clásico (base + penalización fraccional)</option>
+              <option value="absolute">Absoluto (puntos por acierto/fallo)</option>
+            </select>
           </label>
-          
-          {subtractsPoints && (
-             <label className="flex items-center gap-2 ml-6">
-               <span className="text-white">Cantidad a restar por fallo:</span>
-               <select
-                 value={penaltyValue}
-                 onChange={(e) => setPenaltyValue(parseFloat(e.currentTarget.value))}
-                 className="px-3 py-1 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
-                 disabled={isBusy}
-               >
-                 <option value={0}>0</option>
-                 <option value={0.25}>0.25</option>
-                 <option value={0.33333333}>0.33</option>
-                 <option value={0.5}>0.5</option>
-               </select>
-             </label>
+
+          {scoringMode === 'legacy' && (
+            <>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={subtractsPoints}
+                  onChange={(e) => {
+                    const checked = e.currentTarget.checked;
+                    setSubtractsPoints(checked);
+                    if (!checked) setPenaltyValue(0);
+                    else if (penaltyValue === 0) setPenaltyValue(0.25);
+                  }}
+                  className="mr-1"
+                  disabled={isBusy}
+                />
+                <span className="font-bold text-brand-pink">Las preguntas mal contestadas restan puntos</span>
+              </label>
+
+              {subtractsPoints && (
+                <label className="flex items-center gap-2 ml-6 flex-wrap">
+                  <span className="text-white">Cantidad a restar por fallo:</span>
+                  <select
+                    value={penaltyValue}
+                    onChange={(e) => setPenaltyValue(parseFloat(e.currentTarget.value))}
+                    className="px-3 py-1 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+                    disabled={isBusy}
+                  >
+                    <option value={0}>0</option>
+                    <option value={0.1}>0.1</option>
+                    <option value={0.25}>0.25</option>
+                    <option value={0.33333333}>0.33</option>
+                    <option value={0.5}>0.5</option>
+                  </select>
+                  <span className="text-xs text-gray-400">(fracción de un acierto)</span>
+                </label>
+              )}
+            </>
+          )}
+
+          {scoringMode === 'absolute' && (
+            <div className="ml-6 flex flex-col gap-3">
+              <label className="flex items-center gap-2 flex-wrap">
+                <span className="text-white w-52">Puntos por acierto:</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={pointsPerCorrect}
+                  onInput={(e) => setPointsPerCorrect(parseFloat((e.target as HTMLInputElement).value) || 0)}
+                  className="w-32 px-3 py-1 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+                  disabled={isBusy}
+                />
+              </label>
+              <label className="flex items-center gap-2 flex-wrap">
+                <span className="text-white w-52">Puntos a restar por fallo:</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={pointsPerWrong}
+                  onInput={(e) => setPointsPerWrong(parseFloat((e.target as HTMLInputElement).value) || 0)}
+                  className="w-32 px-3 py-1 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+                  disabled={isBusy}
+                />
+              </label>
+              <p className="text-xs text-gray-400">
+                Valores positivos. Cada acierto suma esos puntos y cada fallo los resta; la nota nunca baja de 0.
+                En este modo la "Puntuación máxima" de abajo se ignora: el máximo es puntos por acierto × nº de preguntas.
+              </p>
+            </div>
           )}
         </div>
       </fieldset>

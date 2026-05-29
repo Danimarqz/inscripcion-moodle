@@ -21,6 +21,9 @@ type CreateExamRequest struct {
 	SubtractsPoints      bool            `json:"subtracts_points"`
 	PenaltyValue         *float64        `json:"penalty_value,omitempty"`
 	MaxScore             *float64        `json:"max_score,omitempty"`
+	ScoringMode          string          `json:"scoring_mode,omitempty"`
+	PointsPerCorrect     *float64        `json:"points_per_correct,omitempty"`
+	PointsPerWrong       *float64        `json:"points_per_wrong,omitempty"`
 	SecondaryMaxScores   string          `json:"secondary_max_scores,omitempty"`
 	PassingCriteriaType  string          `json:"passing_criteria_type"`
 	PassingCriteriaValue *float64        `json:"passing_criteria_value,omitempty"`
@@ -42,6 +45,9 @@ type EditExamRequest struct {
 	SubtractsPoints      *bool           `json:"subtracts_points,omitempty"`
 	PenaltyValue         *float64        `json:"penalty_value,omitempty"`
 	MaxScore             *float64        `json:"max_score,omitempty"`
+	ScoringMode          *string         `json:"scoring_mode,omitempty"`
+	PointsPerCorrect     *float64        `json:"points_per_correct,omitempty"`
+	PointsPerWrong       *float64        `json:"points_per_wrong,omitempty"`
 	SecondaryMaxScores   *string         `json:"secondary_max_scores,omitempty"`
 	PassingCriteriaType  *string         `json:"passing_criteria_type,omitempty"`
 	PassingCriteriaValue *float64        `json:"passing_criteria_value,omitempty"`
@@ -99,4 +105,3 @@ type EditOfficialResultRequest struct {
 	Score      *float64 `json:"score,omitempty"`
 	Merits     *float64 `json:"merits,omitempty"`
 }
-
