@@ -20,7 +20,10 @@ import (
 	"github.com/inscripcion-moodle/go-backend/internal/constants"
 	"github.com/inscripcion-moodle/go-backend/internal/helpers"
 	"github.com/inscripcion-moodle/go-backend/internal/models"
+	"github.com/inscripcion-moodle/go-backend/internal/repository"
+	"github.com/inscripcion-moodle/go-backend/internal/services/cloudfrontsign"
 	examservice "github.com/inscripcion-moodle/go-backend/internal/services/exam"
+	"github.com/inscripcion-moodle/go-backend/internal/services/feedback"
 	"github.com/inscripcion-moodle/go-backend/internal/services/moodle"
 )
 
@@ -36,15 +39,39 @@ type PublicController struct {
 	cacheTTL     time.Duration
 	moodleClient *moodle.Client
 	service      *examservice.Service
+	feedback     *feedback.Service
 }
 
 func NewPublicController(db *gorm.DB, rds *redis.Client, cfg *config.Config, service *examservice.Service) *PublicController {
+	var signer *cloudfrontsign.Signer
+	var signerErr string
+	if cfg.CloudFrontDomain != "" && cfg.CloudFrontKeyPairID != "" && cfg.CloudFrontPrivateKey != "" {
+		var err error
+		signer, err = cloudfrontsign.New(cfg.CloudFrontDomain, cfg.CloudFrontKeyPairID, cfg.CloudFrontPrivateKey)
+		if err != nil {
+			signerErr = err.Error()
+			log.Printf("cloudfrontsign: failed to initialize signer: %v", err)
+		}
+	} else {
+		signerErr = fmt.Sprintf("missing env vars (domain=%q keypair=%q key_len=%d)",
+			cfg.CloudFrontDomain, cfg.CloudFrontKeyPairID, len(cfg.CloudFrontPrivateKey))
+		log.Printf("cloudfrontsign: %s", signerErr)
+	}
+
+	c := cache.New(rds)
+	feedbackService := feedback.New(
+		db, c, signer, cfg.CloudFrontDomain, signerErr,
+		repository.NewSubmissionRepository(),
+		repository.NewQuestionRepository(),
+	)
+
 	return &PublicController{
 		db:           db,
-		cache:        cache.New(rds),
+		cache:        c,
 		cacheTTL:     cfg.PublicCacheTTL,
 		moodleClient: moodle.New(cfg),
 		service:      service,
+		feedback:     feedbackService,
 	}
 }
 

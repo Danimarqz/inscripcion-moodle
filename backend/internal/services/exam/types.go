@@ -74,11 +74,12 @@ type UpdateMeritsResponse struct {
 }
 
 type AnswerReview struct {
-	QuestionID     uint    `json:"question_id"`
-	QuestionLabel  string  `json:"question_label"`
-	SelectedOption *string `json:"selected_option"`
-	CorrectOption  *string `json:"correct_option"`
-	IsCorrect      bool    `json:"is_correct"`
+	QuestionID       uint    `json:"question_id"`
+	QuestionLabel    string  `json:"question_label"`
+	SelectedOption   *string `json:"selected_option"`
+	CorrectOption    *string `json:"correct_option"`
+	IsCorrect        bool    `json:"is_correct"`
+	HasFeedbackVideo bool    `json:"has_feedback_video"`
 }
 
 type ScoreBreakdown struct {

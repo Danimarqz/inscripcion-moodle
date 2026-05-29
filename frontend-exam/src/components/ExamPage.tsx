@@ -298,6 +298,9 @@ export default function ExamPage({
         examWeight={examWeight}
         meritsPosition={meritsPosition}
         meritsTotal={meritsTotal}
+        email={email}
+        dni={dni}
+        examId={examId}
       />
     ) : null;
 

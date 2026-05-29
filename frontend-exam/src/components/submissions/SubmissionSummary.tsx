@@ -1,4 +1,7 @@
+import { Fragment } from 'preact';
+import { useState } from 'preact/hooks';
 import type { AnswerReview } from '../../types/exam';
+import FeedbackVideoPlayer from './FeedbackVideoPlayer';
 
 interface SubmissionSummaryProps {
   message: string;
@@ -22,6 +25,29 @@ interface SubmissionSummaryProps {
   examWeight?: number | null;
   meritsPosition?: number | null;
   meritsTotal?: number | null;
+  email?: string;
+  dni?: string;
+  examId?: number;
+}
+
+// describeAnswer derives the display values shared by the desktop table and the
+// mobile card layout for a single answer-review row.
+function describeAnswer(item: AnswerReview, index: number) {
+  const isAnswered = Boolean(item.selected_option);
+  return {
+    questionLabel: item.question_label ?? `Pregunta ${index + 1}`,
+    selected: item.selected_option ?? 'Sin marcar',
+    correct: item.correct_option ?? '-',
+    isAnswered,
+    statusLabel: item.is_correct ? 'Correcta' : isAnswered ? 'Incorrecta' : 'Sin responder',
+    rowClass: item.is_correct ? 'bg-green-500/5' : isAnswered ? 'bg-brand-pink-soft' : '',
+    statusClass: item.is_correct ? 'text-green-300' : isAnswered ? 'text-brand-pink' : 'text-gray-400',
+    selectedBadgeClass: item.is_correct
+      ? 'border-green-500/40 text-green-300'
+      : isAnswered
+        ? 'border-brand-pink-soft text-brand-pink'
+        : 'border-gray-600 text-gray-400',
+  };
 }
 
 export default function SubmissionSummary({
@@ -43,7 +69,12 @@ export default function SubmissionSummary({
   isPassed,
   weightedScore,
   examWeight,
+  email = '',
+  dni = '',
+  examId,
 }: SubmissionSummaryProps) {
+  const [openVideoId, setOpenVideoId] = useState<number | null>(null);
+  const hasVideoColumn = Array.isArray(review) && review.some(r => r.has_feedback_video);
   const trimmedMessage = message.trim();
   if (!trimmedMessage) return null;
 
@@ -132,7 +163,9 @@ export default function SubmissionSummary({
           <h3 className="text-base font-semibold text-brand-yellow mb-3">
             Detalle de respuestas
           </h3>
-          <div className="overflow-x-auto rounded-2xl border border-brand-blue-soft bg-[#12141b]">
+
+          {/* Desktop / tablet: tabla */}
+          <div className="hidden overflow-x-auto rounded-2xl border border-brand-blue-soft bg-[#12141b] sm:block">
             <table className="min-w-full text-sm">
               <thead className="text-xs uppercase tracking-[0.35em] text-brand-yellow/80">
                 <tr>
@@ -140,54 +173,111 @@ export default function SubmissionSummary({
                   <th className="px-4 py-2 text-left">Tu respuesta</th>
                   <th className="px-4 py-2 text-left">Respuesta correcta</th>
                   <th className="px-4 py-2 text-left">Estado</th>
+                  {hasVideoColumn && <th className="px-4 py-2 text-left">Vídeo</th>}
                 </tr>
               </thead>
               <tbody>
                 {review.map((item, index) => {
-                  const questionLabel = item.question_label ?? `Pregunta ${index + 1}`;
-                  const selected = item.selected_option ?? 'Sin marcar';
-                  const correct = item.correct_option ?? '-';
-                  const isAnswered = Boolean(item.selected_option);
-                  const statusLabel = item.is_correct
-                    ? 'Correcta'
-                    : isAnswered
-                      ? 'Incorrecta'
-                      : 'Sin responder';
-                  const rowClass = item.is_correct
-                    ? 'bg-green-500/5'
-                    : isAnswered
-                      ? 'bg-brand-pink-soft'
-                      : '';
-                  const statusClass = item.is_correct
-                    ? 'text-green-300'
-                    : isAnswered
-                      ? 'text-brand-pink'
-                      : 'text-gray-400';
+                  const d = describeAnswer(item, index);
+                  const videoOpen = openVideoId === item.question_id;
                   return (
-                    <tr key={`${item.question_id}-${index}`} className={rowClass}>
-                      <td className="px-4 py-2 font-semibold text-white">
-                        {questionLabel}
-                      </td>
-                      <td className="px-4 py-2">
-                        <span
-                          className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${
-                            item.is_correct
-                              ? 'border-green-500/40 text-green-300'
-                              : isAnswered
-                                ? 'border-brand-pink-soft text-brand-pink'
-                                : 'border-gray-600 text-gray-400'
-                          }`}
-                        >
-                          {selected}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 text-brand-yellow font-semibold">{correct}</td>
-                      <td className={`px-4 py-2 text-sm font-semibold ${statusClass}`}>{statusLabel}</td>
-                    </tr>
+                    <Fragment key={`${item.question_id}-${index}`}>
+                      <tr className={d.rowClass}>
+                        <td className="px-4 py-2 font-semibold text-white">
+                          {d.questionLabel}
+                        </td>
+                        <td className="px-4 py-2">
+                          <span
+                            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${d.selectedBadgeClass}`}
+                          >
+                            {d.selected}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-brand-yellow font-semibold">{d.correct}</td>
+                        <td className={`px-4 py-2 text-sm font-semibold ${d.statusClass}`}>{d.statusLabel}</td>
+                        {hasVideoColumn && (
+                          <td className="px-4 py-2">
+                            {item.has_feedback_video && (
+                              <button
+                                type="button"
+                                onClick={() => setOpenVideoId(videoOpen ? null : item.question_id)}
+                                className="text-xs font-semibold px-3 py-1 rounded border border-brand-blue-soft text-brand-blue hover:bg-brand-blue-soft cursor-pointer"
+                              >
+                                {videoOpen ? '▲ Cerrar' : '▶ Ver vídeo'}
+                              </button>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                      {videoOpen && examId != null && (
+                        <tr>
+                          <td colSpan={hasVideoColumn ? 5 : 4} className="bg-[#0e1016] px-2 py-3 sm:px-4">
+                            <FeedbackVideoPlayer
+                              questionId={item.question_id}
+                              email={email}
+                              dni={dni}
+                              examId={examId}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Móvil: tarjetas */}
+          <div className="flex flex-col gap-3 sm:hidden">
+            {review.map((item, index) => {
+              const d = describeAnswer(item, index);
+              const videoOpen = openVideoId === item.question_id;
+              return (
+                <div
+                  key={`${item.question_id}-${index}`}
+                  className={`rounded-2xl border border-brand-blue-soft bg-[#12141b] p-4 ${d.rowClass}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-white">{d.questionLabel}</span>
+                    <span className={`text-xs font-semibold ${d.statusClass}`}>{d.statusLabel}</span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wider text-brand-yellow/70">Tu respuesta</p>
+                      <span
+                        className={`mt-1 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${d.selectedBadgeClass}`}
+                      >
+                        {d.selected}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wider text-brand-yellow/70">Correcta</p>
+                      <p className="mt-1 font-semibold text-brand-yellow">{d.correct}</p>
+                    </div>
+                  </div>
+                  {item.has_feedback_video && (
+                    <button
+                      type="button"
+                      onClick={() => setOpenVideoId(videoOpen ? null : item.question_id)}
+                      className="mt-3 w-full rounded border border-brand-blue-soft px-3 py-2 text-xs font-semibold text-brand-blue hover:bg-brand-blue-soft cursor-pointer"
+                    >
+                      {videoOpen ? '▲ Cerrar vídeo' : '▶ Ver vídeo'}
+                    </button>
+                  )}
+                  {videoOpen && examId != null && (
+                    <div className="mt-3">
+                      <FeedbackVideoPlayer
+                        questionId={item.question_id}
+                        email={email}
+                        dni={dni}
+                        examId={examId}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

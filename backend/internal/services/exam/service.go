@@ -911,11 +911,12 @@ func buildAnswersReview(tx *gorm.DB, exam *models.Exam, submission *models.UserE
 			correctPtr = new(strings.ToUpper(question.CorrectOption))
 		}
 		review = append(review, AnswerReview{
-			QuestionID:     question.ID,
-			QuestionLabel:  effectiveQuestionLabel(question),
-			SelectedOption: selectedPtr,
-			CorrectOption:  correctPtr,
-			IsCorrect:      has && correctPtr != nil && selectedPtr != nil && strings.EqualFold(*selectedPtr, *correctPtr),
+			QuestionID:       question.ID,
+			QuestionLabel:    effectiveQuestionLabel(question),
+			SelectedOption:   selectedPtr,
+			CorrectOption:    correctPtr,
+			IsCorrect:        has && correctPtr != nil && selectedPtr != nil && strings.EqualFold(*selectedPtr, *correctPtr),
+			HasFeedbackVideo: question.FeedbackVideoKey != nil,
 		})
 	}
 

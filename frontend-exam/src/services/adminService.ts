@@ -427,3 +427,26 @@ export async function downloadOfficialResultsTemplate(examId: number, token: str
   a.click();
   URL.revokeObjectURL(url);
 }
+
+export async function getQuestionFeedbackVideo(
+  questionId: number,
+  token: string,
+): Promise<string | null> {
+  const res = await request<{ id: number; feedback_video_key: string | null }>(
+    `/admin/questions/${questionId}`,
+    { method: 'GET', token },
+  );
+  return res.feedback_video_key ?? null;
+}
+
+export async function patchQuestionFeedbackVideo(
+  questionId: number,
+  key: string | null,
+  token: string,
+): Promise<void> {
+  return request<void>(`/admin/questions/${questionId}`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify({ feedback_video_key: key }),
+  });
+}

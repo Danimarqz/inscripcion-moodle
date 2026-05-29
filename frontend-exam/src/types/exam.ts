@@ -203,6 +203,7 @@ export type AnswerReview = {
   selected_option?: string | null;
   correct_option?: string | null;
   is_correct: boolean;
+  has_feedback_video?: boolean;
 };
 
 export type UserSubmissionCheck = {

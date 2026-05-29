@@ -70,7 +70,7 @@ func New(cfg *config.Config) (*Server, error) {
 	router.Use(chimiddleware.StripSlashes)
 	router.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   cfg.AllowedOrigins,
-		AllowedMethods:   []string{"GET", "POST", "OPTIONS", "PUT", "DELETE"},
+		AllowedMethods:   []string{"GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		AllowCredentials: true,
 		MaxAge:           300,
@@ -89,6 +89,7 @@ func New(cfg *config.Config) (*Server, error) {
 	router.Post("/update-merits", publicController.UpdateMerits)
 	router.Get("/logs/stats", logsController.GetStats)
 	router.Get("/logs/sites", logsController.GetSites)
+	router.Get("/api/questions/{question_id}/feedback.m3u8", publicController.GetFeedbackPlaylist)
 	router.Route("/admin", func(r chi.Router) {
 		adminController.RegisterRoutes(r)
 	})

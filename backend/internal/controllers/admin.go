@@ -104,5 +104,7 @@ func (h *AdminController) RegisterRoutes(r chi.Router) {
 		r.Post("/logs/warmup", h.startWarmup)
 		r.Get("/logs/warmup/status", h.warmupStatus)
 		r.Post("/logs/warmup/cancel", h.cancelWarmup)
+		r.Patch("/questions/{id}", h.patchQuestion)
+		r.Get("/questions/{id}", h.getQuestion)
 	})
 }

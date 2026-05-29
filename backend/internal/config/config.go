@@ -53,8 +53,11 @@ type Config struct {
 	ApacheLogPattern   string
 	LogsCacheTTL       time.Duration
 	IPHashSalt         string
-	LogsSummaryDir     string
+	LogsSummaryDir        string
 	LogsWarmupConcurrency int
+	CloudFrontDomain      string
+	CloudFrontKeyPairID   string
+	CloudFrontPrivateKey  string
 }
 
 func Load() (*Config, error) {
@@ -117,8 +120,11 @@ func Load() (*Config, error) {
 		ApacheLogPattern:   parseEnvString("APACHE_LOG_PATTERN", "access_log*"),
 		LogsCacheTTL:       time.Duration(parseEnvInt("LOGS_CACHE_TTL_SECONDS", 300)) * time.Second,
 		IPHashSalt:         os.Getenv("IP_HASH_SALT"),
-		LogsSummaryDir:     parseEnvString("LOGS_SUMMARY_DIR", "/home/bitnami/logs-summaries"),
+		LogsSummaryDir:        parseEnvString("LOGS_SUMMARY_DIR", "/home/bitnami/logs-summaries"),
 		LogsWarmupConcurrency: parseEnvInt("LOGS_WARMUP_CONCURRENCY", 1),
+		CloudFrontDomain:      os.Getenv("CLOUDFRONT_DOMAIN"),
+		CloudFrontKeyPairID:   os.Getenv("CLOUDFRONT_KEYPAIR_ID"),
+		CloudFrontPrivateKey:  os.Getenv("CLOUDFRONT_PRIVATE_KEY"),
 	}, nil
 }
 

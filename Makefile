@@ -6,6 +6,7 @@
 #   cp deploy.env.example deploy.env
 #
 # Uso:
+#   make dev             # backend + frontend en local (paralelo)
 #   make deploy          # backend + frontend
 #   make backend         # solo backend
 #   make frontend        # solo frontend
@@ -22,8 +23,21 @@ export
 
 REMOTE := $(RemoteUser)@$(RemoteHost)
 
-.PHONY: deploy backend frontend build-backend build-frontend \
+.PHONY: dev dev-backend dev-frontend deploy backend frontend build-backend build-frontend \
         upload-backend upload-frontend test check-deploy-env
+
+dev:
+	@echo "==> Arrancando backend (:8080) y frontend-exam (:4321). Ctrl+C para parar."
+	@trap 'kill 0' INT TERM EXIT; \
+		$(MAKE) --no-print-directory dev-backend & \
+		$(MAKE) --no-print-directory dev-frontend & \
+		wait
+
+dev-backend:
+	cd backend && go run ./cmd/api
+
+dev-frontend:
+	cd frontend-exam && npm run dev
 
 deploy: backend frontend
 

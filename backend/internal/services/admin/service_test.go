@@ -88,6 +88,14 @@ type MockQuestionRepository struct {
 	mock.Mock
 }
 
+func (m *MockQuestionRepository) FindByID(ctx context.Context, db *gorm.DB, id uint) (*models.Question, error) {
+	args := m.Called(ctx, db, id)
+	if q, ok := args.Get(0).(*models.Question); ok {
+		return q, args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockQuestionRepository) DeleteByExamID(ctx context.Context, db *gorm.DB, examID uint) error {
 	args := m.Called(ctx, db, examID)
 	return args.Error(0)

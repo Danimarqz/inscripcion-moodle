@@ -12,6 +12,7 @@ import (
 
 type SubmissionRepository interface {
 	FindByID(ctx context.Context, db *gorm.DB, submissionID uint) (*models.UserExamSubmission, error)
+	ExistsByStudentExam(ctx context.Context, db *gorm.DB, email, dni string, examID uint) (bool, error)
 	List(ctx context.Context, db *gorm.DB, examID uint, limit, offset int, search, order string, moodleSynced *bool, resultType *string) ([]models.UserExamSubmission, error)
 	Count(ctx context.Context, db *gorm.DB, examID uint, moodleSynced *bool, resultType *string) (int64, error)
 	Delete(ctx context.Context, db *gorm.DB, submissionID uint) error
@@ -35,6 +36,22 @@ func (r *submissionRepository) FindByID(ctx context.Context, db *gorm.DB, submis
 		return nil, err
 	}
 	return &submission, nil
+}
+
+// ExistsByStudentExam reports whether a submission exists for the given student
+// (matched by lowercased email + normalized DNI) and exam.
+func (r *submissionRepository) ExistsByStudentExam(ctx context.Context, db *gorm.DB, email, dni string, examID uint) (bool, error) {
+	var count int64
+	err := db.WithContext(ctx).
+		Model(&models.UserExamSubmission{}).
+		Joins("JOIN exam_user ON exam_user.id = user_exam_submission.user_id").
+		Where("LOWER(exam_user.email) = ? AND exam_user.dni = ? AND user_exam_submission.exam_id = ?",
+			email, dni, examID).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 func (r *submissionRepository) List(ctx context.Context, db *gorm.DB, examID uint, limit, offset int, search, order string, moodleSynced *bool, resultType *string) ([]models.UserExamSubmission, error) {

@@ -8,6 +8,7 @@ import (
 )
 
 type QuestionRepository interface {
+	FindByID(ctx context.Context, db *gorm.DB, id uint) (*models.Question, error)
 	DeleteByExamID(ctx context.Context, db *gorm.DB, examID uint) error
 	DeleteQuestions(ctx context.Context, db *gorm.DB, questionIDs []uint) error
 }
@@ -16,6 +17,14 @@ type questionRepository struct{}
 
 func NewQuestionRepository() QuestionRepository {
 	return &questionRepository{}
+}
+
+func (r *questionRepository) FindByID(ctx context.Context, db *gorm.DB, id uint) (*models.Question, error) {
+	var q models.Question
+	if err := db.WithContext(ctx).First(&q, id).Error; err != nil {
+		return nil, err
+	}
+	return &q, nil
 }
 
 func (r *questionRepository) DeleteByExamID(ctx context.Context, db *gorm.DB, examID uint) error {
