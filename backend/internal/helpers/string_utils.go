@@ -53,6 +53,36 @@ func NormalizeName(value string) string {
 	return strings.Join(strings.Fields(b.String()), " ")
 }
 
+// MatchMaskedDNI reports whether a masked DNI/NIE (e.g. "****2611*") matches a
+// full one (e.g. "78942611X"). It compares position by position: every
+// alphanumeric character in the mask must equal the full value at that index,
+// while '*' (and any other non-alphanumeric) positions act as wildcards.
+// Matching is therefore independent of WHICH characters the official source
+// chose to reveal, instead of assuming a fixed center window.
+func MatchMaskedDNI(masked, full string) bool {
+	masked = strings.ToUpper(strings.TrimSpace(masked))
+	full = strings.ToUpper(strings.TrimSpace(full))
+
+	if masked == full {
+		return true
+	}
+	if len(masked) != len(full) {
+		return false
+	}
+
+	for i := 0; i < len(masked); i++ {
+		m := masked[i]
+		isAlphaNum := (m >= '0' && m <= '9') || (m >= 'A' && m <= 'Z')
+		if !isAlphaNum {
+			continue
+		}
+		if m != full[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // CreateSlug generates a lowercase, alphanumeric slug without spaces.
 func CreateSlug(value string) string {
 	trimmed := strings.TrimSpace(value)

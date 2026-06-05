@@ -48,42 +48,6 @@ func CreateSlug(value string) string {
 	return helpers.CreateSlug(value)
 }
 
-func extractDigits(value string) string {
-	var b strings.Builder
-	for _, r := range value {
-		if r >= '0' && r <= '9' {
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
-}
-
-func middleFourDigits(value string) string {
-	value = strings.TrimSpace(value)
-	if len(value) == 0 {
-		return ""
-	}
-
-	digits := extractDigits(value)
-
-	if len(digits) == 4 {
-		return digits
-	}
-
-	if value[0] >= '0' && value[0] <= '9' {
-		// DNI LOGIC
-		if len(digits) >= 7 {
-			return digits[3:7]
-		}
-	} else {
-		// NIE LOGIC
-		if len(digits) >= 6 {
-			return digits[2:6]
-		}
-	}
-	return ""
-}
-
 func ValidateDNINIE(value string) bool {
 	if value == "" {
 		return false
@@ -560,16 +524,16 @@ func CheckOfficialResultMatch(db *gorm.DB, req OfficialResultMatchRequest) (bool
 		return false, nil
 	}
 
-	centerDigits := middleFourDigits(req.DNI)
-	if centerDigits == "" {
+	fullDNI := NormalizeDNI(req.DNI)
+	if fullDNI == "" {
 		return false, nil
 	}
 
-	// Buscamos registros que contengan los 4 dígitos centrales en el campo dni_masked.
-	pattern := "%" + centerDigits + "%"
-
+	// El LIKE %...% sobre dni_masked no puede usar índice (comodín inicial), así
+	// que cargar todos los registros del examen cuesta lo mismo y nos permite
+	// comparar contra la máscara real de cada fila en Go.
 	var results []models.ExamOfficialResult
-	if err := db.Where("exam_id = ? AND dni_masked LIKE ?", req.ExamID, pattern).Find(&results).Error; err != nil {
+	if err := db.Where("exam_id = ?", req.ExamID).Find(&results).Error; err != nil {
 		return false, err
 	}
 
@@ -596,8 +560,9 @@ func CheckOfficialResultMatch(db *gorm.DB, req OfficialResultMatchRequest) (bool
 			continue
 		}
 
-		// Doble check por seguridad, aunque el LIKE ya debería haber filtrado la mayoría
-		if middleFourDigits(res.DniMasked) == centerDigits {
+		// DNI: comparamos el DNI completo contra la máscara oficial, respetando
+		// las posiciones que esa máscara revela (sin asumir una ventana fija).
+		if helpers.MatchMaskedDNI(res.DniMasked, fullDNI) {
 			return true, nil
 		}
 	}

@@ -182,7 +182,7 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 
 			dniMatch := false
 			if len(resDNI) > 0 && len(userDNI) > 0 {
-				dniMatch = matchMaskedDNI(resDNI, userDNI)
+				dniMatch = helpers.MatchMaskedDNI(resDNI, userDNI)
 			}
 
 			if !dniMatch {
@@ -255,7 +255,7 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 		var possibleMatches []moodle.MoodleUserDNI
 		for _, mu := range moodleUsers {
 			muDNI := strings.ToUpper(strings.TrimSpace(mu.DNI))
-			if matchMaskedDNI(resDNI, muDNI) {
+			if helpers.MatchMaskedDNI(resDNI, muDNI) {
 				possibleMatches = append(possibleMatches, mu)
 			}
 		}
@@ -352,33 +352,3 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 	sseEvent(w, flusher, string(result))
 }
 
-// matchMaskedDNI compares a masked DNI (e.g. "***7090**") with a full DNI (e.g. "12370908Z")
-// It assumes the full DNI is always complete (with letters).
-func matchMaskedDNI(masked, full string) bool {
-	masked = strings.ToUpper(strings.TrimSpace(masked))
-	full = strings.ToUpper(strings.TrimSpace(full))
-
-	if masked == full {
-		return true
-	}
-
-	if len(masked) != len(full) {
-		return false
-	}
-
-	for i := 0; i < len(masked); i++ {
-		mChar := masked[i]
-		fChar := full[i]
-
-		isAlphaNum := (mChar >= '0' && mChar <= '9') || (mChar >= 'A' && mChar <= 'Z')
-		if !isAlphaNum {
-			continue
-		}
-
-		if mChar != fChar {
-			return false
-		}
-	}
-
-	return true
-}
