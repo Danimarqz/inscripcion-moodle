@@ -59,6 +59,10 @@ type Config struct {
 	CloudFrontKeyPairID   string
 	CloudFrontPrivateKey  string
 	CookieSecure          bool
+	AWSRegion             string
+	PDFExcelBucket        string
+	PDFExcelLambdaURL     string
+	PDFExcelAPIKey        string
 }
 
 func Load() (*Config, error) {
@@ -127,6 +131,10 @@ func Load() (*Config, error) {
 		CloudFrontKeyPairID:   os.Getenv("CLOUDFRONT_KEYPAIR_ID"),
 		CloudFrontPrivateKey:  os.Getenv("CLOUDFRONT_PRIVATE_KEY"),
 		CookieSecure:          parseEnvBool("COOKIE_SECURE", true),
+		AWSRegion:             parseEnvString("AWS_REGION", "eu-west-1"),
+		PDFExcelBucket:        parseEnvString("PDF_EXCEL_BUCKET", "pdf-excel-transformer"),
+		PDFExcelLambdaURL:     parseEnvString("PDF_EXCEL_LAMBDA_URL", "https://w7fm3hg74nzrxuc4s2vgtnfysi0jdwjc.lambda-url.eu-west-1.on.aws/"),
+		PDFExcelAPIKey:        os.Getenv("API_LAMBDA"),
 	}, nil
 }
 

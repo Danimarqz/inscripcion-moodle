@@ -8,6 +8,7 @@ import {
 } from '../services/adminService';
 import { useAsyncTask } from '../hooks/useAsyncTask';
 import OfficialResultImport from './official-results/OfficialResultImport';
+import PdfExcelConverter from './official-results/PdfExcelConverter';
 import OfficialResultForm from './official-results/OfficialResultForm';
 import OfficialResultsTable from './official-results/OfficialResultsTable';
 import type { EditOfficialResultPayload } from '../types/exam';
@@ -229,6 +230,19 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
           token={token}
           onSuccess={handleCreateSuccess}
           onError={(msg) => {
+            setFeedback(null);
+            setResultsError(msg);
+          }}
+        />
+      )}
+
+      {selectedExamId && (
+        <PdfExcelConverter
+          key={selectedExamId}
+          examId={selectedExamId}
+          token={token}
+          onError={(msg) => {
+            setSummary(null);
             setFeedback(null);
             setResultsError(msg);
           }}

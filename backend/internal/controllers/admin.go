@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"io"
+	"log"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -18,6 +19,7 @@ import (
 	"github.com/inscripcion-moodle/go-backend/internal/services/auth"
 	excelimport "github.com/inscripcion-moodle/go-backend/internal/services/excelimport"
 	"github.com/inscripcion-moodle/go-backend/internal/services/moodle"
+	"github.com/inscripcion-moodle/go-backend/internal/services/pdfexcel"
 )
 
 type contextKey string
@@ -36,6 +38,7 @@ type AdminController struct {
 	service      *admin.Service
 	excelImport  excelImportService
 	moodleClient *moodle.Client
+	pdfExcel     *pdfexcel.Service
 	cfg          *config.Config
 }
 
@@ -62,6 +65,15 @@ func NewAdminController(db *gorm.DB, cacheClient *redis.Client, authService *aut
 	officialRepo := repository.NewOfficialResultRepository()
 	questionRepo := repository.NewQuestionRepository()
 
+	// Best-effort: the PDF->Excel converter needs AWS credentials, which may be
+	// absent in dev. Failing to construct it must NOT crash server startup; the
+	// handlers nil-check the field and return 503 when it is unavailable.
+	pdfExcelService, err := pdfexcel.New(context.Background(), cfg)
+	if err != nil {
+		log.Printf("pdfexcel: disabled (could not initialize): %v", err)
+		pdfExcelService = nil
+	}
+
 	return &AdminController{
 		db:           db,
 		cache:        cache.New(cacheClient),
@@ -69,6 +81,7 @@ func NewAdminController(db *gorm.DB, cacheClient *redis.Client, authService *aut
 		service:      admin.New(db, examRepo, subRepo, officialRepo, questionRepo),
 		excelImport:  excelimport.New(db),
 		moodleClient: moodle.New(cfg),
+		pdfExcel:     pdfExcelService,
 		cfg:          cfg,
 	}
 }
@@ -101,6 +114,9 @@ func (h *AdminController) RegisterRoutes(r chi.Router) {
 		r.Post("/exams/{exam_id}/results/import", h.importOfficialResults)
 		r.Get("/exams/{exam_id}/results/official/template", h.downloadOfficialResultsTemplate)
 		r.Post("/exams/{exam_id}/results/official/sync-moodle", h.syncOfficialResultsMoodle)
+		r.Post("/exams/{exam_id}/results/pdf-excel/upload", h.uploadPDFExcel)
+		r.Post("/exams/{exam_id}/results/pdf-excel/process", h.processPDFExcel)
+		r.Get("/exams/{exam_id}/results/pdf-excel/download", h.downloadPDFExcel)
 		r.Get("/exams/{exam_id}/results/analysis", h.downloadSubmissionsAnalysis)
 		r.Post("/logs/warmup", h.startWarmup)
 		r.Get("/logs/warmup/status", h.warmupStatus)
