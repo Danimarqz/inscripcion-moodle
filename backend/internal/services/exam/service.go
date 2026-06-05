@@ -529,14 +529,59 @@ func CheckOfficialResultMatch(db *gorm.DB, req OfficialResultMatchRequest) (bool
 		return false, nil
 	}
 
-	// El LIKE %...% sobre dni_masked no puede usar índice (comodín inicial), así
-	// que cargar todos los registros del examen cuesta lo mismo y nos permite
-	// comparar contra la máscara real de cada fila en Go.
+	// Camino rápido: dni_search es una columna generada STORED que guarda solo los
+	// dígitos que revela la máscara de cada fila, indexada por (exam_id, dni_search).
+	// Los dígitos que revela una máscara coincidente son siempre un tramo contiguo
+	// de los dígitos del DNI del usuario, así que buscamos por cada subcadena
+	// contigua en lugar de cargar el examen entero. La cadena vacía cubre filas
+	// totalmente enmascaradas.
+	candidates := dniSearchCandidates(fullDNI)
 	var results []models.ExamOfficialResult
-	if err := db.Where("exam_id = ?", req.ExamID).Find(&results).Error; err != nil {
+	if err := db.Where("exam_id = ? AND dni_search IN ?", req.ExamID, candidates).
+		Find(&results).Error; err != nil {
 		return false, err
 	}
+	if matchOfficialRows(results, name, surname, fullDNI) {
+		return true, nil
+	}
 
+	// Red de seguridad: una máscara que revelara dígitos NO contiguos no la
+	// alcanzaría la búsqueda por subcadenas. Solo cuando el camino rápido no
+	// encuentra coincidencia pagamos el escaneo completo, de modo que nunca
+	// bloqueamos por error a un alumno por una máscara inusual. El resultado es
+	// idéntico al del escaneo original.
+	var all []models.ExamOfficialResult
+	if err := db.Where("exam_id = ?", req.ExamID).Find(&all).Error; err != nil {
+		return false, err
+	}
+	return matchOfficialRows(all, name, surname, fullDNI), nil
+}
+
+// dniSearchCandidates devuelve cada tramo contiguo de dígitos del DNI completo
+// más la cadena vacía, para buscar contra la columna generada dni_search.
+func dniSearchCandidates(fullDNI string) []string {
+	var digits []byte
+	for i := 0; i < len(fullDNI); i++ {
+		if fullDNI[i] >= '0' && fullDNI[i] <= '9' {
+			digits = append(digits, fullDNI[i])
+		}
+	}
+	set := map[string]struct{}{"": {}}
+	for i := 0; i < len(digits); i++ {
+		for j := i + 1; j <= len(digits); j++ {
+			set[string(digits[i:j])] = struct{}{}
+		}
+	}
+	out := make([]string, 0, len(set))
+	for c := range set {
+		out = append(out, c)
+	}
+	return out
+}
+
+// matchOfficialRows aplica la comprobación flexible de nombre/apellidos y la
+// máscara de DNI sobre las filas dadas, devolviendo true a la primera coincidencia.
+func matchOfficialRows(results []models.ExamOfficialResult, name, surname, fullDNI string) bool {
 	for _, res := range results {
 		resName := helpers.NormalizeName(res.Nombre)
 		resApellido1 := helpers.NormalizeName(res.Apellido1)
@@ -563,11 +608,11 @@ func CheckOfficialResultMatch(db *gorm.DB, req OfficialResultMatchRequest) (bool
 		// DNI: comparamos el DNI completo contra la máscara oficial, respetando
 		// las posiciones que esa máscara revela (sin asumir una ventana fija).
 		if helpers.MatchMaskedDNI(res.DniMasked, fullDNI) {
-			return true, nil
+			return true
 		}
 	}
 
-	return false, nil
+	return false
 }
 
 // ScoringConfigFromExam resolves an exam's scoring fields (with nil pointers)
