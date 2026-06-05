@@ -70,42 +70,17 @@ func (h *AdminController) syncMoodleUsers(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	moodleIDByEmail := make(map[string]int, len(moodleUsers))
-	for _, mu := range moodleUsers {
-		if e := strings.ToLower(strings.TrimSpace(mu.Email)); e != "" {
-			moodleIDByEmail[e] = mu.ID
-		}
-	}
-
 	log.Printf("moodle sync-users: course_id=%d moodle_enrolled=%d pending_exam_users=%d",
 		h.cfg.MoodleExamCourseID, len(moodleUsers), len(users))
 
 	sseEvent(w, flusher, fmt.Sprintf(`{"status":"syncing","message":"Procesando %d usuarios..."}`, len(users)))
 
 	checked := len(users)
-	synced, failed := 0, 0
-
-	for _, user := range users {
-		email := strings.ToLower(strings.TrimSpace(user.Email))
-		if email == "" {
-			failed++
-			continue
-		}
-		moodleID, ok := moodleIDByEmail[email]
-		if !ok {
-			failed++
-			continue
-		}
-		if err := h.db.Model(&models.ExamUser{}).
-			Where("id = ?", user.ID).
-			Where("moodle_id IS NULL").
-			Update("moodle_id", moodleID).Error; err != nil {
-			log.Printf("moodle sync for %s (%s) failed: %v", user.Email, user.DNI, err)
-			failed++
-			continue
-		}
-		synced++
+	userPtrs := make([]*models.ExamUser, len(users))
+	for i := range users {
+		userPtrs[i] = &users[i]
 	}
+	synced, failed := h.syncMoodleIDsByEmail(userPtrs, moodleUsers)
 
 	log.Printf("AUDIT: moodle sync-users finished: checked=%d synced=%d failed=%d", checked, synced, failed)
 
@@ -116,6 +91,41 @@ func (h *AdminController) syncMoodleUsers(w http.ResponseWriter, r *http.Request
 		"failed":  failed,
 	})
 	sseEvent(w, flusher, string(result))
+}
+
+// syncMoodleIDsByEmail assigns each user's Moodle ID by matching its email
+// against the Moodle enrolment list, updating only rows that still have a NULL
+// moodle_id. Returns how many were updated (synced) and how many could not be
+// matched or updated (failed). Single responsibility shared by both sync flows.
+func (h *AdminController) syncMoodleIDsByEmail(users []*models.ExamUser, moodleUsers []moodle.MoodleUserDNI) (synced, failed int) {
+	idByEmail := make(map[string]int, len(moodleUsers))
+	for _, mu := range moodleUsers {
+		if e := strings.ToLower(strings.TrimSpace(mu.Email)); e != "" {
+			idByEmail[e] = mu.ID
+		}
+	}
+	for _, user := range users {
+		email := strings.ToLower(strings.TrimSpace(user.Email))
+		if email == "" {
+			failed++
+			continue
+		}
+		moodleID, ok := idByEmail[email]
+		if !ok {
+			failed++
+			continue
+		}
+		if err := h.db.Model(&models.ExamUser{}).
+			Where("id = ?", user.ID).
+			Where("moodle_id IS NULL").
+			Update("moodle_id", moodleID).Error; err != nil {
+			log.Printf("moodle sync: assign moodle_id for user %d (%s) failed: %v", user.ID, email, err)
+			failed++
+			continue
+		}
+		synced++
+	}
+	return synced, failed
 }
 
 func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *http.Request) {
@@ -163,6 +173,9 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 
 	matchedCount := 0
 	var remainingResults []*models.ExamOfficialResult
+	// Pass-1 matched users that still lack a Moodle ID; backfilled below once the
+	// Moodle user list is fetched, so they count as fully linked.
+	usersNeedingMoodleID := make(map[uint]*models.ExamUser)
 
 	// Pass 1: Match against existing ExamUsers
 	for i := range officialResults {
@@ -185,18 +198,18 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 				dniMatch = helpers.MatchMaskedDNI(resDNI, userDNI)
 			}
 
-			if !dniMatch {
-				continue
-			}
-
 			userFullName := normalizeForMatch(user.Name + user.Surname)
-			if resFullName == userFullName {
+			if dniMatch || resFullName == userFullName {
 				matchedUser = user
 				break
 			}
 		}
 
 		if matchedUser != nil {
+			if matchedUser.MoodleID == nil {
+				usersNeedingMoodleID[matchedUser.ID] = matchedUser
+			}
+
 			if err := h.db.Model(&models.ExamOfficialResult{}).Where("id = ?", res.ID).Update("user_id", matchedUser.ID).Error; err == nil {
 				matchedCount++
 				res.UserID = &matchedUser.ID
@@ -207,14 +220,14 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 		}
 	}
 
-	if len(remainingResults) == 0 {
+	if len(remainingResults) == 0 && len(usersNeedingMoodleID) == 0 {
 		log.Printf("AUDIT: syncOfficialResultsMoodle: exam_id=%d pass1 matched=%d (no pass2 needed)", examID, matchedCount)
 		result, _ := json.Marshal(map[string]any{"status": "done", "matched": matchedCount})
 		sseEvent(w, flusher, string(result))
 		return
 	}
 
-	sseEvent(w, flusher, fmt.Sprintf(`{"status":"pass2","message":"Pass 1: %d coincidencias. Conectando con Moodle para %d restantes..."}`, matchedCount, len(remainingResults)))
+	sseEvent(w, flusher, fmt.Sprintf(`{"status":"pass2","message":"Pass 1: %d coincidencias. Conectando con Moodle (%d sin vincular, %d sin Moodle ID)..."}`, matchedCount, len(remainingResults), len(usersNeedingMoodleID)))
 
 	moodleCtx, moodleCancel := context.WithTimeout(r.Context(), moodleAdminSyncTimeout)
 	defer moodleCancel()
@@ -224,6 +237,25 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 		log.Printf("syncOfficialResultsMoodle: failed to fetch moodle users DNI: %v", err)
 		msg, _ := json.Marshal(map[string]string{"status": "error", "message": err.Error()})
 		sseEvent(w, flusher, string(msg))
+		return
+	}
+
+	// Backfill Moodle IDs for Pass-1 matched users that lacked one, reusing the
+	// shared email-based assignment.
+	if len(usersNeedingMoodleID) > 0 {
+		pending := make([]*models.ExamUser, 0, len(usersNeedingMoodleID))
+		for _, u := range usersNeedingMoodleID {
+			pending = append(pending, u)
+		}
+		if backfilled, _ := h.syncMoodleIDsByEmail(pending, moodleUsers); backfilled > 0 {
+			log.Printf("AUDIT: syncOfficialResultsMoodle: exam_id=%d backfilled moodle_id for %d pass1-matched users", examID, backfilled)
+		}
+	}
+
+	if len(remainingResults) == 0 {
+		log.Printf("AUDIT: syncOfficialResultsMoodle: exam_id=%d pass1+backfill matched=%d (no pass2 needed)", examID, matchedCount)
+		result, _ := json.Marshal(map[string]any{"status": "done", "matched": matchedCount})
+		sseEvent(w, flusher, string(result))
 		return
 	}
 
@@ -351,4 +383,3 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 	result, _ := json.Marshal(map[string]any{"status": "done", "matched": matchedCount})
 	sseEvent(w, flusher, string(result))
 }
-

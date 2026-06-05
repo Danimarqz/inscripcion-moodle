@@ -59,30 +59,37 @@ func (r *officialResultRepository) List(ctx context.Context, db *gorm.DB, examID
 
 	query := db.WithContext(ctx).Model(&models.ExamOfficialResult{}).Where("exam_id = ?", examID)
 
+	needsExamUserJoin := false
+
 	if resultType != "" && resultType != "all" {
-		query = query.Where("result_type = ?", resultType)
+		query = query.Where("exam_official_result.result_type = ?", resultType)
 	}
 
 	if hasUser != nil {
+		needsExamUserJoin = true
 		if *hasUser {
-			query = query.Where("user_id IS NOT NULL")
+			query = query.Where("exam_official_result.user_id IS NOT NULL AND exam_user.moodle_id IS NOT NULL")
 		} else {
-			query = query.Where("user_id IS NULL")
+			query = query.Where("exam_official_result.user_id IS NULL OR exam_user.moodle_id IS NULL")
 		}
 	}
 
 	if sanitized := strings.TrimSpace(search); sanitized != "" {
 		like := "%" + strings.ToLower(sanitized) + "%"
 		query = query.Where(
-			"LOWER(nombre) LIKE ? OR "+
-				"LOWER(apellido_1) LIKE ? OR "+
-				"LOWER(COALESCE(apellido_2, '')) LIKE ? OR "+
-				"LOWER(dni_masked) LIKE ?",
+			"LOWER(exam_official_result.nombre) LIKE ? OR "+
+				"LOWER(exam_official_result.apellido_1) LIKE ? OR "+
+				"LOWER(COALESCE(exam_official_result.apellido_2, '')) LIKE ? OR "+
+				"LOWER(exam_official_result.dni_masked) LIKE ?",
 			like, like, like, like,
 		)
 	}
 
 	if strings.Contains(strings.ToLower(order), "exam_user.") {
+		needsExamUserJoin = true
+	}
+
+	if needsExamUserJoin {
 		query = query.Joins("LEFT JOIN exam_user ON exam_user.id = exam_official_result.user_id")
 	}
 

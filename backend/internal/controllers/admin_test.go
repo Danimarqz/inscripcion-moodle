@@ -65,7 +65,10 @@ func buildMultipartExcel(t *testing.T) ([]byte, string) {
 	writer := multipart.NewWriter(&buf)
 	part, err := writer.CreateFormFile("file", "dummy.xlsx")
 	require.NoError(t, err)
-	_, err = part.Write([]byte("dummy excel content"))
+	// Must start with the XLSX/ZIP magic (PK\x03\x04) to pass the handler's
+	// magic-byte validation; the import service itself is stubbed, so the rest
+	// of the bytes are irrelevant.
+	_, err = part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("dummy excel content")...))
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 	return buf.Bytes(), writer.FormDataContentType()
