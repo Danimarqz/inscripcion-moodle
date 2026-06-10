@@ -8,11 +8,20 @@ export interface UploadPdfExcelResponse {
   count: number;
 }
 
+// One REAL layout the Lambda's AI detected: the parsing strategy plus the
+// column->index map it chose. Lets the admin spot a mis-mapped new format.
+export interface LayoutInfo {
+  strategy: string;
+  rows: number;
+  columns: Record<string, number>;
+}
+
 export interface ProcessPdfExcelResponse {
   total_records: number;
   expected_count: number | null;
   warnings: string[];
   pdfs_processed: string[];
+  layouts: LayoutInfo[];
   ready: boolean;
   // True when the backend served an existing output without re-running the
   // Lambda; in that case total_records is not a real count.
@@ -65,6 +74,9 @@ export async function uploadPdfExcelJob(
 export async function processPdfExcelJob(
   examId: number,
   token: string,
+  // True when the source PDFs carry a grades/"Nota" column; forwarded to the
+  // Lambda so it maps that column.
+  calificacion: boolean,
 ): Promise<ProcessPdfExcelResponse> {
   const API_URL = import.meta.env.PUBLIC_API_URL;
   const response = await fetch(
@@ -72,7 +84,11 @@ export async function processPdfExcelJob(
     {
       method: 'POST',
       credentials: 'include',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ calificacion }),
     },
   );
 

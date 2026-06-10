@@ -16,6 +16,9 @@ export default function PdfExcelConverter({ examId, token, onError }: PdfExcelCo
   const [uploading, setUploading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [uploadedCount, setUploadedCount] = useState<number | null>(null);
+  // Whether the uploaded PDFs carry a grades/"Nota" column. Forwarded to the
+  // Lambda so it maps the column on conversion.
+  const [hasScores, setHasScores] = useState(false);
   const [result, setResult] = useState<ProcessPdfExcelResponse | null>(null);
   const [downloadReady, setDownloadReady] = useState(false);
   const [inlineError, setInlineError] = useState<string | null>(null);
@@ -86,7 +89,7 @@ export default function PdfExcelConverter({ examId, token, onError }: PdfExcelCo
     clearError();
 
     try {
-      const res = await processPdfExcelJob(examNumericId, token);
+      const res = await processPdfExcelJob(examNumericId, token, hasScores);
       setResult(res);
       setDownloadReady(res.ready);
     } catch (err) {
@@ -146,6 +149,17 @@ export default function PdfExcelConverter({ examId, token, onError }: PdfExcelCo
         <p className="text-sm text-green-400">{uploadedCount} PDFs subidos.</p>
       )}
 
+      <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={hasScores}
+          onChange={(e) => setHasScores((e.currentTarget as HTMLInputElement).checked)}
+          disabled={uploading || processing}
+          className="h-4 w-4 accent-brand-pink cursor-pointer disabled:cursor-not-allowed"
+        />
+        El PDF incluye calificaciones (columna «Nota»)
+      </label>
+
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
@@ -186,6 +200,27 @@ export default function PdfExcelConverter({ examId, token, onError }: PdfExcelCo
               <ul className="list-disc list-inside space-y-0.5">
                 {result.warnings.map((warning, idx) => (
                   <li key={idx}>{warning}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {result.layouts && result.layouts.length > 0 && (
+            <div className="text-gray-300 bg-[#14161d] border border-[#444] p-3 rounded-md">
+              <p className="font-semibold mb-1 text-gray-200">
+                Layouts detectados ({result.layouts.length}):
+              </p>
+              <ul className="space-y-1.5">
+                {result.layouts.map((layout, idx) => (
+                  <li key={idx} className="border-l-2 border-brand-pink-soft pl-2">
+                    <span className="text-brand-pink font-mono">{layout.strategy || '—'}</span>
+                    {' · '}
+                    <span>{layout.rows} filas</span>
+                    <div className="font-mono text-xs text-gray-400 mt-0.5 break-all">
+                      {Object.entries(layout.columns ?? {})
+                        .map(([col, pos]) => `${col}=${pos}`)
+                        .join('  ') || 'sin columnas'}
+                    </div>
+                  </li>
                 ))}
               </ul>
             </div>

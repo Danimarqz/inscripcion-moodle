@@ -199,9 +199,26 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 			}
 
 			userFullName := normalizeForMatch(user.Name + user.Surname)
-			if dniMatch || resFullName == userFullName {
+			if resFullName == userFullName {
 				matchedUser = user
 				break
+			}
+			if dniMatch {
+				resTokens := strings.Fields(helpers.NormalizeName(res.Nombre + " " + res.Apellido1))
+				if res.Apellido2 != nil {
+					resTokens = append(resTokens, strings.Fields(helpers.NormalizeName(*res.Apellido2))...)
+				}
+				userNameNorm := helpers.NormalizeName(user.Name + " " + user.Surname)
+				nameScore := 0
+				for _, tok := range resTokens {
+					if len(tok) > 2 && strings.Contains(userNameNorm, tok) {
+						nameScore++
+					}
+				}
+				if nameScore >= 2 {
+					matchedUser = user
+					break
+				}
 			}
 		}
 

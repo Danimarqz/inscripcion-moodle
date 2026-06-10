@@ -32,13 +32,23 @@ import (
 // lambdaTimeout must stay below the server WriteTimeout (240s); see server.go.
 const lambdaTimeout = 230 * time.Second
 
+// LayoutInfo summarises one REAL layout the Lambda's AI detected: the parsing
+// strategy plus the column->index map it chose. Lets the admin spot a new
+// format that got mis-mapped without opening CloudWatch.
+type LayoutInfo struct {
+	Strategy string         `json:"strategy"`
+	Rows     int            `json:"rows"`
+	Columns  map[string]int `json:"columns"`
+}
+
 // LambdaResult is the parsed 200 response from the converter Lambda. It is safe
 // to return to clients: it never contains the bucket URL secret or api-key.
 type LambdaResult struct {
-	TotalRecords  int      `json:"total_records"`
-	ExpectedCount *int     `json:"expected_count"`
-	Warnings      []string `json:"warnings"`
-	PDFsProcessed []string `json:"pdfs_processed"`
+	TotalRecords  int          `json:"total_records"`
+	ExpectedCount *int         `json:"expected_count"`
+	Warnings      []string     `json:"warnings"`
+	PDFsProcessed []string     `json:"pdfs_processed"`
+	Layouts       []LayoutInfo `json:"layouts"`
 	// S3Output is never serialized to clients (json:"-") so the bucket/key
 	// cannot leak even if a future caller marshals this struct directly.
 	S3Output string `json:"-"`
@@ -159,7 +169,10 @@ func (s *Service) UploadPDF(ctx context.Context, prefix, filename string, body i
 // Process invokes the converter Lambda for prefix. It is idempotent: if the
 // output XLSX already exists in S3 it returns Ready=true WITHOUT invoking. The
 // Lambda Function URL is never included in any error returned to callers.
-func (s *Service) Process(ctx context.Context, prefix string) (*LambdaResult, error) {
+//
+// calificacion tells the Lambda whether the source PDFs carry a grades/score
+// ("Nota") column so it can map it; it is forwarded in the request body.
+func (s *Service) Process(ctx context.Context, prefix string, calificacion bool) (*LambdaResult, error) {
 	// Idempotency: skip invocation if the output already exists.
 	_, err := s.s3.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(s.bucket),
@@ -176,9 +189,10 @@ func (s *Service) Process(ctx context.Context, prefix string) (*LambdaResult, er
 		return nil, fmt.Errorf("pdfexcel: head output object: %w", err)
 	}
 
-	reqBody, err := json.Marshal(map[string]string{
-		"bucket": s.bucket,
-		"prefix": prefix,
+	reqBody, err := json.Marshal(map[string]any{
+		"bucket":       s.bucket,
+		"prefix":       prefix,
+		"calificacion": calificacion,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("pdfexcel: marshal request: %w", err)

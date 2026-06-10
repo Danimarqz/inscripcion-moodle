@@ -230,12 +230,12 @@ func parseOfficialResultRow(examID uint, row []string, useOfficialScores bool) (
 
 	if useOfficialScores {
 		if len(row) >= 6 {
-			if v, err := strconv.ParseFloat(strings.TrimSpace(row[5]), 64); err == nil {
+			if v, err := strconv.ParseFloat(strings.ReplaceAll(strings.TrimSpace(row[5]), ",", "."), 64); err == nil {
 				result.Score = &v
 			}
 		}
 		if len(row) >= 7 {
-			if v, err := strconv.ParseFloat(strings.TrimSpace(row[6]), 64); err == nil {
+			if v, err := strconv.ParseFloat(strings.ReplaceAll(strings.TrimSpace(row[6]), ",", "."), 64); err == nil {
 				result.Merits = &v
 			}
 		}

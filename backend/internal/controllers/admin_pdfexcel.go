@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/inscripcion-moodle/go-backend/internal/constants"
+	"github.com/inscripcion-moodle/go-backend/internal/services/pdfexcel"
 )
 
 const (
@@ -137,7 +139,17 @@ func (h *AdminController) processPDFExcel(w http.ResponseWriter, r *http.Request
 	}
 	prefix := examPrefix(examID)
 
-	result, err := h.pdfExcel.Process(r.Context(), prefix)
+	// Optional JSON body { "calificacion": bool } telling the Lambda whether the
+	// PDFs carry a grades/"Nota" column. Body is optional; a missing/malformed
+	// body defaults calificacion to false.
+	var body struct {
+		Calificacion bool `json:"calificacion"`
+	}
+	if r.Body != nil {
+		_ = json.NewDecoder(io.LimitReader(r.Body, 1<<10)).Decode(&body)
+	}
+
+	result, err := h.pdfExcel.Process(r.Context(), prefix, body.Calificacion)
 	if err != nil {
 		log.Printf("pdfexcel: Process failed exam_id=%d: %v", examID, err)
 		http.Error(w, "failed to convert pdfs", http.StatusBadGateway)
@@ -154,13 +166,18 @@ func (h *AdminController) processPDFExcel(w http.ResponseWriter, r *http.Request
 	if pdfsProcessed == nil {
 		pdfsProcessed = []string{}
 	}
+	layouts := result.Layouts
+	if layouts == nil {
+		layouts = []pdfexcel.LayoutInfo{}
+	}
 
-	log.Printf("AUDIT: processPDFExcel: exam_id=%d total_records=%d already_generated=%v", examID, result.TotalRecords, result.AlreadyGenerated)
+	log.Printf("AUDIT: processPDFExcel: exam_id=%d total_records=%d layouts=%d already_generated=%v", examID, result.TotalRecords, len(layouts), result.AlreadyGenerated)
 	writeJSON(w, map[string]any{
 		"total_records":     result.TotalRecords,
 		"expected_count":    result.ExpectedCount,
 		"warnings":          warnings,
 		"pdfs_processed":    pdfsProcessed,
+		"layouts":           layouts,
 		"ready":             true,
 		"already_generated": result.AlreadyGenerated,
 	})
