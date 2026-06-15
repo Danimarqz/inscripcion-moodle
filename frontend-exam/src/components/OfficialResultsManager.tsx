@@ -33,6 +33,8 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
   const [summary, setSummary] = useState<ImportOfficialResultsSummary | null>(null);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncProgress, setSyncProgress] = useState<string | null>(null);
+  // Rolling feed of per-record linked/nomatch events (kept to last 12).
+  const [syncLog, setSyncLog] = useState<{ ok: boolean; text: string }[]>([]);
 
   const [sortBy, setSortBy] = useState<'dni' | 'nombre' | 'apellidos' | 'usuario' | 'creado'>(
     'apellidos',
@@ -324,11 +326,25 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
                 setFeedback(null);
                 setSummary(null);
                 setSyncProgress(null);
+                setSyncLog([]);
                 try {
                   const res = await syncOfficialResultsMoodleStream(
                     Number(selectedExamId),
                     token,
                     (msg) => setSyncProgress(msg),
+                    (ev) => {
+                      if (ev.status === 'pass1' || ev.status === 'syncing') {
+                        setSyncProgress(
+                          `${ev.current}/${ev.total} · ${ev.matched} vinculados${ev.name ? ` · ${ev.name}` : ''}`,
+                        );
+                      } else if (ev.status === 'linked') {
+                        setSyncLog((l) => [{ ok: true, text: `✓ ${ev.name}` }, ...l].slice(0, 12));
+                      } else if (ev.status === 'nomatch') {
+                        setSyncLog((l) =>
+                          [{ ok: false, text: `✗ ${ev.name} — ${ev.reason ?? 'sin coincidencia'}` }, ...l].slice(0, 12),
+                        );
+                      }
+                    },
                   );
                   setSyncProgress(null);
                   setFeedback(`Sincronización Moodle completada: ${res.matched} usuarios vinculados.`);
@@ -353,6 +369,15 @@ export default function OfficialResultsManager({ exams, token }: OfficialResults
             </button>
             {isSyncing && syncProgress && (
               <p className="text-sm text-brand-blue animate-pulse">{syncProgress}</p>
+            )}
+            {syncLog.length > 0 && (
+              <div className="mt-1 max-h-40 overflow-y-auto rounded-md bg-gray-900/40 p-2 text-xs font-mono space-y-0.5">
+                {syncLog.map((entry, i) => (
+                  <div key={i} className={entry.ok ? 'text-green-400' : 'text-amber-400'}>
+                    {entry.text}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>

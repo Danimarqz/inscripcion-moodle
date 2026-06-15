@@ -220,7 +220,7 @@ export async function sendSubmissionEmails(
   });
 }
 
-type SseEvent = {
+export type SseEvent = {
   status: string;
   message?: string;
   [key: string]: unknown;
@@ -229,6 +229,7 @@ type SseEvent = {
 async function readSseStream(
   response: Response,
   onProgress: (message: string) => void,
+  onEvent?: (event: SseEvent) => void,
 ): Promise<SseEvent> {
   if (!response.body) throw new Error('No response body');
   const reader = response.body.getReader();
@@ -246,6 +247,7 @@ async function readSseStream(
       const data = JSON.parse(line.slice(6)) as SseEvent;
       if (data.status === 'error') throw new Error(data.message ?? 'Error durante la sincronización');
       if (data.status === 'done') return data;
+      onEvent?.(data);
       if (data.message) onProgress(data.message);
     }
   }
@@ -274,6 +276,7 @@ export async function syncOfficialResultsMoodleStream(
   examId: number,
   token: string,
   onProgress: (message: string) => void,
+  onEvent?: (event: SseEvent) => void,
 ): Promise<{ matched: number }> {
   const API_URL = import.meta.env.PUBLIC_API_URL;
   const response = await fetch(`${API_URL}/admin/exams/${examId}/results/official/sync-moodle`, {
@@ -281,7 +284,7 @@ export async function syncOfficialResultsMoodleStream(
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) throw new Error('Error al iniciar la sincronización con Moodle');
-  const data = await readSseStream(response, onProgress);
+  const data = await readSseStream(response, onProgress, onEvent);
   return { matched: (data.matched as number) ?? 0 };
 }
 

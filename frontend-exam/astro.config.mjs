@@ -12,7 +12,8 @@ export default defineConfig({
   }),
   integrations: [preact()],
   vite: {
-    plugins: [tailwindcss()],
+    // ponytail: cast — duplicate vite copies (yours vs astro's nested) clash on Plugin type only, runtime fine. Drop when versions dedupe.
+    plugins: [/** @type {any} */ (tailwindcss())],
     server: {
       allowedHosts: ['opotest.danimarqz.dev', 'simulador.opositatcae.es']
     }

@@ -231,9 +231,17 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 				matchedCount++
 				res.UserID = &matchedUser.ID
 				log.Printf("AUDIT: syncOfficialResultsMoodle Pass1: linked Official Result ID %d to ExamUser ID %d", res.ID, matchedUser.ID)
+				ev, _ := json.Marshal(map[string]any{"status": "linked", "pass": 1, "name": res.Nombre + " " + res.Apellido1})
+				sseEvent(w, flusher, string(ev))
 			}
 		} else {
 			remainingResults = append(remainingResults, res)
+		}
+
+		// ponytail: throttle 1/25 so big lists don't flood the stream.
+		if i%25 == 0 || i == len(officialResults)-1 {
+			ev, _ := json.Marshal(map[string]any{"status": "pass1", "current": i + 1, "total": len(officialResults), "matched": matchedCount})
+			sseEvent(w, flusher, string(ev))
 		}
 	}
 
@@ -280,7 +288,13 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 
 	// Pass 2: Match remaining against Moodle DB and auto-create ExamUser
 	log.Printf("syncOfficialResultsMoodle: fetched %d users from Moodle DB. Proceeding to match %d unlinked official results.", len(moodleUsers), len(remainingResults))
-	for _, res := range remainingResults {
+	for idx, res := range remainingResults {
+		// ponytail: throttle 1/10 so big lists don't flood the stream.
+		if idx%10 == 0 || idx == len(remainingResults)-1 {
+			ev, _ := json.Marshal(map[string]any{"status": "syncing", "current": idx + 1, "total": len(remainingResults), "matched": matchedCount, "name": res.Nombre + " " + res.Apellido1})
+			sseEvent(w, flusher, string(ev))
+		}
+
 		resFullName := normalizeForMatch(res.Nombre + res.Apellido1)
 		if res.Apellido2 != nil {
 			resFullName = normalizeForMatch(res.Nombre + res.Apellido1 + *res.Apellido2)
@@ -298,6 +312,8 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 
 		if !hasNumbers {
 			log.Printf("syncOfficialResultsMoodle: skipped result ID %d due to invalid mask (original: '%s')", res.ID, res.DniMasked)
+			ev, _ := json.Marshal(map[string]any{"status": "nomatch", "name": res.Nombre + " " + res.Apellido1, "reason": "DNI enmascarado inválido"})
+			sseEvent(w, flusher, string(ev))
 			continue
 		}
 
@@ -387,12 +403,19 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 			if txErr == nil {
 				matchedCount++
 				log.Printf("AUDIT: syncOfficialResultsMoodle Pass2: linked Official Result ID %d to ExamUser (email: %s)", res.ID, newUser.Email)
+				ev, _ := json.Marshal(map[string]any{"status": "linked", "pass": 2, "name": res.Nombre + " " + res.Apellido1, "moodle_id": matchedMoodleUser.ID})
+				sseEvent(w, flusher, string(ev))
 				if newUser.ID != 0 {
 					log.Printf("syncOfficialResultsMoodle: successfully auto-created ExamUser ID %d for Official Result ID %d", newUser.ID, res.ID)
 				}
 			} else {
 				log.Printf("syncOfficialResultsMoodle: transaction failed for Official Result ID %d: %v", res.ID, txErr)
+				ev, _ := json.Marshal(map[string]any{"status": "nomatch", "name": res.Nombre + " " + res.Apellido1, "reason": "error al vincular"})
+				sseEvent(w, flusher, string(ev))
 			}
+		} else {
+			ev, _ := json.Marshal(map[string]any{"status": "nomatch", "name": res.Nombre + " " + res.Apellido1, "reason": "sin coincidencia en Moodle"})
+			sseEvent(w, flusher, string(ev))
 		}
 	}
 
