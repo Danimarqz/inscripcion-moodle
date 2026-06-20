@@ -57,6 +57,7 @@ type EditExamRequest struct {
 	ClearDisplayWeight   *bool           `json:"clear_display_weight,omitempty"`
 	SkipWeights          *bool           `json:"skip_weights,omitempty"`
 	UseOfficialScores    *bool           `json:"use_official_scores,omitempty"`
+	AssociatedExamIDs    *[]uint         `json:"associated_exam_ids,omitempty"`
 	Questions            []QuestionInput `json:"questions"`
 }
 

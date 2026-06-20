@@ -203,6 +203,7 @@ export type ExamEdit = {
   clear_display_weight?: boolean;
   skip_weights?: boolean;
   use_official_scores?: boolean;
+  associated_exam_ids?: number[];
   questions: QuestionEdit[];
 };
 

@@ -25,6 +25,11 @@ func (s *Service) GetExam(examID uint) (*models.Exam, error) {
 		}
 		return nil, err
 	}
+	if exam.PercentileGroup != nil {
+		s.db.Model(&models.Exam{}).
+			Where("percentile_group = ? AND id <> ?", *exam.PercentileGroup, examID).
+			Pluck("id", &exam.AssociatedExamIDs)
+	}
 	return exam, nil
 }
 
@@ -309,6 +314,18 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 		len(req.Questions) > 0 {
 		if err := s.examRepo.RecalculateScores(context.Background(), s.db, exam.ID); err != nil {
 			return nil, fmt.Errorf("failed to recalculate scores: %w", err)
+		}
+	}
+
+	if req.AssociatedExamIDs != nil {
+		affected, err := s.examRepo.SetPercentileGroup(context.Background(), s.db, exam.ID, *req.AssociatedExamIDs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to set percentile group: %w", err)
+		}
+		for _, id := range affected {
+			if err := s.examRepo.RecalculatePercentiles(context.Background(), s.db, id); err != nil {
+				return nil, fmt.Errorf("failed to recalculate percentiles: %w", err)
+			}
 		}
 	}
 

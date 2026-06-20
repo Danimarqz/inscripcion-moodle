@@ -76,6 +76,14 @@ func (m *MockExamRepository) RecalculatePercentiles(ctx context.Context, db *gor
 	return args.Error(0)
 }
 
+func (m *MockExamRepository) SetPercentileGroup(ctx context.Context, db *gorm.DB, examID uint, memberIDs []uint) ([]uint, error) {
+	args := m.Called(ctx, db, examID, memberIDs)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]uint), args.Error(1)
+}
+
 func (m *MockExamRepository) GetTop10AverageScore(ctx context.Context, db *gorm.DB, examID uint) (*float64, error) {
 	args := m.Called(ctx, db, examID)
 	if args.Get(0) == nil {

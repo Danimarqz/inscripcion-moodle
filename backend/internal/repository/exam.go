@@ -25,6 +25,7 @@ type ExamRepository interface {
 	RecalculateScores(ctx context.Context, db *gorm.DB, examID uint) error
 	RecalculateScoresForSubmission(ctx context.Context, db *gorm.DB, examID uint, submissionID uint) error
 	RecalculatePercentiles(ctx context.Context, db *gorm.DB, examID uint) error
+	SetPercentileGroup(ctx context.Context, db *gorm.DB, examID uint, memberIDs []uint) ([]uint, error)
 	GetTop10AverageScore(ctx context.Context, db *gorm.DB, examID uint) (*float64, error)
 	CountActiveQuestions(ctx context.Context, db *gorm.DB, examID uint) (int, error)
 }
@@ -158,15 +159,21 @@ func (r *examRepository) RecalculateScores(ctx context.Context, db *gorm.DB, exa
 }
 
 func (r *examRepository) RecalculatePercentiles(ctx context.Context, db *gorm.DB, examID uint) error {
+	// Resolve the pool: if this exam belongs to a percentile group, percentiles
+	// are computed over every exam sharing that group; otherwise just this exam.
+	examIDs := []uint{examID}
 	var exam models.Exam
-	if err := db.WithContext(ctx).Select("use_official_scores").First(&exam, examID).Error; err != nil {
-		// Fallback to standard percentile if exam not found
-		exam.UseOfficialScores = false
+	if err := db.WithContext(ctx).Select("percentile_group").First(&exam, examID).Error; err == nil && exam.PercentileGroup != nil {
+		var ids []uint
+		if err := db.WithContext(ctx).Model(&models.Exam{}).
+			Where("percentile_group = ?", *exam.PercentileGroup).Pluck("id", &ids).Error; err == nil && len(ids) > 0 {
+			examIDs = ids
+		}
 	}
 
-	var percentileSQL string
-	if exam.UseOfficialScores {
-		percentileSQL = `
+	// Score per row = official score if present, else the submission score. This
+	// makes official scores apply automatically without a per-exam flag.
+	percentileSQL := `
 UPDATE user_exam_submission AS u
 JOIN (
     SELECT
@@ -175,29 +182,92 @@ JOIN (
     FROM user_exam_submission s
     LEFT JOIN exam_official_result o
         ON o.exam_id = s.exam_id AND o.user_id = s.user_id AND o.score IS NOT NULL
-    WHERE s.exam_id = ? AND (s.score IS NOT NULL OR o.score IS NOT NULL)
+    WHERE s.exam_id IN (?) AND (s.score IS NOT NULL OR o.score IS NOT NULL)
 ) ranked ON ranked.id = u.id
 SET u.percentile = ranked.pct
-WHERE u.exam_id = ?`
-	} else {
-		percentileSQL = `
-UPDATE user_exam_submission AS u
-JOIN (
-    SELECT
-        id,
-        ROUND(CUME_DIST() OVER (ORDER BY score ASC) * 100, 2) AS pct
-    FROM user_exam_submission
-    WHERE exam_id = ? AND score IS NOT NULL
-) ranked ON ranked.id = u.id
-SET u.percentile = ranked.pct
-WHERE u.exam_id = ?`
-	}
+WHERE u.exam_id IN (?)`
 
-	if err := db.WithContext(ctx).Exec(percentileSQL, examID, examID).Error; err != nil {
+	if err := db.WithContext(ctx).Exec(percentileSQL, examIDs, examIDs).Error; err != nil {
 		log.Printf("ERROR: RecalculatePercentiles SQL failed: %v", err)
 		return err
 	}
 	return nil
+}
+
+// SetPercentileGroup makes examID's percentile group exactly {examID} ∪ memberIDs.
+// The relationship is symmetric: every member ends up sharing one group id
+// (= the smallest member id). Exams that leave examID's previous group are
+// detached, and any group left with a single member is dissolved (set NULL).
+// Returns the ids of every exam whose group membership may have changed, so the
+// caller can recalculate percentiles for each affected pool.
+func (r *examRepository) SetPercentileGroup(ctx context.Context, db *gorm.DB, examID uint, memberIDs []uint) ([]uint, error) {
+	set := map[uint]bool{examID: true}
+	for _, id := range memberIDs {
+		set[id] = true
+	}
+	members := make([]uint, 0, len(set))
+	for id := range set {
+		members = append(members, id)
+	}
+
+	affected := map[uint]bool{examID: true}
+	for _, id := range members {
+		affected[id] = true
+	}
+
+	var exam models.Exam
+	db.WithContext(ctx).Select("percentile_group").First(&exam, examID)
+
+	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Detach exams that were in examID's old group but are no longer members.
+		if exam.PercentileGroup != nil {
+			var old []uint
+			tx.Model(&models.Exam{}).Where("percentile_group = ?", *exam.PercentileGroup).Pluck("id", &old)
+			for _, id := range old {
+				affected[id] = true
+			}
+			if err := tx.Model(&models.Exam{}).
+				Where("percentile_group = ? AND id NOT IN ?", *exam.PercentileGroup, members).
+				Update("percentile_group", nil).Error; err != nil {
+				return err
+			}
+		}
+
+		if len(members) < 2 {
+			// Nothing to associate: detach examID.
+			if err := tx.Model(&models.Exam{}).Where("id = ?", examID).
+				Update("percentile_group", nil).Error; err != nil {
+				return err
+			}
+		} else {
+			groupID := members[0]
+			for _, id := range members {
+				if id < groupID {
+					groupID = id
+				}
+			}
+			if err := tx.Model(&models.Exam{}).Where("id IN ?", members).
+				Update("percentile_group", groupID).Error; err != nil {
+				return err
+			}
+		}
+
+		// Dissolve any group left with a single member.
+		return tx.Exec(`UPDATE exam SET percentile_group = NULL WHERE percentile_group IN (
+    SELECT g FROM (
+        SELECT percentile_group AS g FROM exam
+        WHERE percentile_group IS NOT NULL GROUP BY percentile_group HAVING COUNT(*) = 1
+    ) t)`).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	ids := make([]uint, 0, len(affected))
+	for id := range affected {
+		ids = append(ids, id)
+	}
+	return ids, nil
 }
 
 func (r *examRepository) RecalculateScoresForSubmission(ctx context.Context, db *gorm.DB, examID uint, submissionID uint) error {

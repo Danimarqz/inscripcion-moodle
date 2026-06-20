@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type {
+  Exam,
   ExamCreateWithQuestions,
   ExamEdit,
   QuestionCreate,
   QuestionEdit,
 } from '../types/exam';
-import { createExam, editExam, getExamById, getQuestionFeedbackVideo, patchQuestionFeedbackVideo } from '../services/adminService';
+import { createExam, editExam, getAdminExams, getExamById, getQuestionFeedbackVideo, patchQuestionFeedbackVideo } from '../services/adminService';
 import { useAdminAuth } from '../hooks/useAdminAuth';
 import { useQuestionList } from '../hooks/useQuestionList';
 import { useAsyncTask } from '../hooks/useAsyncTask';
@@ -44,6 +45,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
   const [maxMerits, setMaxMerits] = useState(100);
   const [skipWeights, setSkipWeights] = useState(false);
   const [useOfficialScores, setUseOfficialScores] = useState(false);
+  const [associatedExamIds, setAssociatedExamIds] = useState<number[]>([]);
+  const [otherExams, setOtherExams] = useState<Exam[]>([]);
   const [displayWeightOverride, setDisplayWeightOverride] = useState(false);
   const [displayExamWeight, setDisplayExamWeight] = useState(0.5);
 
@@ -111,6 +114,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setMaxMerits(examData.max_merits ?? 100);
       setSkipWeights(Boolean(examData.skip_weights));
       setUseOfficialScores(Boolean(examData.use_official_scores));
+      setAssociatedExamIds(examData.associated_exam_ids ?? []);
       setDisplayWeightOverride(examData.display_exam_weight != null);
       setDisplayExamWeight(examData.display_exam_weight ?? examData.exam_weight ?? 0.5);
 
@@ -127,6 +131,14 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setAll(normalizedQuestions as (QuestionCreate | QuestionEdit)[]);
     }).catch(() => undefined);
   }, [authenticating, examId, run, setAll, setError, token]);
+
+  // Load other exams to offer as percentile-group candidates (edit only).
+  useEffect(() => {
+    if (authenticating || !token || !examId) return;
+    getAdminExams(token)
+      .then((exams) => setOtherExams(exams.filter((e) => e.id !== examId)))
+      .catch(() => undefined);
+  }, [authenticating, examId, token]);
 
   async function handleSubmit(event: Event) {
     event.preventDefault();
@@ -201,6 +213,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
       max_merits: maxMerits,
       skip_weights: skipWeights,
       use_official_scores: useOfficialScores,
+      ...(examToEdit ? { associated_exam_ids: associatedExamIds } : {}),
       display_exam_weight: displayWeightOverride ? displayExamWeight : null,
       ...(examToEdit && !displayWeightOverride ? { clear_display_weight: true } : {}),
       questions: questions.map((q) => ({
@@ -698,6 +711,30 @@ export default function ExamForm({ examId }: ExamFormProps) {
           <span className="text-brand-pink font-bold">Usar notas de resultados oficiales</span>
           <span className="text-xs text-gray-400">Las notas oficiales prevalecen sobre las del simulador</span>
         </label>
+        {examToEdit && (
+          <label className="block text-brand-pink font-bold mb-4">
+            Exámenes asociados para percentil:
+            <span className="block text-xs font-normal text-gray-400 mb-1">
+              El percentil se calcula sobre las notas de todos los exámenes seleccionados (relación recíproca).
+            </span>
+            <select
+              multiple
+              onChange={(e) =>
+                setAssociatedExamIds(
+                  Array.from((e.target as HTMLSelectElement).selectedOptions, (o) => Number(o.value)),
+                )
+              }
+              disabled={isBusy}
+              className="w-full mt-1 bg-gray-800 text-white rounded p-2 font-normal min-h-32"
+            >
+              {otherExams.map((e) => (
+                <option key={e.id} value={String(e.id)} selected={associatedExamIds.includes(e.id)}>
+                  {e.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {!skipWeights && (
           <div className="flex flex-col gap-4 sm:flex-row sm:gap-6 mb-4">
             <label className="block text-brand-pink font-bold flex-1">
