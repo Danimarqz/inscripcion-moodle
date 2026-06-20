@@ -159,6 +159,11 @@ export default function PdfExcelConverter({ examId, token, onError }: PdfExcelCo
         />
         El PDF incluye calificaciones (columna «Nota»)
       </label>
+      {hasScores && (
+        <p className="text-sm text-amber-400">
+          ⚠ Al subir calificaciones, los alumnos verán la nota oficial directamente en lugar de la calculada.
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <button

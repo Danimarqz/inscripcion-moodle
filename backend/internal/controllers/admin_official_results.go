@@ -11,7 +11,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/inscripcion-moodle/go-backend/internal/constants"
-	"github.com/inscripcion-moodle/go-backend/internal/models"
 	"github.com/inscripcion-moodle/go-backend/internal/services/admin"
 	"github.com/inscripcion-moodle/go-backend/internal/services/excelimport"
 )
@@ -166,19 +165,12 @@ func (h *AdminController) deleteOfficialResult(w http.ResponseWriter, r *http.Re
 }
 
 func (h *AdminController) downloadOfficialResultsTemplate(w http.ResponseWriter, r *http.Request) {
-	examID, err := parseUintURLParam(r, "exam_id")
-	if err != nil {
+	if _, err := parseUintURLParam(r, "exam_id"); err != nil {
 		http.Error(w, constants.InvalidExamID, http.StatusBadRequest)
 		return
 	}
 
-	var exam models.Exam
-	if err := h.db.First(&exam, examID).Error; err != nil {
-		http.Error(w, constants.ExamNotFound, http.StatusNotFound)
-		return
-	}
-
-	buf, err := excelimport.GenerateOfficialResultsTemplate(exam.UseOfficialScores)
+	buf, err := excelimport.GenerateOfficialResultsTemplate()
 	if err != nil {
 		http.Error(w, "failed to generate template", http.StatusInternalServerError)
 		return

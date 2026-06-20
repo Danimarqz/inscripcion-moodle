@@ -109,7 +109,6 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 		MaxMerits:            req.MaxMerits,
 		DisplayExamWeight:    req.DisplayExamWeight,
 		SkipWeights:          req.SkipWeights,
-		UseOfficialScores:    req.UseOfficialScores,
 		Questions:            questions,
 	}
 
@@ -260,9 +259,6 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 	}
 	if req.SkipWeights != nil {
 		exam.SkipWeights = *req.SkipWeights
-	}
-	if req.UseOfficialScores != nil {
-		exam.UseOfficialScores = *req.UseOfficialScores
 	}
 
 	if req.PassingCriteriaType != nil || req.PassingCriteriaValue != nil {

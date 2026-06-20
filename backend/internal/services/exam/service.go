@@ -429,9 +429,9 @@ func (s *Service) UpdateMerits(req UpdateMeritsRequest) (*UpdateMeritsResponse, 
 		return nil, ErrMeritsAlreadySet
 	}
 
-	// Use official score for pass evaluation when override is enabled
+	// Use official score for pass evaluation when a linked official result exists
 	effectiveScore := submission.Score
-	if submission.Exam.UseOfficialScores && submission.UserID != 0 {
+	if submission.UserID != 0 {
 		var official models.ExamOfficialResult
 		if err := s.db.Where("exam_id = ? AND user_id = ?", submission.Exam.ID, submission.UserID).First(&official).Error; err == nil {
 			if official.Score != nil {
@@ -723,9 +723,9 @@ func evaluatePassStatus(score *float64, threshold *float64) *bool {
 }
 
 // applyOfficialScoreOverride overrides submission score/merits in memory when
-// the exam has UseOfficialScores enabled and a linked official result exists.
+// a linked official result with a score exists.
 func applyOfficialScoreOverride(db *gorm.DB, exam *models.Exam, submission *models.UserExamSubmission) {
-	if !exam.UseOfficialScores || submission.UserID == 0 {
+	if submission.UserID == 0 {
 		return
 	}
 	var official models.ExamOfficialResult

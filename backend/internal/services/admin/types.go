@@ -31,7 +31,6 @@ type CreateExamRequest struct {
 	MaxMerits            float64         `json:"max_merits"`
 	DisplayExamWeight    *float64        `json:"display_exam_weight,omitempty"`
 	SkipWeights          bool            `json:"skip_weights"`
-	UseOfficialScores    bool            `json:"use_official_scores"`
 	Questions            []QuestionInput `json:"questions"`
 }
 
@@ -56,7 +55,6 @@ type EditExamRequest struct {
 	DisplayExamWeight    *float64        `json:"display_exam_weight,omitempty"`
 	ClearDisplayWeight   *bool           `json:"clear_display_weight,omitempty"`
 	SkipWeights          *bool           `json:"skip_weights,omitempty"`
-	UseOfficialScores    *bool           `json:"use_official_scores,omitempty"`
 	AssociatedExamIDs    *[]uint         `json:"associated_exam_ids,omitempty"`
 	Questions            []QuestionInput `json:"questions"`
 }

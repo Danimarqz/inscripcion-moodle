@@ -44,7 +44,6 @@ export default function ExamForm({ examId }: ExamFormProps) {
   const [examWeight, setExamWeight] = useState(0.5);
   const [maxMerits, setMaxMerits] = useState(100);
   const [skipWeights, setSkipWeights] = useState(false);
-  const [useOfficialScores, setUseOfficialScores] = useState(false);
   const [associatedExamIds, setAssociatedExamIds] = useState<number[]>([]);
   const [otherExams, setOtherExams] = useState<Exam[]>([]);
   const [displayWeightOverride, setDisplayWeightOverride] = useState(false);
@@ -113,7 +112,6 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setExamWeight(examData.exam_weight ?? 0.5);
       setMaxMerits(examData.max_merits ?? 100);
       setSkipWeights(Boolean(examData.skip_weights));
-      setUseOfficialScores(Boolean(examData.use_official_scores));
       setAssociatedExamIds(examData.associated_exam_ids ?? []);
       setDisplayWeightOverride(examData.display_exam_weight != null);
       setDisplayExamWeight(examData.display_exam_weight ?? examData.exam_weight ?? 0.5);
@@ -212,7 +210,6 @@ export default function ExamForm({ examId }: ExamFormProps) {
       exam_weight: examWeight,
       max_merits: maxMerits,
       skip_weights: skipWeights,
-      use_official_scores: useOfficialScores,
       ...(examToEdit ? { associated_exam_ids: associatedExamIds } : {}),
       display_exam_weight: displayWeightOverride ? displayExamWeight : null,
       ...(examToEdit && !displayWeightOverride ? { clear_display_weight: true } : {}),
@@ -699,17 +696,6 @@ export default function ExamForm({ examId }: ExamFormProps) {
           />
           <span className="text-brand-pink font-bold">Ignorar pesos (sumar directamente)</span>
           <span className="text-xs text-gray-400">Nota ponderada = nota examen + meritos</span>
-        </label>
-        <label className="flex items-center gap-2 mb-4 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={useOfficialScores}
-            onChange={(e) => setUseOfficialScores((e.target as HTMLInputElement).checked)}
-            disabled={isBusy}
-            className="accent-brand-pink"
-          />
-          <span className="text-brand-pink font-bold">Usar notas de resultados oficiales</span>
-          <span className="text-xs text-gray-400">Las notas oficiales prevalecen sobre las del simulador</span>
         </label>
         {examToEdit && (
           <label className="block text-brand-pink font-bold mb-4">

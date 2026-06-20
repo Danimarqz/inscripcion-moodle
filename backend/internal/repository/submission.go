@@ -196,53 +196,10 @@ func (r *submissionRepository) CreateAnswer(ctx context.Context, db *gorm.DB, an
 	return db.WithContext(ctx).Create(answer).Error
 }
 
+// GetMeritsRanking ranks submissions by weighted (score + merits). Official
+// scores/merits override the submission's own via COALESCE, applied
+// automatically whenever a linked official result exists.
 func (r *submissionRepository) GetMeritsRanking(ctx context.Context, db *gorm.DB, examID uint, submissionID uint, passingThreshold float64, examWeight float64, skipWeights bool) (position *int, total *int, err error) {
-	// Check if official score override is enabled
-	var exam models.Exam
-	useOfficial := false
-	if err := db.WithContext(ctx).Select("use_official_scores").First(&exam, examID).Error; err == nil {
-		useOfficial = exam.UseOfficialScores
-	}
-
-	if useOfficial {
-		return r.getMeritsRankingWithOfficialScores(ctx, db, examID, submissionID, passingThreshold, examWeight, skipWeights)
-	}
-
-	var totalCount int64
-	if err := db.WithContext(ctx).Model(&models.UserExamSubmission{}).
-		Where("exam_id = ? AND score >= ? AND merits IS NOT NULL", examID, passingThreshold).
-		Count(&totalCount).Error; err != nil {
-		return nil, nil, err
-	}
-	totalInt := int(totalCount)
-
-	var scoreExpr string
-	var scoreArgs []any
-	if skipWeights {
-		scoreExpr = "(score + merits)"
-	} else {
-		meritsWeight := 1 - examWeight
-		scoreExpr = "(score * ?) + (merits * ?)"
-		scoreArgs = []any{examWeight, meritsWeight}
-	}
-
-	subquery := db.WithContext(ctx).Model(&models.UserExamSubmission{}).
-		Select(scoreExpr, scoreArgs...).
-		Where("id = ?", submissionID)
-
-	betterArgs := []any{examID, passingThreshold}
-	betterArgs = append(betterArgs, scoreArgs...)
-	var betterCount int64
-	if err := db.WithContext(ctx).Model(&models.UserExamSubmission{}).
-		Where("exam_id = ? AND score >= ? AND merits IS NOT NULL AND "+scoreExpr+" > (?)", append(betterArgs, subquery)...).
-		Count(&betterCount).Error; err != nil {
-		return nil, nil, err
-	}
-	pos := int(betterCount) + 1
-	return &pos, &totalInt, nil
-}
-
-func (r *submissionRepository) getMeritsRankingWithOfficialScores(ctx context.Context, db *gorm.DB, examID uint, submissionID uint, passingThreshold float64, examWeight float64, skipWeights bool) (position *int, total *int, err error) {
 	var scoreExpr string
 	if skipWeights {
 		scoreExpr = "(COALESCE(o.score, s.score) + COALESCE(o.merits, s.merits))"

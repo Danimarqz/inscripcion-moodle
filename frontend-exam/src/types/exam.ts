@@ -19,7 +19,6 @@ export type Exam = {
   passing_criteria_value?: number | null;
   exam_weight?: number;
   max_merits?: number;
-  use_official_scores?: boolean;
 };
 export type ExamOut = {
   score?: number | null;
@@ -167,7 +166,6 @@ export type ExamCreateWithQuestions = {
   max_merits?: number;
   display_exam_weight?: number | null;
   skip_weights?: boolean;
-  use_official_scores?: boolean;
   questions: QuestionCreate[];
 };
 
@@ -202,7 +200,6 @@ export type ExamEdit = {
   display_exam_weight?: number | null;
   clear_display_weight?: boolean;
   skip_weights?: boolean;
-  use_official_scores?: boolean;
   associated_exam_ids?: number[];
   questions: QuestionEdit[];
 };
