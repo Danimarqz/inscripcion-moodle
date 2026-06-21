@@ -112,34 +112,8 @@ func (s *Service) updateAnswersFromSubmission(submission *models.UserExamSubmiss
 		answersMap[answer.QuestionID] = answer.Answer
 	}
 	submission.AnswersData = &answersMap
-
-	// Phase 1: dual-write to user_answer
-	ctx := context.Background()
-	var existingAnswers []models.UserAnswer
-	if err := s.db.Where("submission_id = ?", submission.ID).Find(&existingAnswers).Error; err != nil {
-		return err
-	}
-	existingMap := make(map[uint]*models.UserAnswer)
-	for i := range existingAnswers {
-		existingMap[existingAnswers[i].QuestionID] = &existingAnswers[i]
-	}
-	for _, answer := range req.Answers {
-		if existing, ok := existingMap[answer.QuestionID]; ok {
-			existing.Answer = answer.Answer
-			if err := s.submissionRepo.SaveAnswer(ctx, s.db, existing); err != nil {
-				return err
-			}
-		} else {
-			newAnswer := models.UserAnswer{
-				SubmissionID: submission.ID,
-				QuestionID:   answer.QuestionID,
-				Answer:       answer.Answer,
-			}
-			if err := s.submissionRepo.CreateAnswer(ctx, s.db, &newAnswer); err != nil {
-				return err
-			}
-		}
-	}
+	// AnswersData is persisted by the caller (submissionRepo.Update). The legacy
+	// user_answer dual-write was removed — nothing reads it as a source of truth.
 	return nil
 }
 

@@ -255,32 +255,31 @@ func (r *submissionRepository) GetMeritsRanking(ctx context.Context, db *gorm.DB
 			AND COALESCE(o.score, s.score) >= ?
 			AND COALESCE(o.merits, s.merits) IS NOT NULL`
 
-	// Total count
+	// Single pass: rank + total via window functions. RANK() gives ties the same
+	// position (= strictly-better count + 1, matching the old better-count math).
+	windowSQL := "SELECT ranked.pos, ranked.total FROM (" +
+		"SELECT s.id, RANK() OVER (ORDER BY " + scoreExpr + " DESC) AS pos, COUNT(*) OVER () AS total " +
+		baseJoin + ") ranked WHERE ranked.id = ?"
+
+	var rows []struct {
+		Pos   int64
+		Total int64
+	}
+	if err := db.WithContext(ctx).Raw(windowSQL, examID, passingThreshold, submissionID).Scan(&rows).Error; err != nil {
+		return nil, nil, err
+	}
+	if len(rows) > 0 {
+		pos := int(rows[0].Pos)
+		total := int(rows[0].Total)
+		return &pos, &total, nil
+	}
+
+	// Submission isn't in the qualifying set (below threshold / no merits): still
+	// return the qualifying-set size, with no position.
 	var totalCount int64
-	countSQL := "SELECT COUNT(*) " + baseJoin
-	if err := db.WithContext(ctx).Raw(countSQL, examID, passingThreshold).Scan(&totalCount).Error; err != nil {
+	if err := db.WithContext(ctx).Raw("SELECT COUNT(*) "+baseJoin, examID, passingThreshold).Scan(&totalCount).Error; err != nil {
 		return nil, nil, err
 	}
 	totalInt := int(totalCount)
-
-	// Get current submission's weighted score
-	var myScore sql.NullFloat64
-	myScoreSQL := fmt.Sprintf("SELECT %s %s AND s.id = ?", scoreExpr, baseJoin)
-	if err := db.WithContext(ctx).Raw(myScoreSQL, examID, passingThreshold, submissionID).Scan(&myScore).Error; err != nil {
-		return nil, nil, err
-	}
-
-	if !myScore.Valid {
-		return nil, &totalInt, nil
-	}
-
-	// Count submissions with a better score
-	betterSQL := fmt.Sprintf("SELECT COUNT(*) %s AND %s > ?", baseJoin, scoreExpr)
-	var betterCount int64
-	if err := db.WithContext(ctx).Raw(betterSQL, examID, passingThreshold, myScore.Float64).Scan(&betterCount).Error; err != nil {
-		return nil, nil, err
-	}
-
-	pos := int(betterCount) + 1
-	return &pos, &totalInt, nil
+	return nil, &totalInt, nil
 }

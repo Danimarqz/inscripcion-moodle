@@ -9,6 +9,8 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
@@ -88,10 +90,68 @@ type Service struct {
 	repo           repository.ExamRepository
 	submissionRepo repository.SubmissionRepository
 	contactEmail   string
+	percentiles    *percentileCoalescer
 }
 
 func NewService(db *gorm.DB, repo repository.ExamRepository, submissionRepo repository.SubmissionRepository, contactEmail string) *Service {
-	return &Service{db: db, repo: repo, submissionRepo: submissionRepo, contactEmail: contactEmail}
+	s := &Service{db: db, repo: repo, submissionRepo: submissionRepo, contactEmail: contactEmail}
+	// Coalesce percentile recalcs: a burst of submissions to one exam collapses
+	// into a single CUME_DIST() pass instead of one full-pool recompute each.
+	s.percentiles = newPercentileCoalescer(s.recalculatePercentilesAsync, 2*time.Second)
+	return s
+}
+
+// percentileCoalescer collapses concurrent/rapid percentile recalcs per exam.
+// While a recalc for an exam runs, further triggers set a "pending" flag instead
+// of launching another; one follow-up runs after to cover late arrivals. So a
+// burst of N submissions yields at most 2 recalcs, not N.
+// ponytail: in-process, per-instance. Multi-replica deploys recalc once per
+// replica — fine, recalc is idempotent (recomputes from current DB state).
+type percentileCoalescer struct {
+	mu      sync.Mutex
+	pending map[uint]struct{}
+	running map[uint]struct{}
+	run     func(uint)
+	delay   time.Duration
+}
+
+func newPercentileCoalescer(run func(uint), delay time.Duration) *percentileCoalescer {
+	return &percentileCoalescer{
+		pending: make(map[uint]struct{}),
+		running: make(map[uint]struct{}),
+		run:     run,
+		delay:   delay,
+	}
+}
+
+func (c *percentileCoalescer) trigger(examID uint) {
+	c.mu.Lock()
+	if _, ok := c.running[examID]; ok {
+		c.pending[examID] = struct{}{}
+		c.mu.Unlock()
+		return
+	}
+	c.running[examID] = struct{}{}
+	c.mu.Unlock()
+	go c.loop(examID)
+}
+
+func (c *percentileCoalescer) loop(examID uint) {
+	for {
+		if c.delay > 0 {
+			time.Sleep(c.delay) // batch a burst into one recalc
+		}
+		c.run(examID)
+		c.mu.Lock()
+		if _, ok := c.pending[examID]; ok {
+			delete(c.pending, examID)
+			c.mu.Unlock()
+			continue // submissions arrived mid-recalc; run once more
+		}
+		delete(c.running, examID)
+		c.mu.Unlock()
+		return
+	}
 }
 
 // recalculatePercentilesAsync runs the percentile recalculation in a separate
@@ -136,8 +196,8 @@ func (s *Service) ProcessExamSubmission(req SubmitExamRequest) (*SubmissionPaylo
 		return nil, err
 	}
 
-	// On success, launch the recalculation in the background.
-	go s.recalculatePercentilesAsync(req.ExamID)
+	// On success, schedule a coalesced background percentile recalculation.
+	s.percentiles.trigger(req.ExamID)
 
 	return payload, nil
 }
@@ -342,20 +402,8 @@ func createSubmission(tx *gorm.DB, req SubmitExamRequest, userID uint) (*models.
 		return nil, nil, nil, err
 	}
 
-	for _, ans := range req.Answers {
-		option, ok := answersMap[ans.QuestionID]
-		if !ok {
-			continue
-		}
-		answer := models.UserAnswer{
-			SubmissionID: submission.ID,
-			QuestionID:   ans.QuestionID,
-			Answer:       option,
-		}
-		if err := tx.Create(&answer).Error; err != nil {
-			return nil, nil, nil, err
-		}
-	}
+	// Answers live in answers_json (set above); the legacy per-row user_answer
+	// dual-write was removed — nothing reads it as a source of truth.
 	return submission, breakdown, answersMap, nil
 }
 
