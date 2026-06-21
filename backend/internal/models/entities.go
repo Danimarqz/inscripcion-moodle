@@ -66,7 +66,7 @@ type Exam struct {
 	PercentileGroup      *uint                `gorm:"column:percentile_group" json:"percentile_group"`
 	AssociatedExamIDs    []uint               `gorm:"-" json:"associated_exam_ids"` // other exams sharing PercentileGroup; populated on read
 	Questions            []Question           `gorm:"foreignKey:ExamID" json:"questions"`
-	Submissions          []UserExamSubmission `gorm:"foreignKey:ExamID" json:"submissions"`
+	Submissions          []UserExamSubmission `gorm:"foreignKey:ExamID" json:"-"`
 }
 
 func (Exam) TableName() string {
@@ -97,7 +97,7 @@ type ExamUser struct {
 	MoodleID         *int                 `gorm:"column:moodle_id" json:"moodle_id,omitempty"`
 	AcceptsMarketing bool                 `gorm:"column:accepts_marketing" json:"accepts_marketing"`
 	CreatedAt        time.Time            `gorm:"column:created_at" json:"created_at"`
-	Submissions      []UserExamSubmission `gorm:"foreignKey:UserID"`
+	Submissions      []UserExamSubmission `gorm:"foreignKey:UserID" json:"-"`
 }
 
 func (ExamUser) TableName() string {
@@ -115,8 +115,10 @@ type UserExamSubmission struct {
 	AnswersData        *AnswersJSON `gorm:"column:answers_json;type:json" json:"answers_data"`
 	SubmittedAt        time.Time    `gorm:"column:submitted_at;autoCreateTime;index:idx_user_exam_submission_submitted_at" json:"submitted_at"`
 	User               ExamUser     `gorm:"foreignKey:UserID" json:"user"`
-	Exam               Exam         `gorm:"foreignKey:ExamID" json:"exam"`
-	Answers            []UserAnswer `gorm:"foreignKey:SubmissionID" json:"answers"` // Phase 1: kept for dual-write, will be removed in Phase 3
+	// Exam/Answers are loaded for scoring logic, never returned to clients —
+	// json:"-" keeps the (often empty) association objects out of list payloads.
+	Exam    Exam         `gorm:"foreignKey:ExamID" json:"-"`
+	Answers []UserAnswer `gorm:"foreignKey:SubmissionID" json:"-"`
 }
 
 func (UserExamSubmission) TableName() string {

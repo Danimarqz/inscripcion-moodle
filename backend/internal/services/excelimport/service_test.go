@@ -59,7 +59,7 @@ func TestImportOfficialResultsExcel(t *testing.T) {
 	require.Equal(t, 2, result.ImportedResults)
 
 	var results []models.ExamOfficialResult
-	require.NoError(t, db.Find(&results).Error)
+	require.NoError(t, db.Order("dni_masked").Find(&results).Error)
 	require.Len(t, results, 2)
 	require.Equal(t, "12345678A", results[0].DniMasked)
 	require.Equal(t, "GARCIA", results[0].Apellido1)
@@ -100,7 +100,7 @@ func TestImportOfficialResultsExcel_WithHeader(t *testing.T) {
 	require.Equal(t, 2, result.ImportedResults)
 
 	var results []models.ExamOfficialResult
-	require.NoError(t, db.Find(&results).Error)
+	require.NoError(t, db.Order("dni_masked").Find(&results).Error)
 	require.Len(t, results, 2)
 	require.Equal(t, "12345678A", results[0].DniMasked)
 	require.Equal(t, "GARCIA", results[0].Apellido1)
