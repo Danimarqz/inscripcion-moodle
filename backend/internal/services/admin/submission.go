@@ -143,7 +143,7 @@ func (s *Service) updateAnswersFromSubmission(submission *models.UserExamSubmiss
 	return nil
 }
 
-func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats bool, search, orderBy, orderDir string, moodleSynced *bool, resultType *string) (*ListSubmissionsResult, error) {
+func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats bool, search, orderBy, orderDir string, moodleSynced *bool, resultType *string, statsGroup bool) (*ListSubmissionsResult, error) {
 	orderClause := buildSubmissionOrder(strings.TrimSpace(orderBy), strings.TrimSpace(orderDir))
 
 	subs, err := s.submissionRepo.List(context.Background(), s.db, examID, limit, offset, search, orderClause, moodleSynced, resultType)
@@ -155,19 +155,37 @@ func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats b
 		Submissions: subs,
 	}
 	if includeStats {
-		totalCount, err := s.submissionRepo.Count(context.Background(), s.db, examID, moodleSynced, resultType)
+		totalCount, err := s.submissionRepo.Count(context.Background(), s.db, []uint{examID}, moodleSynced, resultType)
 		if err != nil {
 			return nil, err
 		}
 
-		avg, err := s.submissionRepo.GetAverageScore(context.Background(), s.db, examID, moodleSynced, resultType)
+		avg, avgOfficial, examIDs, err := s.submissionRepo.GetAverageScore(context.Background(), s.db, examID, moodleSynced, resultType, statsGroup)
 		if err != nil {
 			return nil, err
 		}
 
 		result.TotalSubmissions = totalCount
 		result.AverageScore = avg
+		result.AverageScoreOfficial = avgOfficial
 		result.StatsIncluded = true
+
+		// When comparing against the group, expose the aggregated attempt count
+		// and the names of the exams in the pool (the listing stays per-exam, so
+		// TotalSubmissions above still drives pagination).
+		if statsGroup && len(examIDs) > 1 {
+			groupCount, err := s.submissionRepo.Count(context.Background(), s.db, examIDs, moodleSynced, resultType)
+			if err != nil {
+				return nil, err
+			}
+			result.GroupTotalSubmissions = &groupCount
+			var names []string
+			if err := s.db.Model(&models.Exam{}).Where("id IN ?", examIDs).
+				Order("name ASC").Pluck("name", &names).Error; err != nil {
+				return nil, err
+			}
+			result.GroupExamNames = names
+		}
 	}
 	return result, nil
 }

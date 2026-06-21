@@ -14,10 +14,10 @@ type SubmissionRepository interface {
 	FindByID(ctx context.Context, db *gorm.DB, submissionID uint) (*models.UserExamSubmission, error)
 	ExistsByStudentExam(ctx context.Context, db *gorm.DB, email, dni string, examID uint) (bool, error)
 	List(ctx context.Context, db *gorm.DB, examID uint, limit, offset int, search, order string, moodleSynced *bool, resultType *string) ([]models.UserExamSubmission, error)
-	Count(ctx context.Context, db *gorm.DB, examID uint, moodleSynced *bool, resultType *string) (int64, error)
+	Count(ctx context.Context, db *gorm.DB, examIDs []uint, moodleSynced *bool, resultType *string) (int64, error)
 	Delete(ctx context.Context, db *gorm.DB, submissionID uint) error
 	DeleteByExamID(ctx context.Context, db *gorm.DB, examID uint) error
-	GetAverageScore(ctx context.Context, db *gorm.DB, examID uint, moodleSynced *bool, resultType *string) (*float64, error)
+	GetAverageScore(ctx context.Context, db *gorm.DB, examID uint, moodleSynced *bool, resultType *string, group bool) (avg *float64, avgOfficial *float64, examIDs []uint, err error)
 	Update(ctx context.Context, db *gorm.DB, submission *models.UserExamSubmission) error
 	SaveAnswer(ctx context.Context, db *gorm.DB, answer *models.UserAnswer) error   // Phase 1: dual-write
 	CreateAnswer(ctx context.Context, db *gorm.DB, answer *models.UserAnswer) error // Phase 1: dual-write
@@ -103,9 +103,9 @@ func (r *submissionRepository) List(ctx context.Context, db *gorm.DB, examID uin
 	return subs, nil
 }
 
-func (r *submissionRepository) Count(ctx context.Context, db *gorm.DB, examID uint, moodleSynced *bool, resultType *string) (int64, error) {
+func (r *submissionRepository) Count(ctx context.Context, db *gorm.DB, examIDs []uint, moodleSynced *bool, resultType *string) (int64, error) {
 	var total int64
-	query := db.WithContext(ctx).Model(&models.UserExamSubmission{}).Where("exam_id = ?", examID)
+	query := db.WithContext(ctx).Model(&models.UserExamSubmission{}).Where("exam_id IN ?", examIDs)
 
 	if moodleSynced != nil {
 		query = query.Joins("LEFT JOIN exam_user ON exam_user.id = user_exam_submission.user_id")
@@ -158,9 +158,36 @@ func (r *submissionRepository) DeleteByExamID(ctx context.Context, db *gorm.DB, 
 	})
 }
 
-func (r *submissionRepository) GetAverageScore(ctx context.Context, db *gorm.DB, examID uint, moodleSynced *bool, resultType *string) (*float64, error) {
-	var avg sql.NullFloat64
-	query := db.WithContext(ctx).Model(&models.UserExamSubmission{}).Where("exam_id = ? AND score IS NOT NULL", examID)
+func (r *submissionRepository) GetAverageScore(ctx context.Context, db *gorm.DB, examID uint, moodleSynced *bool, resultType *string, group bool) (avg *float64, avgOfficial *float64, examIDs []uint, err error) {
+	// Scope: just this exam, or every exam in its percentile group.
+	examIDs = []uint{examID}
+	if group {
+		var exam models.Exam
+		if e := db.WithContext(ctx).Select("percentile_group").First(&exam, examID).Error; e == nil && exam.PercentileGroup != nil {
+			var ids []uint
+			if e := db.WithContext(ctx).Model(&models.Exam{}).
+				Where("percentile_group = ?", *exam.PercentileGroup).Pluck("id", &ids).Error; e == nil && len(ids) > 0 {
+				examIDs = ids
+			}
+		}
+	}
+
+	var row struct {
+		Sim      sql.NullFloat64
+		Off      sql.NullFloat64
+		OffCount int64
+	}
+	// Dedup officials to one score per (exam_id, user_id): a raw LEFT JOIN would
+	// multiply submission rows when a user has several official rows (duplicate
+	// masked DNIs / result types), skewing every aggregate.
+	query := db.WithContext(ctx).Model(&models.UserExamSubmission{}).
+		Joins(`LEFT JOIN (
+			SELECT exam_id, user_id, MAX(score) AS score
+			FROM exam_official_result
+			WHERE score IS NOT NULL
+			GROUP BY exam_id, user_id
+		) o ON o.exam_id = user_exam_submission.exam_id AND o.user_id = user_exam_submission.user_id`).
+		Where("user_exam_submission.exam_id IN ? AND user_exam_submission.score IS NOT NULL", examIDs)
 
 	if moodleSynced != nil {
 		query = query.Joins("LEFT JOIN exam_user ON exam_user.id = user_exam_submission.user_id")
@@ -172,16 +199,25 @@ func (r *submissionRepository) GetAverageScore(ctx context.Context, db *gorm.DB,
 	}
 
 	if resultType != nil && *resultType != "" {
-		query = query.Where("selected_result_type = ?", *resultType)
+		query = query.Where("user_exam_submission.selected_result_type = ?", *resultType)
 	}
 
-	if err := query.Select("AVG(score)").Row().Scan(&avg); err != nil {
-		return nil, err
+	if err = query.Select(
+		"AVG(user_exam_submission.score) AS sim, " +
+			"AVG(COALESCE(o.score, user_exam_submission.score)) AS off, " +
+			"SUM(CASE WHEN o.score IS NOT NULL THEN 1 ELSE 0 END) AS off_count",
+	).Scan(&row).Error; err != nil {
+		return nil, nil, examIDs, err
 	}
-	if avg.Valid {
-		return &avg.Float64, nil
+
+	if row.Sim.Valid {
+		avg = &row.Sim.Float64
 	}
-	return nil, nil
+	// Only surface the official average when at least one official score exists.
+	if row.OffCount > 0 && row.Off.Valid {
+		avgOfficial = &row.Off.Float64
+	}
+	return avg, avgOfficial, examIDs, nil
 }
 
 func (r *submissionRepository) Update(ctx context.Context, db *gorm.DB, submission *models.UserExamSubmission) error {

@@ -90,6 +90,9 @@ export type AdminSubmissionsResponse = {
   submissions: AdminSubmission[];
   total_submissions: number;
   average_score: number | null;
+  average_score_official?: number | null;
+  group_total_submissions?: number | null;
+  group_exam_names?: string[] | null;
   stats_included: boolean;
 };
 

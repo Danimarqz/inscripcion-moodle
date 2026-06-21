@@ -51,8 +51,9 @@ func (h *AdminController) listSubmissions(w http.ResponseWriter, r *http.Request
 	if resultType != "" {
 		resultTypePtr = &resultType
 	}
+	statsGroup := parseBoolParam(r.URL.Query().Get("stats_group"), false)
 
-	result, err := h.service.ListSubmissions(uint(examID), limit, offset, includeStats, search, orderBy, orderDir, moodleSynced, resultTypePtr)
+	result, err := h.service.ListSubmissions(uint(examID), limit, offset, includeStats, search, orderBy, orderDir, moodleSynced, resultTypePtr, statsGroup)
 	if err != nil {
 		http.Error(w, "failed to load submissions", http.StatusInternalServerError)
 		return
