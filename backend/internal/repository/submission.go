@@ -56,7 +56,10 @@ func (r *submissionRepository) ExistsByStudentExam(ctx context.Context, db *gorm
 
 func (r *submissionRepository) List(ctx context.Context, db *gorm.DB, examID uint, limit, offset int, search, order string, moodleSynced *bool, resultType *string) ([]models.UserExamSubmission, error) {
 	var subs []models.UserExamSubmission
+	// answers_json is intentionally excluded from the list payload; it's heavy
+	// and lazy-loaded per submission via /admin/results/{id} when editing.
 	query := db.WithContext(ctx).Preload("User").
+		Omit("answers_json").
 		Where("exam_id = ?", examID)
 
 	query = query.Joins("LEFT JOIN exam_user ON exam_user.id = user_exam_submission.user_id")

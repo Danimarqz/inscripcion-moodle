@@ -97,7 +97,6 @@ interface FetchSubmissionsOptions {
   orderDir?: 'asc' | 'desc';
   moodleSynced?: boolean;
   type?: string;
-  statsGroup?: boolean;
 }
 
 export interface SubmissionEmailAttachmentPayload {
@@ -130,9 +129,6 @@ function buildParams(examId: number, options: FetchSubmissionsOptions): URLSearc
   }
   if (options?.type) {
     params.append('type', options.type);
-  }
-  if (options?.statsGroup) {
-    params.append('stats_group', 'true');
   }
   return params;
 }

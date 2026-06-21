@@ -33,6 +33,8 @@ type SubmissionStats = {
   totalSubmissions: number;
   averageScore: number | null;
   averageScoreOfficial: number | null;
+  groupAverageScore: number | null;
+  groupAverageScoreOfficial: number | null;
   groupTotalSubmissions: number | null;
   groupExamNames: string[] | null;
 };
@@ -41,6 +43,8 @@ const INITIAL_SUBMISSION_STATS: SubmissionStats = {
   totalSubmissions: 0,
   averageScore: null,
   averageScoreOfficial: null,
+  groupAverageScore: null,
+  groupAverageScoreOfficial: null,
   groupTotalSubmissions: null,
   groupExamNames: null,
 };
@@ -68,7 +72,6 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
   const [savingIds, setSavingIds] = useState<Record<number, boolean>>({});
   const [filterMoodleUsers, setFilterMoodleUsers] = useState(false);
   const [compareGroup, setCompareGroup] = useState(false);
-  const [hasGroup, setHasGroup] = useState(false);
   const [examConfig, setExamConfig] = useState<{ maxScore?: number; secondaryMaxScores?: string } | null>(null);
 
   const [downloadingEmails, setDownloadingEmails] = useState(false);
@@ -144,13 +147,15 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
   };
 
   const selectedEmailCount = emailCandidates.filter((candidate) => candidate.selected).length;
-  const { totalSubmissions, averageScore, averageScoreOfficial, groupTotalSubmissions, groupExamNames } = submissionStats;
-
-  const handleCompareGroupChange = (value: boolean) => {
-    setCompareGroup(value);
-    setNeedsStats(true);
-    setSubmissionStats({ ...INITIAL_SUBMISSION_STATS });
-  };
+  const {
+    totalSubmissions,
+    averageScore,
+    averageScoreOfficial,
+    groupAverageScore,
+    groupAverageScoreOfficial,
+    groupTotalSubmissions,
+    groupExamNames,
+  } = submissionStats;
   const effectiveLimit = pageLimit > 0 ? pageLimit : 1;
   const totalPages = Math.max(1, Math.ceil(totalSubmissions / effectiveLimit));
 
@@ -175,7 +180,6 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
           orderDir,
           moodleSynced: filterMoodleUsers ? true : undefined,
           type: filterType,
-          statsGroup: compareGroup,
         });
 
         // Discard if unmounted or a newer request has already started.
@@ -189,6 +193,8 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
               totalSubmissions: response.total_submissions ?? 0,
               averageScore: response.average_score ?? null,
               averageScoreOfficial: response.average_score_official ?? null,
+              groupAverageScore: response.group_average_score ?? null,
+              groupAverageScoreOfficial: response.group_average_score_official ?? null,
               groupTotalSubmissions: response.group_total_submissions ?? null,
               groupExamNames: response.group_exam_names ?? null,
             });
@@ -218,7 +224,6 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
                 maxScore: effectiveMax,
                 secondaryMaxScores: examData.secondary_max_scores,
               });
-              setHasGroup((examData.associated_exam_ids?.length ?? 0) > 0);
             }
           } catch (qErr) {
             if (import.meta.env.DEV) {
@@ -255,7 +260,6 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
     pageLimit,
     filterMoodleUsers,
     filterType,
-    compareGroup,
     refreshTrigger,
   ]);
 
@@ -618,14 +622,16 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
           totalSubmissions={totalSubmissions}
           averageScore={averageScore}
           averageScoreOfficial={averageScoreOfficial}
+          groupAverageScore={groupAverageScore}
+          groupAverageScoreOfficial={groupAverageScoreOfficial}
           groupTotalSubmissions={groupTotalSubmissions}
           groupExamNames={groupExamNames}
           needsStats={needsStats}
           selectedExamName={selectedExamName}
           loading={loading}
-          hasGroup={hasGroup}
+          hasGroup={(groupExamNames?.length ?? 0) > 1}
           compareGroup={compareGroup}
-          onCompareGroupChange={handleCompareGroupChange}
+          onCompareGroupChange={setCompareGroup}
        />
        {loading && <p className="text-brand-yellow">Cargando intentos...</p>}
        

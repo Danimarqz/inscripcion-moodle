@@ -64,6 +64,8 @@ type ListSubmissionsResult struct {
 	TotalSubmissions int64                       `json:"total_submissions,omitempty"`
 	AverageScore     *float64                    `json:"average_score,omitempty"`
 	AverageScoreOfficial *float64                `json:"average_score_official,omitempty"`
+	GroupAverageScore *float64                   `json:"group_average_score,omitempty"`
+	GroupAverageScoreOfficial *float64           `json:"group_average_score_official,omitempty"`
 	GroupTotalSubmissions *int64                 `json:"group_total_submissions,omitempty"`
 	GroupExamNames   []string                    `json:"group_exam_names,omitempty"`
 	StatsIncluded    bool                        `json:"stats_included"`

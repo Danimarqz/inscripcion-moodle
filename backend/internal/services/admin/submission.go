@@ -143,7 +143,7 @@ func (s *Service) updateAnswersFromSubmission(submission *models.UserExamSubmiss
 	return nil
 }
 
-func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats bool, search, orderBy, orderDir string, moodleSynced *bool, resultType *string, statsGroup bool) (*ListSubmissionsResult, error) {
+func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats bool, search, orderBy, orderDir string, moodleSynced *bool, resultType *string) (*ListSubmissionsResult, error) {
 	orderClause := buildSubmissionOrder(strings.TrimSpace(orderBy), strings.TrimSpace(orderDir))
 
 	subs, err := s.submissionRepo.List(context.Background(), s.db, examID, limit, offset, search, orderClause, moodleSynced, resultType)
@@ -160,7 +160,7 @@ func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats b
 			return nil, err
 		}
 
-		avg, avgOfficial, examIDs, err := s.submissionRepo.GetAverageScore(context.Background(), s.db, examID, moodleSynced, resultType, statsGroup)
+		avg, avgOfficial, _, err := s.submissionRepo.GetAverageScore(context.Background(), s.db, examID, moodleSynced, resultType, false)
 		if err != nil {
 			return nil, err
 		}
@@ -170,14 +170,19 @@ func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats b
 		result.AverageScoreOfficial = avgOfficial
 		result.StatsIncluded = true
 
-		// When comparing against the group, expose the aggregated attempt count
-		// and the names of the exams in the pool (the listing stays per-exam, so
-		// TotalSubmissions above still drives pagination).
-		if statsGroup && len(examIDs) > 1 {
+		// Always compute the group aggregate too (cheap) so the "compare against
+		// group" toggle is a client-side switch — no extra round-trip per toggle.
+		groupAvg, groupOfficial, examIDs, err := s.submissionRepo.GetAverageScore(context.Background(), s.db, examID, moodleSynced, resultType, true)
+		if err != nil {
+			return nil, err
+		}
+		if len(examIDs) > 1 {
 			groupCount, err := s.submissionRepo.Count(context.Background(), s.db, examIDs, moodleSynced, resultType)
 			if err != nil {
 				return nil, err
 			}
+			result.GroupAverageScore = groupAvg
+			result.GroupAverageScoreOfficial = groupOfficial
 			result.GroupTotalSubmissions = &groupCount
 			var names []string
 			if err := s.db.Model(&models.Exam{}).Where("id IN ?", examIDs).

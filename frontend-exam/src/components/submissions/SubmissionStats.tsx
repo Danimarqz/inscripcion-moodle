@@ -2,6 +2,8 @@ interface SubmissionStatsProps {
   totalSubmissions: number;
   averageScore: number | null;
   averageScoreOfficial: number | null;
+  groupAverageScore: number | null;
+  groupAverageScoreOfficial: number | null;
   groupTotalSubmissions: number | null;
   groupExamNames: string[] | null;
   needsStats: boolean;
@@ -16,6 +18,8 @@ export default function SubmissionStats({
   totalSubmissions,
   averageScore,
   averageScoreOfficial,
+  groupAverageScore,
+  groupAverageScoreOfficial,
   groupTotalSubmissions,
   groupExamNames,
   selectedExamName,
@@ -24,8 +28,10 @@ export default function SubmissionStats({
   compareGroup,
   onCompareGroupChange,
 }: SubmissionStatsProps) {
-  const showGroup = compareGroup && groupExamNames && groupExamNames.length > 1;
+  const showGroup = compareGroup && hasGroup;
   const displayTotal = showGroup && groupTotalSubmissions != null ? groupTotalSubmissions : totalSubmissions;
+  const displayAvg = showGroup ? groupAverageScore : averageScore;
+  const displayOfficial = showGroup ? groupAverageScoreOfficial : averageScoreOfficial;
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mb-6">
       <div className="rounded-xl border border-brand-pink-soft bg-brand-pink-soft p-5 shadow-lg">
@@ -43,19 +49,19 @@ export default function SubmissionStats({
       </div>
       <div className="rounded-xl border border-brand-blue-soft bg-brand-blue-soft p-5 shadow-lg">
         <p className="text-xs font-semibold uppercase tracking-[0.4em] text-brand-blue">
-          Nota media{compareGroup ? ' (grupo)' : ''}
+          Nota media{showGroup ? ' (grupo)' : ''}
         </p>
         <div className="flex items-baseline gap-4 mt-2">
           <span className="text-3xl font-extrabold text-brand-blue">
-            {averageScore !== null ? averageScore.toFixed(2) : 'Sin datos'}
+            {displayAvg !== null ? displayAvg.toFixed(2) : 'Sin datos'}
           </span>
-          {averageScoreOfficial !== null && (
+          {displayOfficial !== null && (
             <span className="text-sm font-semibold text-brand-blue/80">
-              Oficial: {averageScoreOfficial.toFixed(2)}
+              Oficial: {displayOfficial.toFixed(2)}
             </span>
           )}
         </div>
-        {!loading && averageScore === null && (
+        {!loading && displayAvg === null && (
           <p className="text-xs text-brand-yellow mt-2 opacity-90">Aún no hay notas registradas.</p>
         )}
         {hasGroup && (
