@@ -11,6 +11,7 @@ import { useAdminAuth } from '../hooks/useAdminAuth';
 import { useQuestionList } from '../hooks/useQuestionList';
 import { useAsyncTask } from '../hooks/useAsyncTask';
 import QuestionCardFrame from './questions/QuestionCardFrame';
+import AssociateExamsModal from './modals/AssociateExamsModal';
 import { ANSWER_OPTIONS, type AnswerOption } from '../constants/answerOptions';
 
 interface ExamFormProps {
@@ -46,6 +47,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
   const [skipWeights, setSkipWeights] = useState(false);
   const [associatedExamIds, setAssociatedExamIds] = useState<number[]>([]);
   const [otherExams, setOtherExams] = useState<Exam[]>([]);
+  const [associateModalOpen, setAssociateModalOpen] = useState(false);
   const [displayWeightOverride, setDisplayWeightOverride] = useState(false);
   const [displayExamWeight, setDisplayExamWeight] = useState(0.5);
 
@@ -440,15 +442,34 @@ export default function ExamForm({ examId }: ExamFormProps) {
         </label>
       </div>
 
-      <div className="mb-6 flex items-center">
-        <input
-          type="checkbox"
-          checked={isActive}
-          onChange={(e) => setIsActive(e.currentTarget.checked)}
-          className="mr-2"
-          disabled={isBusy}
-        />
-        <label className="font-bold text-brand-pink">Activo</label>
+      <div className="mb-6 flex items-center flex-wrap gap-3">
+        <label className="flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isActive}
+            onChange={(e) => setIsActive(e.currentTarget.checked)}
+            className="mr-2"
+            disabled={isBusy}
+          />
+          <span className="font-bold text-brand-pink">Activo</span>
+        </label>
+        {examToEdit && (
+          <>
+            <span className="ml-auto text-sm text-gray-400">
+              {associatedExamIds.length > 0
+                ? `${associatedExamIds.length} examen(es) asociado(s)`
+                : 'Ninguno asociado'}
+            </span>
+            <button
+              type="button"
+              onClick={() => setAssociateModalOpen(true)}
+              disabled={isBusy}
+              className="px-4 py-2 rounded font-semibold bg-brand-blue text-white hover:bg-brand-blue/80 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              Asociar exámenes para percentil
+            </button>
+          </>
+        )}
       </div>
 
       <fieldset className="mb-6 border border-[#444] rounded-lg p-4" disabled={isBusy}>
@@ -697,30 +718,6 @@ export default function ExamForm({ examId }: ExamFormProps) {
           <span className="text-brand-pink font-bold">Ignorar pesos (sumar directamente)</span>
           <span className="text-xs text-gray-400">Nota ponderada = nota examen + meritos</span>
         </label>
-        {examToEdit && (
-          <label className="block text-brand-pink font-bold mb-4">
-            Exámenes asociados para percentil:
-            <span className="block text-xs font-normal text-gray-400 mb-1">
-              El percentil se calcula sobre las notas de todos los exámenes seleccionados (relación recíproca).
-            </span>
-            <select
-              multiple
-              onChange={(e) =>
-                setAssociatedExamIds(
-                  Array.from((e.target as HTMLSelectElement).selectedOptions, (o) => Number(o.value)),
-                )
-              }
-              disabled={isBusy}
-              className="w-full mt-1 bg-gray-800 text-white rounded p-2 font-normal min-h-32"
-            >
-              {otherExams.map((e) => (
-                <option key={e.id} value={String(e.id)} selected={associatedExamIds.includes(e.id)}>
-                  {e.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
         {!skipWeights && (
           <div className="flex flex-col gap-4 sm:flex-row sm:gap-6 mb-4">
             <label className="block text-brand-pink font-bold flex-1">
@@ -849,6 +846,14 @@ export default function ExamForm({ examId }: ExamFormProps) {
             : 'Crear examen'}
         </button>
       </div>
+
+      <AssociateExamsModal
+        isOpen={associateModalOpen}
+        exams={otherExams}
+        selectedIds={associatedExamIds}
+        onSave={setAssociatedExamIds}
+        onClose={() => setAssociateModalOpen(false)}
+      />
     </form>
   );
 }
@@ -858,11 +863,29 @@ export default function ExamForm({ examId }: ExamFormProps) {
 function FeedbackVideoKeyField({ questionId, token }: { questionId: number; token: string }) {
   const [key, setKey] = useState('');
   const [status, setStatus] = useState<'idle' | 'saving' | 'ok' | 'error'>('idle');
+  const rootRef = useRef<HTMLDivElement>(null);
 
+  // Fetch the saved key only when this field scrolls into view, so opening an
+  // exam with many questions doesn't fire one request per question at once.
   useEffect(() => {
-    getQuestionFeedbackVideo(questionId, token)
-      .then((k) => { if (k) setKey(k); })
-      .catch(() => {});
+    const el = rootRef.current;
+    if (!el) return;
+    let done = false;
+    const load = () => {
+      if (done) return;
+      done = true;
+      getQuestionFeedbackVideo(questionId, token)
+        .then((k) => { if (k) setKey(k); })
+        .catch(() => {});
+    };
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) {
+        load();
+        observer.disconnect();
+      }
+    }, { rootMargin: '200px' });
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [questionId, token]);
 
   async function save(value: string | null) {
@@ -879,7 +902,7 @@ function FeedbackVideoKeyField({ questionId, token }: { questionId: number; toke
   }
 
   return (
-    <div className="mt-4 pt-3 border-t border-[#333]">
+    <div ref={rootRef} className="mt-4 pt-3 border-t border-[#333]">
       <p className="text-xs font-semibold text-gray-400 mb-1">Vídeo de feedback (key S3)</p>
       <div className="flex gap-2 items-center flex-wrap">
         <input
