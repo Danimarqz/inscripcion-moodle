@@ -73,7 +73,12 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
   const [savingIds, setSavingIds] = useState<Record<number, boolean>>({});
   const [filterMoodleUsers, setFilterMoodleUsers] = useState(false);
   const [compareGroup, setCompareGroup] = useState(false);
-  const [examConfig, setExamConfig] = useState<{ maxScore?: number; secondaryMaxScores?: string } | null>(null);
+  const [examConfig, setExamConfig] = useState<{
+    maxScore?: number;
+    secondaryMaxScores?: string;
+    scoringMode?: string;
+    pointsPerCorrect?: number;
+  } | null>(null);
 
   const [downloadingEmails, setDownloadingEmails] = useState(false);
   const [downloadingAnalysis, setDownloadingAnalysis] = useState(false);
@@ -208,24 +213,19 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
 
         if (needsStats) {
           try {
-            const [examData, examQuestions] = await Promise.all([
-              getExamById(examId, token),
-              getExamQuestions(examId, token),
-            ]);
+            // Only exam config here (small). Questions are loaded lazily on edit.
+            const examData = await getExamById(examId, token);
             if (mounted && requestId === fetchRequestId.current) {
-              setQuestions(examQuestions);
               // Absolute mode: the effective max is points_per_correct * active
-              // questions, not the stored legacy max_score (default 100).
-              const activeCount = examQuestions.filter(
-                (q) => q.is_active !== false && q.is_cancelled !== true,
-              ).length;
-              const effectiveMax =
-                examData.scoring_mode === 'absolute' && examData.points_per_correct != null
-                  ? examData.points_per_correct * activeCount
-                  : examData.max_score;
+              // questions. We don't have questions loaded here, so fall back to
+              // the stored max_score; the edit view recomputes precisely once
+              // questions are fetched.
+              const effectiveMax = examData.max_score;
               setExamConfig({
                 maxScore: effectiveMax,
                 secondaryMaxScores: examData.secondary_max_scores,
+                scoringMode: examData.scoring_mode,
+                pointsPerCorrect: examData.points_per_correct ?? undefined,
               });
             }
           } catch (qErr) {
@@ -299,8 +299,26 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
     // Let's use a local trick or just rely on the UI not blocking others.
     
     try {
-      const fullSubmission = await getSubmission(submission.id, token);
-      
+      // Questions are needed only for the answer editor, so they're loaded the
+      // first time an attempt is edited (in parallel with the submission), not
+      // on every list open.
+      const [fullSubmission, loadedQuestions] = await Promise.all([
+        getSubmission(submission.id, token),
+        questions.length === 0 ? getExamQuestions(examId, token) : Promise.resolve(questions),
+      ]);
+      if (questions.length === 0 && loadedQuestions.length > 0) {
+        setQuestions(loadedQuestions);
+        // Absolute mode: refine the displayed max now that questions are known.
+        if (examConfig?.scoringMode === 'absolute' && examConfig.pointsPerCorrect != null) {
+          const activeCount = loadedQuestions.filter(
+            (q) => q.is_active !== false && q.is_cancelled !== true,
+          ).length;
+          setExamConfig((prev) =>
+            prev ? { ...prev, maxScore: examConfig.pointsPerCorrect! * activeCount } : prev,
+          );
+        }
+      }
+
       const initialAnswers: Record<number, AnswerOption | '-'> = {};
       if (fullSubmission.answers_data) {
         for (const [qid, val] of Object.entries(fullSubmission.answers_data)) {
