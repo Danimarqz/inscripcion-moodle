@@ -1,131 +1,104 @@
 # Inscripción Moodle y Plataforma de Exámenes
 
-Este proyecto es una aplicación web completa que consta de dos partes principales: un formulario de inscripción online para OpositaTCAE y una plataforma de exámenes.
+Aplicación web para OpositaTCAE compuesta por **tres desplegables** que comparten un único backend:
+
+- **`backend/`** — API en Go (chi, GORM, MariaDB/MySQL, Redis). Sirve tanto el flujo de inscripción como la plataforma de exámenes.
+- **`frontend-exam/`** — Plataforma de exámenes en Astro 6 + Preact + Tailwind v4 (panel de administración + examen público). Puerto `4321`.
+- **`frontend-inscripcion/`** — Formulario de inscripción estático (HTML/JS vanilla, servido con nginx).
 
 ## Características
 
-### Formulario de Inscripción (`frontend-inscripcion` y `backend`)
+### Inscripción (`frontend-inscripcion` + `backend`)
 
-*   **Formulario Completo:** Permite a los usuarios rellenar un formulario de inscripción con sus datos personales, académicos y de pago.
-*   **Firma Digital:** Incluye un campo para que los usuarios puedan firmar digitalmente el formulario.
-*   **Generación de PDF Optimizada:** El backend (Go) genera eficientemente documentos PDF con toda la información y la firma, optimizado para bajo consumo de memoria.
-*   **Confirmación por Email:** El usuario y el administrador reciben una copia del PDF de inscripción por correo electrónico.
-*   **Integración con Moodle:** Crea y sincroniza automáticamente cuentas de usuario en Moodle.
-*   **Rate Limiting:** Protegido contra abusos mediante límites de petición por IP (Redis).
+- **Formulario completo** con datos personales, académicos y firma digital.
+- **Generación de PDF** con `gofpdf`, optimizada para bajo consumo de memoria.
+- **Confirmación por email** (usuario y administrador) con el PDF adjunto.
+- **Integración con Moodle:** alta y sincronización automática de cuentas.
+- **Rate limiting** por IP respaldado en Redis.
 
-### Plataforma de Exámenes (`frontend-exam` y `backend`)
+### Plataforma de exámenes (`frontend-exam` + `backend`)
 
-*   **Gestión de Exámenes:** Panel de administración completo para crear/editar exámenes, revisar intentos y gestionar resultados.
-*   **Importación de Resultados Streaming:** Importación eficiente de ficheros Excel masivos con resultados oficiales, utilizando procesamiento por streams (sin carga completa en RAM).
-*   **Sincronización Moodle:** Servicio dedicado para mantener los usuarios sincronizados con el curso de Moodle correspondiente.
-*   **Resultados y Percentiles:** Cálculo en tiempo real de puntuaciones y percentiles.
-*   **Caché de Alto Rendimiento:** Uso de Redis para cachear preguntas y resultados públicos, reduciendo la carga en base de datos.
+- **Gestión de exámenes:** panel admin para crear/editar exámenes y preguntas, revisar intentos y gestionar resultados.
+- **Modos de puntuación:** `legacy` (penalización configurable por fallo) y `absolute` (puntos por acierto/fallo), con nota sobre bases secundarias.
+- **Criterios de aprobado, pesos y méritos:** umbral de corte, nota ponderada (peso examen + méritos) y ranking de méritos.
+- **Percentiles sobre grupos de exámenes:** un examen puede asociarse con otros (relación recíproca) para calcular el percentil sobre el conjunto. El recálculo de percentiles es asíncrono y *coalescido* por examen.
+- **Resultados oficiales:**
+  - Importación de Excel masivo por *streaming* (sin cargar el fichero en RAM).
+  - Conversión PDF→Excel mediante Lambda integrada en el panel.
+  - Vinculación a usuarios por DNI/nombre con sincronización Moodle y feedback en tiempo real vía **SSE**.
+  - Las notas oficiales se aplican automáticamente (`COALESCE(oficial, simulador)`) cuando existen, sin flag manual.
+- **Carga diferida:** las preguntas y las respuestas de cada intento se cargan bajo demanda; los listados omiten campos pesados (`answers_json`) y asociaciones no usadas.
+- **Caché Redis** para listado/exámenes por slug, preguntas y resultados públicos; throttling de logins de admin fallidos.
 
-## Novedades Recientes (Feb 2026)
+## Arquitectura del backend
 
-### Rendimiento y Escalabilidad
-*   **Concurrencia Avanzada (Go 1.26):** Actualización del backend a Go 1.26. Implementación de *worker pools* con canales y *goroutines* para optimizar drásticamente el envío de emails, sincronización con Moodle e importación masiva de Excel.
-*   **Protección y Caché Redis:** Nueva capa de seguridad usando Redis para cachear intentos fallidos de login de administradores, protegiendo la base de datos de ataques y sobrecargas.
+Punto de entrada: `backend/cmd/api/main.go` → `internal/server/server.go` (cablea todas las dependencias). Capas bajo `internal/`:
 
-### Funcionalidades Core
-*   **Sistema de Penalizaciones de Exámenes:** Soporte completo (API y Panel Admin) para configurar penalizaciones dinámicas (ej. 0.25, 0.33, 0.5 puntos por respuesta incorrecta) y visualización de notas sobre bases secundarias.
-*   **Buscador Avanzado de Resultados:** Nueva funcionalidad de filtrado multicriterio (DNI, Nombre, Apellidos, Tipo de Inscripción) para gestionar cómodamente los Resultados Oficiales publicados.
-*   **Sincronización Inteligente de Usuarios Moodle:** Mejora sustancial en la lógica de emparejamiento y sincronización asíncrona de usuarios entre los sistemas, contemplando nombres parciales, apellidos y DNI para evitar duplicados.
+- `config/` — carga de entorno (`backend/.env`).
+- `storage/` — clientes MariaDB (GORM) y Redis. **AutoMigrate desactivado**; el esquema se cambia con SQL manual en `backend/db/migrations/`.
+- `repository/` — acceso a datos GORM.
+- `services/` — lógica de negocio por dominio: `auth`, `email`, `exam`, `excelimport`, `moodle`, `admin`, `pdf`. Email y Moodle usan *worker pools* inicializados una vez.
+- `controllers/` — handlers HTTP agrupados (`PublicController`, `RegisterController`, `AdminController`).
+- `middleware/` — middleware chi + `RateLimiter` respaldado en Redis.
+- `cache/` — capa de caché Redis.
 
-## Novedades Anteriores (Dic 2025)
-
-### Optimización y Backend
-*   **Carga Diferida (Lazy Loading):** Optimización masiva en `/admin/results`. Las respuestas de los estudiantes ahora se cargan solo bajo demanda al editar, reduciendo el tamaño de la respuesta inicial y mejorando la velocidad.
-*   **Exportación Excel:** Solucionados problemas en el reporte de fallos y respuestas correctas para un análisis más preciso.
-*   **Configuración:** Manejo dinámico del remitente SMTP en los mensajes de error.
-
-### Experiencia de Usuario (Frontend)
-*   **Identidad Visual:** Actualización de estilos, destacando los méritos con el color `brand-pink`.
-*   **Usabilidad:** Implementación global de `cursor-pointer` en todos los elementos interactivos para una navegación más intuitiva.
-*   **Feedback:** Nuevas pantallas de "estado vacío" que comunican claramente cuando no hay resultados o intentos registrados.
-
-## Estructura del Proyecto
+## Estructura del proyecto
 
 ```
 inscripcion-moodle/
-│
-├── backend/                 # Nuevo backend en Go
-│   ├── cmd/                 # Puntos de entrada (api)
-│   ├── internal/            # Código privado de la aplicación
-│   │   ├── config/          # Configuración
-│   │   ├── controllers/     # Handlers HTTP (Admin, Public, Register)
-│   │   ├── models/          # Modelos GORM
-│   │   ├── services/        # Lógica de negocio (Excel, PDF, Moodle, Auth)
-│   │   └── cache/           # Capa de caché Redis
-│   ├── go.mod               # Definición de módulo y dependencias
-│   └── ...
-│
-├── frontend-exam/           # Aplicación de exámenes (Astro + React)
-│   ├── src/
-│   ├── package.json
+├── backend/                 # API en Go
+│   ├── cmd/api/             # Punto de entrada
+│   ├── internal/            # config, controllers, services, repository, models, cache, middleware
+│   ├── db/migrations/       # Migraciones SQL manuales
+│   └── go.mod
+├── frontend-exam/           # Plataforma de exámenes (Astro 6 + Preact + Tailwind v4)
+│   ├── src/                 # pages, components, services, hooks, utils, types
 │   └── astro.config.mjs
-│
-├── frontend-inscripcion/    # Formulario de inscripción (Vanilla JS)
-│   ├── index.html
-│   ├── main.js
-│   └── style.css
-│
-├── .gitignore
-├── LICENSE
+├── frontend-inscripcion/    # Formulario de inscripción (HTML/JS vanilla + nginx.conf)
+├── docker-compose.yml       # Despliegue con imágenes prebuilt de GHCR
 └── README.md
 ```
 
 ## Requisitos
 
-*   **Backend:**
-    *   Go 1.26+
-    *   Redis (para caché y rate limiting)
-    *   Servidor SMTP (para envío de correos)
-*   **Frontend (Exams):**
-    *   Node.js y npm
-*   **Base de Datos:**
-    *   MySQL / MariaDB
-    *   Moodle (MySQL) para la integración
+- **Backend:** Go 1.26+, Redis, servidor SMTP.
+- **Frontend exámenes:** Node.js + npm.
+- **Base de datos:** MariaDB/MySQL (y Moodle para la integración).
 
-## Instalación
+## Desarrollo
 
-1.  **Clona el repositorio:**
-    ```sh
-    git clone https://github.com/tuusuario/inscripcion-moodle.git
-    cd inscripcion-moodle
-    ```
+### Backend (desde `backend/`)
 
-2.  **Configura el Backend (Go):**
-    *   Navega a la carpeta `backend`: `cd backend`
-    *   Crea un archivo `.env` basado en la configuración requerida (ver `config` package).
-    *   Instala dependencias:
-        ```sh
-        go mod download
-        ```
+```sh
+go run ./cmd/api          # arranca la API (lee backend/.env)
+go build ./cmd/api        # compila
+go test ./...             # tests
+golangci-lint run ./...   # lint (CI usa v2.6)
+```
 
-3.  **Configura el Frontend de Exámenes:**
-    *   Navega a la carpeta `frontend-exam`: `cd ../frontend-exam`
-    *   Instala las dependencias: `npm install`
+> `backend/.env` está gitignored y **no** hay plantilla committeada (decisión intencionada).
 
-## Ejecución
+### Frontend de exámenes (desde `frontend-exam/`)
 
-1.  **Backend:**
-    *   Desde la carpeta `backend`:
-        ```sh
-        go run ./cmd/api
-        ```
-    *   La API estará disponible en el puerto configurado (ej. `8080`).
+```sh
+npm install
+npm run dev      # astro dev en :4321
+npm run build
+npm run preview
+```
 
-2.  **Frontend de Exámenes:**
-    *   Desde la carpeta `frontend-exam`:
-        ```sh
-        npm run dev
-        ```
-    *   Disponible en `http://localhost:4321`.
+### Frontend de inscripción
 
-3.  **Frontend de Inscripción:**
-    *   Sirve el archivo `frontend-inscripcion/index.html` con cualquier servidor web estático.
+Servir `frontend-inscripcion/index.html` con cualquier servidor estático (config nginx en `frontend-inscripcion/nginx.conf`).
+
+### Atajo local
+
+`make dev` levanta backend (`:8080`) y frontend-exam (`:4321`) a la vez.
+
+## Despliegue
+
+Producción vía `docker-compose.yml` con imágenes prebuilt en GHCR (`ghcr.io/danimarqz/backend-moodle`, `ghcr.io/danimarqz/frontend-exam`). Espera una red externa `nginx_proxy` y lee `backend/.env`. Las migraciones SQL de `backend/db/migrations/` se aplican manualmente.
 
 ## Licencia
 
-Este proyecto está bajo la Licencia MIT. Consulta el archivo `LICENSE` para más detalles.
+Licencia MIT. Ver `LICENSE`.
