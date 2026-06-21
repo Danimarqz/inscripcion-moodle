@@ -7,6 +7,7 @@ import {
   downloadSubmissionsAnalysis,
   fetchSubmissionEmailList,
   getExamById,
+  getExamQuestions,
   getExamSubmissions,
   getSubmission,
   sendSubmissionEmails,
@@ -207,9 +208,11 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
 
         if (needsStats) {
           try {
-            const examData = await getExamById(examId, token);
+            const [examData, examQuestions] = await Promise.all([
+              getExamById(examId, token),
+              getExamQuestions(examId, token),
+            ]);
             if (mounted && requestId === fetchRequestId.current) {
-              const examQuestions = examData.questions ?? [];
               setQuestions(examQuestions);
               // Absolute mode: the effective max is points_per_correct * active
               // questions, not the stored legacy max_score (default 100).

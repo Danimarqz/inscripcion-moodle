@@ -6,7 +6,7 @@ import type {
   QuestionCreate,
   QuestionEdit,
 } from '../types/exam';
-import { createExam, editExam, getAdminExams, getExamById, getQuestionFeedbackVideo, patchQuestionFeedbackVideo } from '../services/adminService';
+import { createExam, editExam, getAdminExams, getExamById, getExamQuestions, getQuestionFeedbackVideo, patchQuestionFeedbackVideo } from '../services/adminService';
 import { useAdminAuth } from '../hooks/useAdminAuth';
 import { useQuestionList } from '../hooks/useQuestionList';
 import { useAsyncTask } from '../hooks/useAsyncTask';
@@ -94,7 +94,10 @@ export default function ExamForm({ examId }: ExamFormProps) {
     }
 
     void run(async () => {
-      const examData = await getExamById(examId, token);
+      const [examData, examQuestions] = await Promise.all([
+        getExamById(examId, token),
+        getExamQuestions(examId, token),
+      ]);
       setExamToEdit(examData);
       setName(examData.name ?? '');
       setIsActive(Boolean(examData.is_active));
@@ -118,8 +121,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setDisplayWeightOverride(examData.display_exam_weight != null);
       setDisplayExamWeight(examData.display_exam_weight ?? examData.exam_weight ?? 0.5);
 
-      const normalizedQuestions = (examData.questions.length
-        ? examData.questions
+      const normalizedQuestions = (examQuestions.length
+        ? examQuestions
         : [{ ...DEFAULT_QUESTION } as QuestionEdit]
       ).map((question, idx) => ({
         ...question,

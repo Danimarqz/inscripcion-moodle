@@ -18,7 +18,7 @@ func (s *Service) ListExams() ([]models.Exam, error) {
 }
 
 func (s *Service) GetExam(examID uint) (*models.Exam, error) {
-	exam, err := s.examRepo.FindExamByID(context.Background(), s.db, examID)
+	exam, err := s.examRepo.FindExamByIDLite(context.Background(), s.db, examID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrExamNotFound
@@ -31,6 +31,12 @@ func (s *Service) GetExam(examID uint) (*models.Exam, error) {
 			Pluck("id", &exam.AssociatedExamIDs)
 	}
 	return exam, nil
+}
+
+// GetExamQuestions returns an exam's questions, fetched on demand so the exam
+// config read (GetExam) can stay lightweight.
+func (s *Service) GetExamQuestions(examID uint) ([]models.Question, error) {
+	return s.examRepo.FindQuestionsByExamID(context.Background(), s.db, examID)
 }
 
 // normalizeMode maps an empty scoring mode to the legacy default so the

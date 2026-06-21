@@ -89,6 +89,22 @@ func (h *AdminController) getExam(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, exam)
 }
 
+func (h *AdminController) getExamQuestions(w http.ResponseWriter, r *http.Request) {
+	examID, err := parseUintURLParam(r, "exam_id")
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		writeJSON(w, genericError{Message: "invalid exam id"})
+		return
+	}
+	questions, err := h.service.GetExamQuestions(uint(examID))
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		writeJSON(w, genericError{Message: "failed to load questions"})
+		return
+	}
+	writeJSON(w, questions)
+}
+
 func (h *AdminController) handleAdminError(w http.ResponseWriter, err error) {
 	w.WriteHeader(http.StatusBadRequest)
 	switch {

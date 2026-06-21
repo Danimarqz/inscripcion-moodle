@@ -10,6 +10,7 @@ import type {
   CreateOfficialResultPayload,
   EditOfficialResultPayload,
   ImportOfficialResultsSummary,
+  QuestionEdit,
   SubmissionUpdatePayload,
 } from '../types/exam';
 import { request } from './api';
@@ -83,6 +84,14 @@ export async function adminLogout(): Promise<void> {
 
 export async function getExamById(examId: number, token: string): Promise<ExamEdit> {
   return request<ExamEdit>(`/admin/exams/${examId}`, {
+    method: 'GET',
+    token,
+  });
+}
+
+// Questions are served separately so the exam-config read stays lightweight.
+export async function getExamQuestions(examId: number, token: string): Promise<QuestionEdit[]> {
+  return request<QuestionEdit[]>(`/admin/exams/${examId}/questions`, {
     method: 'GET',
     token,
   });

@@ -99,6 +99,7 @@ func (h *AdminController) RegisterRoutes(r chi.Router) {
 		r.Put("/exams/{exam_id}", h.updateExam)
 		r.Delete("/exams/{exam_id}/delete", h.deleteExam)
 		r.Get("/exams/{exam_id}", h.getExam)
+		r.Get("/exams/{exam_id}/questions", h.getExamQuestions)
 		r.Get("/results", h.listSubmissions)
 		r.Get("/results/{submission_id}", h.getSubmission)
 		r.Put("/results/{submission_id}", h.updateSubmission)

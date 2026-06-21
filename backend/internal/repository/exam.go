@@ -15,6 +15,7 @@ import (
 
 type ExamRepository interface {
 	FindExamByID(ctx context.Context, db *gorm.DB, examID uint) (*models.Exam, error)
+	FindExamByIDLite(ctx context.Context, db *gorm.DB, examID uint) (*models.Exam, error)
 	FindExamBySlug(ctx context.Context, db *gorm.DB, slug string) (*models.Exam, error)
 	FindQuestionsByExamID(ctx context.Context, db *gorm.DB, examID uint) ([]models.Question, error)
 	ListExams(ctx context.Context, db *gorm.DB) ([]models.Exam, error)
@@ -39,6 +40,17 @@ func NewExamRepository() ExamRepository {
 func (r *examRepository) FindExamByID(ctx context.Context, db *gorm.DB, examID uint) (*models.Exam, error) {
 	var exam models.Exam
 	if err := db.WithContext(ctx).Preload("Questions").First(&exam, examID).Error; err != nil {
+		return nil, err
+	}
+	exam.Slug = helpers.CreateSlug(exam.Name)
+	return &exam, nil
+}
+
+// FindExamByIDLite loads the exam without its questions. Questions are fetched
+// on demand via FindQuestionsByExamID, so the exam-config read stays small.
+func (r *examRepository) FindExamByIDLite(ctx context.Context, db *gorm.DB, examID uint) (*models.Exam, error) {
+	var exam models.Exam
+	if err := db.WithContext(ctx).First(&exam, examID).Error; err != nil {
 		return nil, err
 	}
 	exam.Slug = helpers.CreateSlug(exam.Name)

@@ -23,6 +23,14 @@ func (m *MockExamRepository) FindExamByID(ctx context.Context, db *gorm.DB, exam
 	return args.Get(0).(*models.Exam), args.Error(1)
 }
 
+func (m *MockExamRepository) FindExamByIDLite(ctx context.Context, db *gorm.DB, examID uint) (*models.Exam, error) {
+	args := m.Called(ctx, db, examID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Exam), args.Error(1)
+}
+
 func (m *MockExamRepository) FindExamBySlug(ctx context.Context, db *gorm.DB, slug string) (*models.Exam, error) {
 	args := m.Called(ctx, db, slug)
 	if args.Get(0) == nil {
@@ -140,7 +148,7 @@ func TestService_GetExam(t *testing.T) {
 
 	expectedExam := &models.Exam{Name: "Test Exam"}
 
-	mockRepo.On("FindExamByID", mock.Anything, mock.Anything, uint(1)).Return(expectedExam, nil)
+	mockRepo.On("FindExamByIDLite", mock.Anything, mock.Anything, uint(1)).Return(expectedExam, nil)
 
 	exam, err := service.GetExam(1)
 	assert.NoError(t, err)
@@ -152,7 +160,7 @@ func TestService_GetExam_NotFound(t *testing.T) {
 	mockRepo := new(MockExamRepository)
 	service := New(nil, mockRepo, nil, nil, nil)
 
-	mockRepo.On("FindExamByID", mock.Anything, mock.Anything, uint(99)).Return(nil, gorm.ErrRecordNotFound)
+	mockRepo.On("FindExamByIDLite", mock.Anything, mock.Anything, uint(99)).Return(nil, gorm.ErrRecordNotFound)
 
 	exam, err := service.GetExam(99)
 	assert.Error(t, err)
