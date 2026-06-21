@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -75,9 +76,11 @@ func NewPublicController(db *gorm.DB, rds *redis.Client, cfg *config.Config, ser
 	}
 }
 
-func (h *PublicController) GetExams(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	payload, err := h.cache.GetOrSet(ctx, examsCacheKey, h.cacheTTL, func() ([]byte, error) {
+// cachedActiveExams returns the JSON payload of all active exams (with slugs),
+// served from Redis. Both the exam list and exam-by-slug read from this single
+// cached payload, so neither hits the DB per request.
+func (h *PublicController) cachedActiveExams(ctx context.Context) ([]byte, error) {
+	return h.cache.GetOrSet(ctx, examsCacheKey, h.cacheTTL, func() ([]byte, error) {
 		var exams []models.Exam
 		if err := h.db.Where("is_active = ?", true).Find(&exams).Error; err != nil {
 			return nil, err
@@ -87,6 +90,10 @@ func (h *PublicController) GetExams(w http.ResponseWriter, r *http.Request) {
 		}
 		return json.Marshal(exams)
 	})
+}
+
+func (h *PublicController) GetExams(w http.ResponseWriter, r *http.Request) {
+	payload, err := h.cachedActiveExams(r.Context())
 	if err != nil {
 		http.Error(w, constants.FailedToLoadExams, http.StatusInternalServerError)
 		return
@@ -166,17 +173,27 @@ func (h *PublicController) GetExamBySlug(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	ctx := r.Context()
-	exam, err := h.service.GetExamBySlug(ctx, slug)
+	payload, err := h.cachedActiveExams(r.Context())
 	if err != nil {
-		h.handleError(w, err)
+		http.Error(w, constants.FailedToLoadExams, http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(exam); err != nil {
-		log.Printf("failed to encode response: %v", err)
+	var exams []models.Exam
+	if err := json.Unmarshal(payload, &exams); err != nil {
+		http.Error(w, constants.FailedToLoadExams, http.StatusInternalServerError)
+		return
 	}
+	for i := range exams {
+		if exams[i].Slug == slug {
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(exams[i]); err != nil {
+				log.Printf("failed to encode response: %v", err)
+			}
+			return
+		}
+	}
+	h.handleError(w, examservice.ErrExamNotFound)
 }
 
 func (h *PublicController) CheckSubmission(w http.ResponseWriter, r *http.Request) {

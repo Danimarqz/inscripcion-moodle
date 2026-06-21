@@ -85,7 +85,9 @@ func (r *examRepository) FindQuestionsByExamID(ctx context.Context, db *gorm.DB,
 
 func (r *examRepository) ListExams(ctx context.Context, db *gorm.DB) ([]models.Exam, error) {
 	var exams []models.Exam
-	if err := db.WithContext(ctx).Preload("Questions").Find(&exams).Error; err != nil {
+	// Questions are intentionally not preloaded: the exam list never uses them
+	// and loading every question of every exam bloats this frequent endpoint.
+	if err := db.WithContext(ctx).Find(&exams).Error; err != nil {
 		return nil, err
 	}
 	for i := range exams {
