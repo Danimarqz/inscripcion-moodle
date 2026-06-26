@@ -20,6 +20,29 @@ export type Exam = {
   exam_weight?: number;
   max_merits?: number;
 };
+export type QuestionGroup = {
+  id?: number;
+  name: string;
+  position: number;
+  max_score: number;
+  points_per_wrong: number;
+  min_passing_score?: number | null;
+  eliminatory: boolean;
+};
+
+export type GroupScore = {
+  group_id: number;
+  name: string;
+  score: number;
+  max_score: number;
+  correct: number;
+  incorrect: number;
+  total: number;
+  eliminatory: boolean;
+  min_passing_score?: number | null;
+  passed: boolean;
+};
+
 export type ExamOut = {
   score?: number | null;
   percentile?: number | null;
@@ -42,6 +65,7 @@ export type ExamOut = {
   merits_position?: number | null;
   merits_total?: number | null;
   passed_count?: number | null;
+  groups?: GroupScore[];
 };
 
 export type Question = {
@@ -51,6 +75,7 @@ export type Question = {
   correct_option?: string;
   is_active: boolean;
   is_cancelled?: boolean;
+  group_position?: number | null;
 };
 
 export type Answer = {
@@ -149,6 +174,7 @@ export type QuestionCreate = {
   correct_option: string;
   is_active?: boolean;
   is_cancelled?: boolean;
+  group_position?: number | null;
 };
 
 export type ExamCreateWithQuestions = {
@@ -171,6 +197,7 @@ export type ExamCreateWithQuestions = {
   max_merits?: number;
   display_exam_weight?: number | null;
   skip_weights?: boolean;
+  groups?: QuestionGroup[];
   questions: QuestionCreate[];
 };
 
@@ -181,6 +208,7 @@ export type QuestionEdit = {
   correct_option: string;
   is_active?: boolean;
   is_cancelled?: boolean;
+  group_position?: number | null;
 };
 
 export type ExamEdit = {
@@ -206,6 +234,7 @@ export type ExamEdit = {
   clear_display_weight?: boolean;
   skip_weights?: boolean;
   associated_exam_ids?: number[];
+  groups?: QuestionGroup[];
   questions: QuestionEdit[];
 };
 
@@ -320,6 +349,7 @@ export type ExamUiState = {
   meritsPosition: number | null;
   meritsTotal: number | null;
   passedCount: number | null;
+  groups: GroupScore[] | null;
 };
 
 export type ExamResultPayload = {
@@ -344,6 +374,7 @@ export type ExamResultPayload = {
   meritsPosition: number | null;
   meritsTotal: number | null;
   passedCount: number | null;
+  groups: GroupScore[] | null;
 };
 
 export type ExamUiAction =

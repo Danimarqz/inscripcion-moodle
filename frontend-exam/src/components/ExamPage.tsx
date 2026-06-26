@@ -78,6 +78,7 @@ export default function ExamPage({
     meritsPosition,
     meritsTotal,
     passedCount,
+    groups: resultGroups,
   } = examUiState;
 
   const { questions, loading, error: questionsError } = useExamQuestions(examId);
@@ -293,6 +294,7 @@ export default function ExamPage({
         maxScore={maxScore}
         secondaryMaxScores={secondaryMaxScores}
         isPassed={isPassed}
+        groups={resultGroups}
         merits={savedMerits ?? currentMerits}
         weightedScore={updatedWeightedScore ?? weightedScore}
         examWeight={examWeight}

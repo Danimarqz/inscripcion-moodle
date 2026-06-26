@@ -9,66 +9,79 @@ type QuestionInput struct {
 	CorrectOption string  `json:"correct_option"`
 	IsActive      *bool   `json:"is_active,omitempty"`
 	IsCancelled   *bool   `json:"is_cancelled,omitempty"`
+	GroupPosition *int    `json:"group_position,omitempty"`
+}
+
+type QuestionGroupInput struct {
+	ID              *uint    `json:"id,omitempty"`
+	Name            string   `json:"name"`
+	Position        int      `json:"position"`
+	MaxScore        float64  `json:"max_score"`
+	PointsPerWrong  float64  `json:"points_per_wrong"`
+	MinPassingScore *float64 `json:"min_passing_score,omitempty"`
+	Eliminatory     bool     `json:"eliminatory"`
 }
 
 type CreateExamRequest struct {
-	Name                 string          `json:"name"`
-	IsActive             bool            `json:"is_active"`
-	ShowScore            bool            `json:"show_score"`
-	ShowPercentile       bool            `json:"show_percentile"`
-	ShowScoreFull        bool            `json:"show_score_full"`
-	ValidatedTribunal    bool            `json:"validated_tribunal"`
-	SubtractsPoints      bool            `json:"subtracts_points"`
-	PenaltyValue         *float64        `json:"penalty_value,omitempty"`
-	MaxScore             *float64        `json:"max_score,omitempty"`
-	ScoringMode          string          `json:"scoring_mode,omitempty"`
-	PointsPerCorrect     *float64        `json:"points_per_correct,omitempty"`
-	PointsPerWrong       *float64        `json:"points_per_wrong,omitempty"`
-	SecondaryMaxScores   string          `json:"secondary_max_scores,omitempty"`
-	PassingCriteriaType  string          `json:"passing_criteria_type"`
-	PassingCriteriaValue *float64        `json:"passing_criteria_value,omitempty"`
-	ExamWeight           float64         `json:"exam_weight"`
-	MaxMerits            float64         `json:"max_merits"`
-	DisplayExamWeight    *float64        `json:"display_exam_weight,omitempty"`
-	SkipWeights          bool            `json:"skip_weights"`
-	Questions            []QuestionInput `json:"questions"`
+	Name                 string               `json:"name"`
+	IsActive             bool                 `json:"is_active"`
+	ShowScore            bool                 `json:"show_score"`
+	ShowPercentile       bool                 `json:"show_percentile"`
+	ShowScoreFull        bool                 `json:"show_score_full"`
+	ValidatedTribunal    bool                 `json:"validated_tribunal"`
+	SubtractsPoints      bool                 `json:"subtracts_points"`
+	PenaltyValue         *float64             `json:"penalty_value,omitempty"`
+	MaxScore             *float64             `json:"max_score,omitempty"`
+	ScoringMode          string               `json:"scoring_mode,omitempty"`
+	PointsPerCorrect     *float64             `json:"points_per_correct,omitempty"`
+	PointsPerWrong       *float64             `json:"points_per_wrong,omitempty"`
+	SecondaryMaxScores   string               `json:"secondary_max_scores,omitempty"`
+	PassingCriteriaType  string               `json:"passing_criteria_type"`
+	PassingCriteriaValue *float64             `json:"passing_criteria_value,omitempty"`
+	ExamWeight           float64              `json:"exam_weight"`
+	MaxMerits            float64              `json:"max_merits"`
+	DisplayExamWeight    *float64             `json:"display_exam_weight,omitempty"`
+	SkipWeights          bool                 `json:"skip_weights"`
+	Groups               []QuestionGroupInput `json:"groups"`
+	Questions            []QuestionInput      `json:"questions"`
 }
 
 type EditExamRequest struct {
-	Name                 *string         `json:"name,omitempty"`
-	IsActive             *bool           `json:"is_active,omitempty"`
-	ShowScore            *bool           `json:"show_score,omitempty"`
-	ShowPercentile       *bool           `json:"show_percentile,omitempty"`
-	ShowScoreFull        *bool           `json:"show_score_full,omitempty"`
-	ValidatedTribunal    *bool           `json:"validated_tribunal,omitempty"`
-	SubtractsPoints      *bool           `json:"subtracts_points,omitempty"`
-	PenaltyValue         *float64        `json:"penalty_value,omitempty"`
-	MaxScore             *float64        `json:"max_score,omitempty"`
-	ScoringMode          *string         `json:"scoring_mode,omitempty"`
-	PointsPerCorrect     *float64        `json:"points_per_correct,omitempty"`
-	PointsPerWrong       *float64        `json:"points_per_wrong,omitempty"`
-	SecondaryMaxScores   *string         `json:"secondary_max_scores,omitempty"`
-	PassingCriteriaType  *string         `json:"passing_criteria_type,omitempty"`
-	PassingCriteriaValue *float64        `json:"passing_criteria_value,omitempty"`
-	ExamWeight           *float64        `json:"exam_weight,omitempty"`
-	MaxMerits            *float64        `json:"max_merits,omitempty"`
-	DisplayExamWeight    *float64        `json:"display_exam_weight,omitempty"`
-	ClearDisplayWeight   *bool           `json:"clear_display_weight,omitempty"`
-	SkipWeights          *bool           `json:"skip_weights,omitempty"`
-	AssociatedExamIDs    *[]uint         `json:"associated_exam_ids,omitempty"`
-	Questions            []QuestionInput `json:"questions"`
+	Name                 *string              `json:"name,omitempty"`
+	IsActive             *bool                `json:"is_active,omitempty"`
+	ShowScore            *bool                `json:"show_score,omitempty"`
+	ShowPercentile       *bool                `json:"show_percentile,omitempty"`
+	ShowScoreFull        *bool                `json:"show_score_full,omitempty"`
+	ValidatedTribunal    *bool                `json:"validated_tribunal,omitempty"`
+	SubtractsPoints      *bool                `json:"subtracts_points,omitempty"`
+	PenaltyValue         *float64             `json:"penalty_value,omitempty"`
+	MaxScore             *float64             `json:"max_score,omitempty"`
+	ScoringMode          *string              `json:"scoring_mode,omitempty"`
+	PointsPerCorrect     *float64             `json:"points_per_correct,omitempty"`
+	PointsPerWrong       *float64             `json:"points_per_wrong,omitempty"`
+	SecondaryMaxScores   *string              `json:"secondary_max_scores,omitempty"`
+	PassingCriteriaType  *string              `json:"passing_criteria_type,omitempty"`
+	PassingCriteriaValue *float64             `json:"passing_criteria_value,omitempty"`
+	ExamWeight           *float64             `json:"exam_weight,omitempty"`
+	MaxMerits            *float64             `json:"max_merits,omitempty"`
+	DisplayExamWeight    *float64             `json:"display_exam_weight,omitempty"`
+	ClearDisplayWeight   *bool                `json:"clear_display_weight,omitempty"`
+	SkipWeights          *bool                `json:"skip_weights,omitempty"`
+	AssociatedExamIDs    *[]uint              `json:"associated_exam_ids,omitempty"`
+	Groups               []QuestionGroupInput `json:"groups"`
+	Questions            []QuestionInput      `json:"questions"`
 }
 
 type ListSubmissionsResult struct {
-	Submissions      []models.UserExamSubmission `json:"submissions"`
-	TotalSubmissions int64                       `json:"total_submissions,omitempty"`
-	AverageScore     *float64                    `json:"average_score,omitempty"`
-	AverageScoreOfficial *float64                `json:"average_score_official,omitempty"`
-	GroupAverageScore *float64                   `json:"group_average_score,omitempty"`
-	GroupAverageScoreOfficial *float64           `json:"group_average_score_official,omitempty"`
-	GroupTotalSubmissions *int64                 `json:"group_total_submissions,omitempty"`
-	GroupExamNames   []string                    `json:"group_exam_names,omitempty"`
-	StatsIncluded    bool                        `json:"stats_included"`
+	Submissions               []models.UserExamSubmission `json:"submissions"`
+	TotalSubmissions          int64                       `json:"total_submissions,omitempty"`
+	AverageScore              *float64                    `json:"average_score,omitempty"`
+	AverageScoreOfficial      *float64                    `json:"average_score_official,omitempty"`
+	GroupAverageScore         *float64                    `json:"group_average_score,omitempty"`
+	GroupAverageScoreOfficial *float64                    `json:"group_average_score_official,omitempty"`
+	GroupTotalSubmissions     *int64                      `json:"group_total_submissions,omitempty"`
+	GroupExamNames            []string                    `json:"group_exam_names,omitempty"`
+	StatsIncluded             bool                        `json:"stats_included"`
 }
 
 type OfficialResultsList struct {

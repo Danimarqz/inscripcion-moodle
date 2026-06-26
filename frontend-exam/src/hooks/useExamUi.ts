@@ -27,6 +27,7 @@ export const examUiInitialState: ExamUiState = {
   meritsPosition: null,
   meritsTotal: null,
   passedCount: null,
+  groups: null,
 };
 
 export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action) => {
@@ -59,6 +60,7 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         meritsPosition: null,
         meritsTotal: null,
         passedCount: null,
+        groups: null,
       };
     case 'CHECK_SUCCESS':
       return {
@@ -86,6 +88,7 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         meritsPosition: action.payload.meritsPosition,
         meritsTotal: action.payload.meritsTotal,
         passedCount: action.payload.passedCount,
+        groups: action.payload.groups,
       };
     case 'CHECK_ERROR':
       return {
@@ -113,6 +116,7 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         meritsPosition: null,
         meritsTotal: null,
         passedCount: null,
+        groups: null,
       };
     case 'SUBMIT_SUCCESS':
       return {
@@ -140,6 +144,7 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         meritsPosition: action.payload.meritsPosition,
         meritsTotal: action.payload.meritsTotal,
         passedCount: action.payload.passedCount,
+        groups: action.payload.groups,
       };
     case 'SUBMIT_ERROR':
       return {
@@ -168,6 +173,7 @@ export const examUiReducer: Reducer<ExamUiState, ExamUiAction> = (state, action)
         meritsPosition: null,
         meritsTotal: null,
         passedCount: null,
+        groups: null,
       };
     default:
       return state;

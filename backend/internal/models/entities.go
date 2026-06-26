@@ -66,6 +66,7 @@ type Exam struct {
 	PercentileGroup      *uint                `gorm:"column:percentile_group" json:"percentile_group"`
 	AssociatedExamIDs    []uint               `gorm:"-" json:"associated_exam_ids"` // other exams sharing PercentileGroup; populated on read
 	Questions            []Question           `gorm:"foreignKey:ExamID" json:"questions"`
+	Groups               []QuestionGroup      `gorm:"foreignKey:ExamID" json:"groups"`
 	Submissions          []UserExamSubmission `gorm:"foreignKey:ExamID" json:"-"`
 }
 
@@ -76,6 +77,7 @@ func (Exam) TableName() string {
 type Question struct {
 	ID               uint    `gorm:"column:id;primaryKey" json:"id"`
 	ExamID           uint    `gorm:"column:exam_id;index:idx_question_exam_id" json:"exam_id"`
+	GroupID          *uint   `gorm:"column:group_id" json:"group_id,omitempty"`
 	Name             int     `gorm:"column:name" json:"name"`
 	Label            *string `gorm:"column:label" json:"label,omitempty"`
 	CorrectOption    string  `gorm:"column:correct_option" json:"correct_option"`
@@ -86,6 +88,21 @@ type Question struct {
 
 func (Question) TableName() string {
 	return "question"
+}
+
+type QuestionGroup struct {
+	ID              uint     `gorm:"column:id;primaryKey" json:"id"`
+	ExamID          uint     `gorm:"column:exam_id" json:"exam_id"`
+	Name            string   `gorm:"column:name" json:"name"`
+	Position        int      `gorm:"column:position" json:"position"`
+	MaxScore        float64  `gorm:"column:max_score" json:"max_score"`
+	PointsPerWrong  float64  `gorm:"column:points_per_wrong" json:"points_per_wrong"`
+	MinPassingScore *float64 `gorm:"column:min_passing_score" json:"min_passing_score"`
+	Eliminatory     bool     `gorm:"column:eliminatory" json:"eliminatory"`
+}
+
+func (QuestionGroup) TableName() string {
+	return "question_group"
 }
 
 type ExamUser struct {

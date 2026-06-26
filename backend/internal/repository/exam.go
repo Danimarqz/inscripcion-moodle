@@ -39,7 +39,7 @@ func NewExamRepository() ExamRepository {
 
 func (r *examRepository) FindExamByID(ctx context.Context, db *gorm.DB, examID uint) (*models.Exam, error) {
 	var exam models.Exam
-	if err := db.WithContext(ctx).Preload("Questions").First(&exam, examID).Error; err != nil {
+	if err := db.WithContext(ctx).Preload("Questions").Preload("Groups").First(&exam, examID).Error; err != nil {
 		return nil, err
 	}
 	exam.Slug = helpers.CreateSlug(exam.Name)
@@ -135,6 +135,13 @@ func (r *examRepository) RecalculateScores(ctx context.Context, db *gorm.DB, exa
 		return nil
 	}
 
+	// Grouped exams recalc via scoring.ComputeGrouped (same source as the submit
+	// path); flat exams use the single-config calculateScore.
+	var groups []models.QuestionGroup
+	if err := db.WithContext(ctx).Where("exam_id = ?", examID).Find(&groups).Error; err != nil {
+		return err
+	}
+
 	var submissions []models.UserExamSubmission
 	if err := db.WithContext(ctx).Where("exam_id = ?", examID).Find(&submissions).Error; err != nil {
 		return err
@@ -150,7 +157,12 @@ func (r *examRepository) RecalculateScores(ctx context.Context, db *gorm.DB, exa
 		if sub.AnswersData == nil {
 			continue
 		}
-		score := calculateScore(questions, map[uint]string(*sub.AnswersData), cfg)
+		var score float64
+		if len(groups) > 0 {
+			score = scoring.ComputeGrouped(groups, questions, map[uint]string(*sub.AnswersData)).Total
+		} else {
+			score = calculateScore(questions, map[uint]string(*sub.AnswersData), cfg)
+		}
 		updates = append(updates, scoreUpdate{id: sub.ID, score: score})
 	}
 
@@ -301,6 +313,11 @@ func (r *examRepository) RecalculateScoresForSubmission(ctx context.Context, db 
 		return nil
 	}
 
+	var groups []models.QuestionGroup
+	if err := db.WithContext(ctx).Where("exam_id = ?", examID).Find(&groups).Error; err != nil {
+		return err
+	}
+
 	var submission models.UserExamSubmission
 	if err := db.WithContext(ctx).First(&submission, submissionID).Error; err != nil {
 		return err
@@ -309,7 +326,12 @@ func (r *examRepository) RecalculateScoresForSubmission(ctx context.Context, db 
 		return r.RecalculatePercentiles(ctx, db, examID)
 	}
 
-	score := calculateScore(questions, map[uint]string(*submission.AnswersData), cfg)
+	var score float64
+	if len(groups) > 0 {
+		score = scoring.ComputeGrouped(groups, questions, map[uint]string(*submission.AnswersData)).Total
+	} else {
+		score = calculateScore(questions, map[uint]string(*submission.AnswersData), cfg)
+	}
 	if err := db.WithContext(ctx).Model(&models.UserExamSubmission{}).
 		Where("id = ?", submissionID).
 		Update("score", score).Error; err != nil {

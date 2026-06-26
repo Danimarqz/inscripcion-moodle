@@ -5,6 +5,7 @@ import type {
   ExamEdit,
   QuestionCreate,
   QuestionEdit,
+  QuestionGroup,
 } from '../types/exam';
 import { createExam, editExam, getAdminExams, getExamById, getExamQuestions, getQuestionFeedbackVideo, patchQuestionFeedbackVideo } from '../services/adminService';
 import { useAdminAuth } from '../hooks/useAdminAuth';
@@ -50,6 +51,11 @@ export default function ExamForm({ examId }: ExamFormProps) {
   const [associateModalOpen, setAssociateModalOpen] = useState(false);
   const [displayWeightOverride, setDisplayWeightOverride] = useState(false);
   const [displayExamWeight, setDisplayExamWeight] = useState(0.5);
+  // Question groups (e.g. Teórico / Práctico). Empty = flat exam (legacy behaviour).
+  // group.position is a STABLE id (never reused) so removing a group never renumbers
+  // the others, keeping each question's group_position link valid.
+  const [groups, setGroups] = useState<QuestionGroup[]>([]);
+  const grouped = groups.length > 0;
 
   useEffect(() => {
     if (authenticating) return;
@@ -88,6 +94,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setPassingCriteriaValue(null);
       setExamWeight(0.5);
       setMaxMerits(100);
+      setGroups([]);
       setAll([{ ...DEFAULT_QUESTION }]);
       setError(null);
       return;
@@ -121,15 +128,28 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setDisplayWeightOverride(examData.display_exam_weight != null);
       setDisplayExamWeight(examData.display_exam_weight ?? examData.exam_weight ?? 0.5);
 
+      const loadedGroups = examData.groups ?? [];
+      setGroups(loadedGroups);
+      // Backend returns each question's group_id; map it to the group's stable
+      // position so the per-question group selector can bind to group_position.
+      const idToPosition = new Map<number, number>();
+      for (const g of loadedGroups) {
+        if (g.id != null) idToPosition.set(g.id, g.position);
+      }
+
       const normalizedQuestions = (examQuestions.length
         ? examQuestions
         : [{ ...DEFAULT_QUESTION } as QuestionEdit]
-      ).map((question, idx) => ({
-        ...question,
-        is_active: question.is_active ?? true,
-        is_cancelled: question.is_cancelled ?? false,
-        name: typeof question.name === 'number' && question.name > 0 ? question.name : idx + 1,
-      }));
+      ).map((question, idx) => {
+        const groupId = (question as { group_id?: number | null }).group_id;
+        return {
+          ...question,
+          is_active: question.is_active ?? true,
+          is_cancelled: question.is_cancelled ?? false,
+          name: typeof question.name === 'number' && question.name > 0 ? question.name : idx + 1,
+          group_position: groupId != null ? idToPosition.get(groupId) ?? null : null,
+        };
+      });
 
       setAll(normalizedQuestions as (QuestionCreate | QuestionEdit)[]);
     }).catch(() => undefined);
@@ -190,6 +210,30 @@ export default function ExamForm({ examId }: ExamFormProps) {
       }
     }
 
+    if (grouped) {
+      for (const g of groups) {
+        if (!g.name.trim() || !(g.max_score > 0) || g.points_per_wrong < 0) {
+          setError('Cada grupo necesita un nombre, una valoración mayor que 0 y una penalización no negativa.');
+          return;
+        }
+        if (g.min_passing_score != null && (g.min_passing_score < 0 || g.min_passing_score > g.max_score)) {
+          setError(`La nota mínima del grupo "${g.name || '?'}" debe estar entre 0 y su valoración.`);
+          return;
+        }
+      }
+      const validPositions = new Set(groups.map((g) => g.position));
+      const unassigned = questions.some(
+        (q) =>
+          q.is_active !== false &&
+          q.is_cancelled !== true &&
+          (q.group_position == null || !validPositions.has(q.group_position)),
+      );
+      if (unassigned) {
+        setError('Con grupos activos, cada pregunta activa no anulada debe asignarse a un grupo.');
+        return;
+      }
+    }
+
     if (!token) {
       setError('No autorizado: token no disponible.');
       return;
@@ -218,6 +262,17 @@ export default function ExamForm({ examId }: ExamFormProps) {
       ...(examToEdit ? { associated_exam_ids: associatedExamIds } : {}),
       display_exam_weight: displayWeightOverride ? displayExamWeight : null,
       ...(examToEdit && !displayWeightOverride ? { clear_display_weight: true } : {}),
+      groups: grouped
+        ? groups.map((g) => ({
+            id: g.id,
+            name: g.name.trim(),
+            position: g.position,
+            max_score: g.max_score,
+            points_per_wrong: g.points_per_wrong,
+            min_passing_score: g.min_passing_score ?? null,
+            eliminatory: g.eliminatory,
+          }))
+        : [],
       questions: questions.map((q) => ({
         id: 'id' in q ? q.id : undefined,
         correct_option: q.correct_option.toUpperCase(),
@@ -225,6 +280,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
         is_cancelled: q.is_cancelled === true,
         name: q.name as number,
         label: q.label ?? null,
+        group_position: grouped ? q.group_position ?? null : null,
       })),
     };
 
@@ -288,6 +344,40 @@ export default function ExamForm({ examId }: ExamFormProps) {
         return { ...q, name: q.name - 1 };
       });
     setAll(remaining);
+  }
+
+  function nextGroupPosition() {
+    return groups.length ? Math.max(...groups.map((g) => g.position)) + 1 : 0;
+  }
+
+  function handleAddGroup() {
+    setGroups([
+      ...groups,
+      {
+        name: '',
+        position: nextGroupPosition(),
+        max_score: 0,
+        points_per_wrong: 0.25,
+        min_passing_score: null,
+        eliminatory: true,
+      },
+    ]);
+  }
+
+  function updateGroup(index: number, patch: Partial<QuestionGroup>) {
+    setGroups(groups.map((g, i) => (i === index ? { ...g, ...patch } : g)));
+  }
+
+  // Remove a group and detach any question that pointed at it (positions are
+  // stable, so the surviving groups' links stay valid).
+  function handleRemoveGroup(index: number) {
+    const removedPos = groups[index].position;
+    setGroups(groups.filter((_, i) => i !== index));
+    setAll(
+      questions.map((q) =>
+        q.group_position === removedPos ? { ...q, group_position: null } : q,
+      ),
+    );
   }
 
   function renderQuestionCard(entry: { index: number; question: QuestionCreate | QuestionEdit }) {
@@ -381,6 +471,27 @@ export default function ExamForm({ examId }: ExamFormProps) {
             ))}
           </select>
         </label>
+        {grouped && (
+          <label className="block font-bold text-brand-pink mb-2">
+            Grupo:
+            <select
+              value={question.group_position ?? ''}
+              onChange={(e) => {
+                const raw = e.currentTarget.value;
+                updateQuestion(index, 'group_position', raw === '' ? null : parseInt(raw, 10));
+              }}
+              className="w-full px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/50"
+              disabled={isBusy}
+            >
+              <option value="">— Sin asignar —</option>
+              {groups.map((g, gi) => (
+                <option key={g.position} value={g.position}>
+                  {g.name.trim() || `Grupo ${gi + 1}`}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <div className="flex flex-wrap gap-3 mt-4">
           <button
             type="button"
@@ -534,6 +645,104 @@ export default function ExamForm({ examId }: ExamFormProps) {
       </fieldset>
 
       <fieldset className="mb-6 border border-[#444] rounded-lg p-4" disabled={isBusy}>
+        <legend className="font-bold text-brand-pink px-2">Grupos de preguntas</legend>
+        <p className="text-xs text-gray-400 mb-4">
+          Opcional. Crea grupos (ej. Teórico, Práctico) para puntuar por bloques. Cada grupo
+          se corrige en modo absoluto: puntos por acierto = valoración ÷ nº de preguntas activas
+          del grupo, menos la penalización por fallo. La nota total es la suma de los grupos y, si
+          un grupo es eliminatorio, no superar su nota mínima suspende todo el examen. Con grupos
+          activos, la configuración de corrección/puntuación de abajo se ignora y cada pregunta
+          debe asignarse a un grupo.
+        </p>
+        <div className="flex flex-col gap-4">
+          {groups.map((g, gi) => (
+            <div key={g.position} className="border border-[#444] rounded-lg p-3 bg-[#23262c]">
+              <div className="flex flex-wrap gap-3 items-end">
+                <label className="font-bold text-brand-pink">
+                  Nombre:
+                  <input
+                    type="text"
+                    value={g.name}
+                    onInput={(e) => updateGroup(gi, { name: (e.target as HTMLInputElement).value })}
+                    placeholder="Teórico"
+                    className="block w-44 mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+                    disabled={isBusy}
+                  />
+                </label>
+                <label className="font-bold text-brand-pink">
+                  Valoración (puntos):
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={g.max_score}
+                    onInput={(e) => updateGroup(gi, { max_score: parseFloat((e.target as HTMLInputElement).value) || 0 })}
+                    className="block w-28 mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+                    disabled={isBusy}
+                  />
+                </label>
+                <label className="font-bold text-brand-pink">
+                  Resta por fallo:
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={g.points_per_wrong}
+                    onInput={(e) => updateGroup(gi, { points_per_wrong: parseFloat((e.target as HTMLInputElement).value) || 0 })}
+                    className="block w-28 mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+                    disabled={isBusy}
+                  />
+                </label>
+                <label className="font-bold text-brand-pink">
+                  Nota mínima:
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={g.min_passing_score ?? ''}
+                    onInput={(e) => {
+                      const raw = (e.target as HTMLInputElement).value;
+                      updateGroup(gi, { min_passing_score: raw === '' ? null : parseFloat(raw) });
+                    }}
+                    placeholder="(sin mínimo)"
+                    className="block w-28 mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+                    disabled={isBusy}
+                  />
+                </label>
+                <label className="flex items-center gap-2 text-brand-pink font-bold">
+                  <input
+                    type="checkbox"
+                    checked={g.eliminatory}
+                    onChange={(e) => updateGroup(gi, { eliminatory: e.currentTarget.checked })}
+                    disabled={isBusy}
+                  />
+                  Eliminatorio
+                </label>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveGroup(gi)}
+                  className="bg-red-600 text-white border-none rounded px-3 py-2 cursor-pointer disabled:opacity-60"
+                  disabled={isBusy}
+                >
+                  Eliminar grupo
+                </button>
+              </div>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={handleAddGroup}
+            className="self-start bg-brand-blue text-white border-none rounded px-4 py-2 cursor-pointer hover:bg-brand-blue/80 disabled:opacity-60"
+            disabled={isBusy}
+          >
+            + Añadir grupo
+          </button>
+        </div>
+      </fieldset>
+
+      {!grouped && (
+      <>
+      <fieldset className="mb-6 border border-[#444] rounded-lg p-4" disabled={isBusy}>
         <legend className="font-bold text-brand-pink px-2">Configuración de corrección</legend>
         <div className="flex flex-col gap-4">
           <label className="flex items-center gap-2 flex-wrap">
@@ -656,6 +865,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
           </label>
         </div>
       </fieldset>
+      </>
+      )}
 
       <fieldset className="mb-6 border border-[#444] rounded-lg p-4" disabled={isBusy}>
         <legend className="font-bold text-brand-pink px-2">Criterio para aprobar</legend>

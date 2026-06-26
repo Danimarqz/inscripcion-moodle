@@ -341,7 +341,7 @@ func createSubmission(tx *gorm.DB, req SubmitExamRequest, userID uint) (*models.
 
 	var exam models.Exam
 
-	if err := tx.Preload("Questions").First(&exam, req.ExamID).Error; err != nil {
+	if err := tx.Preload("Questions").Preload("Groups").First(&exam, req.ExamID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil, nil, ErrExamNotFound
 		}
@@ -380,7 +380,13 @@ func createSubmission(tx *gorm.DB, req SubmitExamRequest, userID uint) (*models.
 		answersMap[question.ID] = value
 	}
 
-	breakdown, err := CalculateScoreBreakdownCfg(activeQuestions, answersMap, ScoringConfigFromExam(&exam))
+	var breakdown *ScoreBreakdown
+	var err error
+	if len(exam.Groups) > 0 {
+		breakdown, err = CalculateGroupedBreakdown(exam.Groups, activeQuestions, answersMap)
+	} else {
+		breakdown, err = CalculateScoreBreakdownCfg(activeQuestions, answersMap, ScoringConfigFromExam(&exam))
+	}
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -417,6 +423,7 @@ func (s *Service) BuildSubmissionCheckResponse(req SubmissionCheckRequest) (*Sub
 	if err := queryDB.
 		Preload("User").
 		Preload("Exam.Questions", "is_active and not is_cancelled").
+		Preload("Exam.Groups").
 		Joins("JOIN exam_user ON exam_user.id = user_exam_submission.user_id").
 		Where("exam_user.dni = ? AND LOWER(exam_user.email) = ? AND user_exam_submission.exam_id = ?", normalizedDNI, normalizedEmail, req.ExamID).
 		First(&submission).Error; err != nil {
@@ -737,6 +744,31 @@ func CalculateScoreBreakdownCfg(questions []models.Question, answers map[uint]st
 	}, nil
 }
 
+// CalculateGroupedBreakdown scores a submission per question group (absolute model
+// per group, total = sum) via the single-source scoring.ComputeGrouped. The
+// returned ScoreBreakdown carries the per-group outcomes so the payload layer can
+// surface them and decide eliminatory pass/fail without reloading anything.
+func CalculateGroupedBreakdown(groups []models.QuestionGroup, questions []models.Question, answers map[uint]string) (*ScoreBreakdown, error) {
+	gr := scoring.ComputeGrouped(groups, questions, answers)
+	correct, incorrect, total := 0, 0, 0
+	for _, g := range gr.Groups {
+		correct += g.Correct
+		incorrect += g.Incorrect
+		total += g.Total
+	}
+	if total == 0 {
+		return nil, errors.New("el examen no tiene preguntas activas no anuladas configuradas")
+	}
+	return &ScoreBreakdown{
+		Score:            gr.Total,
+		CorrectAnswers:   correct,
+		IncorrectAnswers: incorrect,
+		NotAnswered:      total - correct - incorrect,
+		TotalQuestions:   total,
+		Groups:           gr.Groups,
+	}, nil
+}
+
 // ComputePassingThreshold calculates the threshold from criteria and stores it
 // in exam.PassingThreshold. Called once when the admin edits the exam.
 func ComputePassingThreshold(db *gorm.DB, exam *models.Exam, examRepo repository.ExamRepository) *float64 {
@@ -796,8 +828,34 @@ func (s *Service) buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submiss
 	// In absolute mode the effective maximum is points_per_correct * active
 	// questions, not the stored legacy MaxScore (default 100). This keeps the
 	// student's "nota sobre X" and secondary bases correct.
+	// Detect grouped scoring. On the submit path the breakdown carries the group
+	// outcomes; on the check path breakdown is nil, so recompute from the stored
+	// answers (fetchScoreBreakdownFromDB loads the groups itself).
+	var groupOutcomes []scoring.GroupOutcome
+	if breakdown != nil && len(breakdown.Groups) > 0 {
+		groupOutcomes = breakdown.Groups
+	} else if len(exam.Groups) > 0 {
+		bd, err := fetchScoreBreakdownFromDB(tx, exam, submission.AnswersData)
+		if err != nil {
+			return nil, err
+		}
+		if bd != nil {
+			groupOutcomes = bd.Groups
+		}
+	}
+	isGrouped := len(groupOutcomes) > 0
+
+	// In absolute/grouped mode the effective maximum is not the stored legacy
+	// MaxScore (default 100): grouped = sum of group maxima, absolute =
+	// points_per_correct * active questions.
 	effectiveMax := exam.MaxScore
-	if exam.ScoringMode == "absolute" && exam.PointsPerCorrect != nil {
+	if isGrouped {
+		var sum float64
+		for _, g := range groupOutcomes {
+			sum += g.MaxScore
+		}
+		effectiveMax = &sum
+	} else if exam.ScoringMode == "absolute" && exam.PointsPerCorrect != nil {
 		n, err := examRepo.CountActiveQuestions(context.Background(), tx, exam.ID)
 		if err != nil {
 			return nil, err
@@ -811,6 +869,7 @@ func (s *Service) buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submiss
 		Merits:             submission.Merits,
 		MaxScore:           effectiveMax,
 		SecondaryMaxScores: exam.SecondaryMaxScores,
+		Groups:             groupOutcomes,
 	}
 
 	if exam.ShowScore {
@@ -856,9 +915,17 @@ func (s *Service) buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submiss
 		payload.AnswersReview = review
 	}
 
-	// Passing criteria logic
+	// Passing criteria logic. Grouped exams pass iff every eliminatory group met
+	// its minimum (the global PassingThreshold does not apply to grouped exams).
 	threshold := exam.PassingThreshold
-	isPassed := evaluatePassStatus(submission.Score, threshold)
+	var isPassed *bool
+	if isGrouped {
+		gr := scoring.GroupedResult{Groups: groupOutcomes}
+		p := gr.AllEliminatoryPassed()
+		isPassed = &p
+	} else {
+		isPassed = evaluatePassStatus(submission.Score, threshold)
+	}
 	payload.IsPassed = isPassed
 	payload.CanEditMerits = isPassed != nil && *isPassed
 	mm := exam.MaxMerits
@@ -873,7 +940,7 @@ func (s *Service) buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submiss
 		payload.PassedCount = &pc
 	}
 
-	if payload.CanEditMerits && submission.Merits != nil {
+	if payload.CanEditMerits && submission.Merits != nil && threshold != nil {
 		pos, total, err := submissionRepo.GetMeritsRanking(context.Background(), tx, exam.ID, submission.ID, *threshold, exam.ExamWeight, exam.SkipWeights)
 		if err == nil {
 			payload.MeritsPosition = pos
@@ -936,6 +1003,16 @@ func fetchScoreBreakdownFromDB(tx *gorm.DB, exam *models.Exam, answersData *mode
 	answerMap := make(map[uint]string)
 	if answersData != nil {
 		answerMap = map[uint]string(*answersData)
+	}
+
+	groups := exam.Groups
+	if len(groups) == 0 {
+		if err := tx.Where("exam_id = ?", exam.ID).Find(&groups).Error; err != nil {
+			return nil, err
+		}
+	}
+	if len(groups) > 0 {
+		return CalculateGroupedBreakdown(groups, questions, answerMap)
 	}
 
 	breakdown, err := CalculateScoreBreakdownCfg(questions, answerMap, ScoringConfigFromExam(exam))

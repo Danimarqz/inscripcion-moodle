@@ -129,5 +129,6 @@ export function buildResultPayload(
     meritsPosition: result.merits_position ?? null,
     meritsTotal: result.merits_total ?? null,
     passedCount: result.passed_count ?? null,
+    groups: config.showScore ? result.groups ?? null : null,
   };
 }

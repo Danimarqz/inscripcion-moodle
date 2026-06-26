@@ -30,6 +30,9 @@ func (s *Service) GetExam(examID uint) (*models.Exam, error) {
 			Where("percentile_group = ? AND id <> ?", *exam.PercentileGroup, examID).
 			Pluck("id", &exam.AssociatedExamIDs)
 	}
+	if s.db != nil {
+		s.db.Where("exam_id = ?", examID).Order("position asc").Find(&exam.Groups)
+	}
 	return exam, nil
 }
 
@@ -95,6 +98,10 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 		return nil, err
 	}
 
+	if err := validateGroups(req.Groups, req.Questions); err != nil {
+		return nil, err
+	}
+
 	exam := &models.Exam{
 		Name:                 req.Name,
 		IsActive:             req.IsActive,
@@ -116,6 +123,7 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 		DisplayExamWeight:    req.DisplayExamWeight,
 		SkipWeights:          req.SkipWeights,
 		Questions:            questions,
+		Groups:               buildGroups(req.Groups, 0),
 	}
 
 	if len(activeQuestions(questions)) == 0 {
@@ -124,6 +132,18 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 
 	if err := s.examRepo.CreateExam(context.Background(), s.db, exam); err != nil {
 		return nil, err
+	}
+
+	// Groups now have IDs (assigned by the association insert). Link each question
+	// to its group by position and persist the group_id.
+	if len(exam.Groups) > 0 {
+		assignGroupIDs(exam.Questions, req.Questions, exam.Groups)
+		for i := range exam.Questions {
+			if err := s.db.Model(&models.Question{}).Where("id = ?", exam.Questions[i].ID).
+				Update("group_id", exam.Questions[i].GroupID).Error; err != nil {
+				return nil, err
+			}
+		}
 	}
 	return exam, nil
 }
@@ -277,6 +297,10 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 		}
 	}
 
+	if err := validateGroups(req.Groups, req.Questions); err != nil {
+		return nil, err
+	}
+
 	inputQuestionIDs := make(map[uint]struct{})
 	for _, q := range req.Questions {
 		if q.ID != nil {
@@ -306,6 +330,35 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 		return nil, ErrActiveQuestions
 	}
 
+	// Reconcile question groups BEFORE saving questions: delete removed groups,
+	// upsert the rest so new groups get IDs, then link each question to its group
+	// by position. Going from grouped to flat (empty req.Groups while the exam had
+	// groups) deletes all groups and clears every question's group_id. Skipped
+	// entirely for flat-stays-flat exams so the path never touches the DB.
+	if len(req.Groups) > 0 || len(exam.Groups) > 0 {
+		desiredGroups := buildGroups(req.Groups, exam.ID)
+		keepIDs := make([]uint, 0, len(desiredGroups))
+		for _, g := range desiredGroups {
+			if g.ID != 0 {
+				keepIDs = append(keepIDs, g.ID)
+			}
+		}
+		delQ := s.db.Where("exam_id = ?", exam.ID)
+		if len(keepIDs) > 0 {
+			delQ = delQ.Where("id NOT IN ?", keepIDs)
+		}
+		if err := delQ.Delete(&models.QuestionGroup{}).Error; err != nil {
+			return nil, err
+		}
+		for i := range desiredGroups {
+			if err := s.db.Save(&desiredGroups[i]).Error; err != nil {
+				return nil, err
+			}
+		}
+		assignGroupIDs(updatedQuestions, req.Questions, desiredGroups)
+		exam.Groups = desiredGroups
+	}
+
 	exam.Questions = updatedQuestions
 	if err := s.examRepo.UpdateExam(context.Background(), s.db, exam); err != nil {
 		return nil, err
@@ -313,7 +366,7 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 
 	if req.SubtractsPoints != nil || req.PenaltyValue != nil || req.MaxScore != nil ||
 		req.ScoringMode != nil || req.PointsPerCorrect != nil || req.PointsPerWrong != nil ||
-		len(req.Questions) > 0 {
+		len(req.Questions) > 0 || len(req.Groups) > 0 {
 		if err := s.examRepo.RecalculateScores(context.Background(), s.db, exam.ID); err != nil {
 			return nil, fmt.Errorf("failed to recalculate scores: %w", err)
 		}
@@ -348,6 +401,84 @@ func (s *Service) DeleteExam(examID uint) error {
 		}
 		return s.examRepo.DeleteExam(ctx, tx, examID)
 	})
+}
+
+// validateGroups checks group config and that, when groups exist, every active
+// non-cancelled question is assigned to an existing group position. Question
+// numbering stays GLOBAL 1..N (validateQuestionNumbers) — groups only partition,
+// they do not renumber, so the (exam_id, name) unique constraint still holds.
+func validateGroups(groups []QuestionGroupInput, questions []QuestionInput) error {
+	if len(groups) == 0 {
+		for _, q := range questions {
+			if q.GroupPosition != nil {
+				return ErrInvalidGroups
+			}
+		}
+		return nil
+	}
+	positions := make(map[int]bool, len(groups))
+	for _, g := range groups {
+		if strings.TrimSpace(g.Name) == "" || g.MaxScore <= 0 || g.PointsPerWrong < 0 {
+			return ErrInvalidGroups
+		}
+		if g.MinPassingScore != nil && (*g.MinPassingScore < 0 || *g.MinPassingScore > g.MaxScore) {
+			return ErrInvalidGroups
+		}
+		if positions[g.Position] {
+			return ErrInvalidGroups
+		}
+		positions[g.Position] = true
+	}
+	for _, q := range questions {
+		active := q.IsActive == nil || *q.IsActive
+		cancelled := q.IsCancelled != nil && *q.IsCancelled
+		if !active || cancelled {
+			continue
+		}
+		if q.GroupPosition == nil || !positions[*q.GroupPosition] {
+			return ErrInvalidGroups
+		}
+	}
+	return nil
+}
+
+// buildGroups maps group inputs to models, carrying the ID for updates.
+func buildGroups(inputs []QuestionGroupInput, examID uint) []models.QuestionGroup {
+	groups := make([]models.QuestionGroup, 0, len(inputs))
+	for _, in := range inputs {
+		g := models.QuestionGroup{
+			ExamID:          examID,
+			Name:            strings.TrimSpace(in.Name),
+			Position:        in.Position,
+			MaxScore:        in.MaxScore,
+			PointsPerWrong:  in.PointsPerWrong,
+			MinPassingScore: in.MinPassingScore,
+			Eliminatory:     in.Eliminatory,
+		}
+		if in.ID != nil {
+			g.ID = *in.ID
+		}
+		groups = append(groups, g)
+	}
+	return groups
+}
+
+// assignGroupIDs sets each question's GroupID from its input GroupPosition using
+// the saved groups' position->id map. questions and inputs share the same order.
+func assignGroupIDs(questions []models.Question, inputs []QuestionInput, groups []models.QuestionGroup) {
+	posToID := make(map[int]uint, len(groups))
+	for _, g := range groups {
+		posToID[g.Position] = g.ID
+	}
+	for i := range questions {
+		questions[i].GroupID = nil
+		if i < len(inputs) && inputs[i].GroupPosition != nil {
+			if id, ok := posToID[*inputs[i].GroupPosition]; ok {
+				gid := id
+				questions[i].GroupID = &gid
+			}
+		}
+	}
 }
 
 func activeQuestions(questions []models.Question) []models.Question {
