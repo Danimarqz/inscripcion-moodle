@@ -14,6 +14,7 @@ export type Exam = {
   scoring_mode?: 'legacy' | 'absolute';
   points_per_correct?: number;
   points_per_wrong?: number;
+  wrong_block_size?: number | null;
   secondary_max_scores?: string;
   passing_criteria_type?: string;
   passing_criteria_value?: number | null;
@@ -193,6 +194,7 @@ export type ExamCreateWithQuestions = {
   scoring_mode?: 'legacy' | 'absolute';
   points_per_correct?: number;
   points_per_wrong?: number;
+  wrong_block_size?: number | null;
   secondary_max_scores?: string;
   passing_criteria_type?: string;
   passing_criteria_value?: number | null;
@@ -230,6 +232,7 @@ export type ExamEdit = {
   scoring_mode?: 'legacy' | 'absolute';
   points_per_correct?: number;
   points_per_wrong?: number;
+  wrong_block_size?: number | null;
   secondary_max_scores?: string;
   passing_criteria_type?: string;
   passing_criteria_value?: number | null;

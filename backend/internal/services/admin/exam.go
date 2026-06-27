@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 
@@ -54,7 +55,15 @@ func normalizeMode(s string) string {
 // validateScoring rejects unknown modes and incomplete/negative absolute config.
 // points_per_wrong == 0 is valid (no deduction); ppw > ppc is allowed by design
 // (a wrong may cost more than a right earns).
-func validateScoring(mode string, ppc, ppw *float64) error {
+func validateScoring(mode string, ppc, ppw, wrongBlockSize *float64) error {
+	// Block penalty (cada N falladas resta 1 pregunta) must be a whole number >= 1
+	// when set. 0 disables it. Applies to legacy flat and grouped scoring; the
+	// absolute branch simply ignores it, so no mode restriction is needed.
+	if wrongBlockSize != nil && *wrongBlockSize != 0 {
+		if *wrongBlockSize < 1 || *wrongBlockSize != math.Trunc(*wrongBlockSize) {
+			return ErrInvalidWrongBlockSize
+		}
+	}
 	switch mode {
 	case "", "legacy":
 		return nil
@@ -94,7 +103,7 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 		return nil, ErrInvalidDisplayWeight
 	}
 
-	if err := validateScoring(req.ScoringMode, req.PointsPerCorrect, req.PointsPerWrong); err != nil {
+	if err := validateScoring(req.ScoringMode, req.PointsPerCorrect, req.PointsPerWrong, req.WrongBlockSize); err != nil {
 		return nil, err
 	}
 
@@ -115,6 +124,7 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 		ScoringMode:          normalizeMode(req.ScoringMode),
 		PointsPerCorrect:     req.PointsPerCorrect,
 		PointsPerWrong:       req.PointsPerWrong,
+		WrongBlockSize:       req.WrongBlockSize,
 		SecondaryMaxScores:   req.SecondaryMaxScores,
 		PassingCriteriaType:  req.PassingCriteriaType,
 		PassingCriteriaValue: req.PassingCriteriaValue,
@@ -250,9 +260,12 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 	if req.PointsPerWrong != nil {
 		exam.PointsPerWrong = req.PointsPerWrong
 	}
+	if req.WrongBlockSize != nil {
+		exam.WrongBlockSize = req.WrongBlockSize
+	}
 	// Validate the EFFECTIVE post-merge state so switching to absolute mode
 	// without (re)sending the points is rejected.
-	if err := validateScoring(exam.ScoringMode, exam.PointsPerCorrect, exam.PointsPerWrong); err != nil {
+	if err := validateScoring(exam.ScoringMode, exam.PointsPerCorrect, exam.PointsPerWrong, exam.WrongBlockSize); err != nil {
 		return nil, err
 	}
 	if req.SecondaryMaxScores != nil {
@@ -374,7 +387,7 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 
 	if req.SubtractsPoints != nil || req.PenaltyValue != nil || req.MaxScore != nil ||
 		req.ScoringMode != nil || req.PointsPerCorrect != nil || req.PointsPerWrong != nil ||
-		len(req.Questions) > 0 || len(req.Groups) > 0 {
+		req.WrongBlockSize != nil || len(req.Questions) > 0 || len(req.Groups) > 0 {
 		if err := s.examRepo.RecalculateScores(context.Background(), s.db, exam.ID); err != nil {
 			return nil, fmt.Errorf("failed to recalculate scores: %w", err)
 		}

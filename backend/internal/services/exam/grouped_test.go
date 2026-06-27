@@ -60,7 +60,7 @@ func TestGroupedBreakdown_Xunta_AllCorrect(t *testing.T) {
 	groups, questions := buildXuntaExam()
 	answers := merge(answerAll(questions, 80, 0, 1), answerAll(questions, 40, 0, 2))
 
-	bd, err := CalculateGroupedBreakdown(groups, questions, answers)
+	bd, err := CalculateGroupedBreakdown(groups, questions, answers, 0)
 	assert.NoError(t, err)
 	assert.Equal(t, 100.0, bd.Score) // 60 + 40
 	assert.Equal(t, 120, bd.TotalQuestions)
@@ -78,11 +78,32 @@ func TestGroupedBreakdown_Xunta_TheoryFailsEliminatory(t *testing.T) {
 	// Bajamos a 48 correct, 32 wrong => 36 - 8 = 28 < 30 => falla eliminatorio.
 	answers := merge(answerAll(questions, 48, 32, 1), answerAll(questions, 40, 0, 2))
 
-	bd, err := CalculateGroupedBreakdown(groups, questions, answers)
+	bd, err := CalculateGroupedBreakdown(groups, questions, answers, 0)
 	assert.NoError(t, err)
 	assert.InDelta(t, 28.0, bd.Groups[0].Score, 0.001)
 	assert.False(t, bd.Groups[0].Passed)
 	assert.True(t, bd.Groups[1].Passed)
+}
+
+func TestGroupedBreakdown_BlockPenalty_PerGroup(t *testing.T) {
+	// Block penalty N=4: wrongs counted per group, never across groups.
+	// Teórico ppc=60/80=0.75, Práctico ppc=40/40=1.0.
+	groups, questions := buildXuntaExam()
+
+	// 3 wrong in Teórico + 1 wrong in Práctico => neither group reaches a full
+	// block of 4, so NO deduction in either group.
+	spread := merge(answerAll(questions, 77, 3, 1), answerAll(questions, 39, 1, 2))
+	bd, err := CalculateGroupedBreakdown(groups, questions, spread, 4)
+	assert.NoError(t, err)
+	assert.InDelta(t, 57.75, bd.Groups[0].Score, 0.001) // 77 * 0.75, no deduction
+	assert.InDelta(t, 39.0, bd.Groups[1].Score, 0.001)  // 39 * 1.0, no deduction
+
+	// 4 wrong in Teórico => exactly 1 whole question off in THAT group only.
+	concentrated := merge(answerAll(questions, 76, 4, 1), answerAll(questions, 40, 0, 2))
+	bd, err = CalculateGroupedBreakdown(groups, questions, concentrated, 4)
+	assert.NoError(t, err)
+	assert.InDelta(t, 56.25, bd.Groups[0].Score, 0.001) // (76 - 1) * 0.75
+	assert.InDelta(t, 40.0, bd.Groups[1].Score, 0.001)  // untouched
 }
 
 func TestGroupedBreakdown_BackCompatFlatMatchesUngrouped(t *testing.T) {

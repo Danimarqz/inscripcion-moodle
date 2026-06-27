@@ -124,7 +124,7 @@ func (r *examRepository) RecalculateScores(ctx context.Context, db *gorm.DB, exa
 		return err
 	}
 
-	cfg := scoring.ConfigFromExamFields(exam.ScoringMode, exam.SubtractsPoints, exam.PenaltyValue, exam.MaxScore, exam.PointsPerCorrect, exam.PointsPerWrong)
+	cfg := scoring.ConfigFromExamFields(exam.ScoringMode, exam.SubtractsPoints, exam.PenaltyValue, exam.MaxScore, exam.PointsPerCorrect, exam.PointsPerWrong, exam.WrongBlockSize)
 
 	var questions []models.Question
 	if err := db.WithContext(ctx).Where("exam_id = ? AND is_active = 1 AND is_cancelled = 0", examID).
@@ -159,7 +159,7 @@ func (r *examRepository) RecalculateScores(ctx context.Context, db *gorm.DB, exa
 		}
 		var score float64
 		if len(groups) > 0 {
-			score = scoring.ComputeGrouped(groups, questions, map[uint]string(*sub.AnswersData)).Total
+			score = scoring.ComputeGrouped(groups, questions, map[uint]string(*sub.AnswersData), cfg.WrongBlockSize).Total
 		} else {
 			score = calculateScore(questions, map[uint]string(*sub.AnswersData), cfg)
 		}
@@ -302,7 +302,7 @@ func (r *examRepository) RecalculateScoresForSubmission(ctx context.Context, db 
 		return err
 	}
 
-	cfg := scoring.ConfigFromExamFields(exam.ScoringMode, exam.SubtractsPoints, exam.PenaltyValue, exam.MaxScore, exam.PointsPerCorrect, exam.PointsPerWrong)
+	cfg := scoring.ConfigFromExamFields(exam.ScoringMode, exam.SubtractsPoints, exam.PenaltyValue, exam.MaxScore, exam.PointsPerCorrect, exam.PointsPerWrong, exam.WrongBlockSize)
 
 	var questions []models.Question
 	if err := db.WithContext(ctx).Where("exam_id = ? AND is_active = 1 AND is_cancelled = 0", examID).
@@ -328,7 +328,7 @@ func (r *examRepository) RecalculateScoresForSubmission(ctx context.Context, db 
 
 	var score float64
 	if len(groups) > 0 {
-		score = scoring.ComputeGrouped(groups, questions, map[uint]string(*submission.AnswersData)).Total
+		score = scoring.ComputeGrouped(groups, questions, map[uint]string(*submission.AnswersData), cfg.WrongBlockSize).Total
 	} else {
 		score = calculateScore(questions, map[uint]string(*submission.AnswersData), cfg)
 	}

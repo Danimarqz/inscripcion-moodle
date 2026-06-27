@@ -388,7 +388,7 @@ func createSubmission(tx *gorm.DB, req SubmitExamRequest, userID uint) (*models.
 	var breakdown *ScoreBreakdown
 	var err error
 	if len(exam.Groups) > 0 {
-		breakdown, err = CalculateGroupedBreakdown(exam.Groups, activeQuestions, answersMap)
+		breakdown, err = CalculateGroupedBreakdown(exam.Groups, activeQuestions, answersMap, ScoringConfigFromExam(&exam).WrongBlockSize)
 	} else {
 		breakdown, err = CalculateScoreBreakdownCfg(activeQuestions, answersMap, ScoringConfigFromExam(&exam))
 	}
@@ -680,7 +680,7 @@ func matchOfficialRows(results []models.ExamOfficialResult, name, surname, fullD
 func ScoringConfigFromExam(e *models.Exam) scoring.Config {
 	return scoring.ConfigFromExamFields(
 		e.ScoringMode, e.SubtractsPoints,
-		e.PenaltyValue, e.MaxScore, e.PointsPerCorrect, e.PointsPerWrong,
+		e.PenaltyValue, e.MaxScore, e.PointsPerCorrect, e.PointsPerWrong, e.WrongBlockSize,
 	)
 }
 
@@ -732,7 +732,10 @@ func CalculateScoreBreakdownCfg(questions []models.Question, answers map[uint]st
 		score = scoring.ComputeScore(correct, incorrect, total, cfg)
 	default: // legacy: UNROUNDED to preserve exact create-time parity.
 		netCorrect := float64(correct)
-		if cfg.Subtracts && cfg.Penalty > 0 {
+		switch {
+		case cfg.WrongBlockSize > 0:
+			netCorrect -= math.Floor(float64(incorrect) / cfg.WrongBlockSize)
+		case cfg.Subtracts && cfg.Penalty > 0:
 			netCorrect -= float64(incorrect) * cfg.Penalty
 		}
 		score = netCorrect / float64(total) * cfg.MaxScore
@@ -753,8 +756,8 @@ func CalculateScoreBreakdownCfg(questions []models.Question, answers map[uint]st
 // per group, total = sum) via the single-source scoring.ComputeGrouped. The
 // returned ScoreBreakdown carries the per-group outcomes so the payload layer can
 // surface them and decide eliminatory pass/fail without reloading anything.
-func CalculateGroupedBreakdown(groups []models.QuestionGroup, questions []models.Question, answers map[uint]string) (*ScoreBreakdown, error) {
-	gr := scoring.ComputeGrouped(groups, questions, answers)
+func CalculateGroupedBreakdown(groups []models.QuestionGroup, questions []models.Question, answers map[uint]string, wrongBlockSize float64) (*ScoreBreakdown, error) {
+	gr := scoring.ComputeGrouped(groups, questions, answers, wrongBlockSize)
 	correct, incorrect, total := 0, 0, 0
 	for _, g := range gr.Groups {
 		correct += g.Correct
@@ -1017,7 +1020,7 @@ func fetchScoreBreakdownFromDB(tx *gorm.DB, exam *models.Exam, answersData *mode
 		}
 	}
 	if len(groups) > 0 {
-		return CalculateGroupedBreakdown(groups, questions, answerMap)
+		return CalculateGroupedBreakdown(groups, questions, answerMap, ScoringConfigFromExam(exam).WrongBlockSize)
 	}
 
 	breakdown, err := CalculateScoreBreakdownCfg(questions, answerMap, ScoringConfigFromExam(exam))

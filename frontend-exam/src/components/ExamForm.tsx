@@ -36,6 +36,9 @@ export default function ExamForm({ examId }: ExamFormProps) {
   const [validatedTribunal, setValidatedTribunal] = useState(false);
   const [subtractsPoints, setSubtractsPoints] = useState(false);
   const [penaltyValue, setPenaltyValue] = useState(0);
+  const [wrongBlockSize, setWrongBlockSize] = useState(0);
+  // Which penalty applies (mutually exclusive): fractional per wrong, or block of N.
+  const [penaltyType, setPenaltyType] = useState<'fraccion' | 'bloque'>('fraccion');
   const [scoringMode, setScoringMode] = useState<'legacy' | 'absolute'>('legacy');
   const [pointsPerCorrect, setPointsPerCorrect] = useState(0.4);
   const [pointsPerWrong, setPointsPerWrong] = useState(0.1);
@@ -87,6 +90,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setValidatedTribunal(false);
       setSubtractsPoints(false);
       setPenaltyValue(0);
+      setWrongBlockSize(0);
+      setPenaltyType('fraccion');
       setScoringMode('legacy');
       setPointsPerCorrect(0.4);
       setPointsPerWrong(0.1);
@@ -114,11 +119,13 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setShowPercentile(Boolean(examData.show_percentile));
       setShowScoreFull(Boolean(examData.show_score_full));
       setValidatedTribunal(Boolean(examData.validated_tribunal));
-      setSubtractsPoints(Boolean(examData.subtracts_points));
+      setSubtractsPoints(Boolean(examData.subtracts_points) || (examData.wrong_block_size ?? 0) > 0);
       setPenaltyValue(examData.penalty_value ?? 0);
+      setPenaltyType((examData.wrong_block_size ?? 0) > 0 ? 'bloque' : 'fraccion');
       setScoringMode((examData.scoring_mode as 'legacy' | 'absolute') ?? 'legacy');
       setPointsPerCorrect(examData.points_per_correct ?? 0.4);
       setPointsPerWrong(examData.points_per_wrong ?? 0.1);
+      setWrongBlockSize(examData.wrong_block_size ?? 0);
       setMaxScore(examData.max_score ?? 100);
       setSecondaryMaxScores(examData.secondary_max_scores ?? '');
       setPassingCriteriaType(examData.passing_criteria_type ?? 'disabled');
@@ -243,6 +250,9 @@ export default function ExamForm({ examId }: ExamFormProps) {
       return;
     }
 
+    const useBlock = penaltyType === 'bloque' && wrongBlockSize > 0 && (grouped || subtractsPoints);
+    const useFraction = penaltyType === 'fraccion' && !grouped && subtractsPoints;
+
     const body: ExamCreateWithQuestions | ExamEdit = {
       name: trimmedName,
       is_active: isActive,
@@ -250,8 +260,11 @@ export default function ExamForm({ examId }: ExamFormProps) {
       show_percentile: showPercentile,
       show_score_full: showScoreFull,
       validated_tribunal: validatedTribunal,
+      // Penalización excluyente: fracción por fallo O bloque de N. En grupos no hay
+      // check maestro (siempre puntúa); en flat lo gobierna subtractsPoints.
       subtracts_points: subtractsPoints,
-      penalty_value: subtractsPoints ? penaltyValue : 0,
+      penalty_value: useFraction ? penaltyValue : 0,
+      wrong_block_size: useBlock ? wrongBlockSize : 0,
       scoring_mode: scoringMode,
       ...(scoringMode === 'absolute'
         ? { points_per_correct: pointsPerCorrect, points_per_wrong: pointsPerWrong }
@@ -660,6 +673,43 @@ export default function ExamForm({ examId }: ExamFormProps) {
           activos, la configuración de corrección/puntuación de abajo se ignora y cada pregunta
           debe asignarse a un grupo.
         </p>
+        {grouped && (
+          <div className="flex flex-col gap-2 mb-4">
+            <label className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-brand-pink">Tipo de penalización:</span>
+              <select
+                value={penaltyType}
+                onChange={(e) => {
+                  const t = e.currentTarget.value as 'fraccion' | 'bloque';
+                  setPenaltyType(t);
+                  if (t === 'fraccion') setWrongBlockSize(0);
+                  else if (wrongBlockSize === 0) setWrongBlockSize(4);
+                }}
+                className="px-3 py-1 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+                disabled={isBusy}
+              >
+                <option value="fraccion">Fracción por fallo (por grupo)</option>
+                <option value="bloque">Cada N falladas resta 1 pregunta (por grupo)</option>
+              </select>
+            </label>
+            {penaltyType === 'bloque' && (
+              <label className="flex items-center gap-2 ml-6 flex-wrap">
+                <span className="text-white">Cada</span>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={wrongBlockSize}
+                  onInput={(e) => setWrongBlockSize(Math.max(0, Math.floor(parseFloat((e.target as HTMLInputElement).value) || 0)))}
+                  className="w-20 px-3 py-1 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+                  disabled={isBusy}
+                />
+                <span className="text-white">falladas restan 1 pregunta entera del grupo</span>
+                <span className="text-xs text-gray-400">(mismo N para todos los grupos; se cuenta por grupo)</span>
+              </label>
+            )}
+          </div>
+        )}
         <div className="flex flex-col gap-4">
           {groups.map((g, gi) => (
             <div key={g.position} className="border border-[#444] rounded-lg p-3 bg-[#23262c]">
@@ -687,18 +737,20 @@ export default function ExamForm({ examId }: ExamFormProps) {
                     disabled={isBusy}
                   />
                 </label>
-                <label className="font-bold text-brand-pink">
-                  Resta por fallo:
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={g.points_per_wrong}
-                    onInput={(e) => updateGroup(gi, { points_per_wrong: parseFloat((e.target as HTMLInputElement).value) || 0 })}
-                    className="block w-28 mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
-                    disabled={isBusy}
-                  />
-                </label>
+                {penaltyType === 'fraccion' && (
+                  <label className="font-bold text-brand-pink">
+                    Resta por fallo:
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={g.points_per_wrong}
+                      onInput={(e) => updateGroup(gi, { points_per_wrong: parseFloat((e.target as HTMLInputElement).value) || 0 })}
+                      className="block w-28 mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+                      disabled={isBusy}
+                    />
+                  </label>
+                )}
                 <label className="font-bold text-brand-pink">
                   Nota mínima:
                   <input
@@ -773,8 +825,13 @@ export default function ExamForm({ examId }: ExamFormProps) {
                   onChange={(e) => {
                     const checked = e.currentTarget.checked;
                     setSubtractsPoints(checked);
-                    if (!checked) setPenaltyValue(0);
-                    else if (penaltyValue === 0) setPenaltyValue(0.25);
+                    if (!checked) {
+                      setPenaltyValue(0);
+                      setWrongBlockSize(0);
+                    } else {
+                      if (penaltyType === 'fraccion' && penaltyValue === 0) setPenaltyValue(0.25);
+                      if (penaltyType === 'bloque' && wrongBlockSize === 0) setWrongBlockSize(4);
+                    }
                   }}
                   className="mr-1"
                   disabled={isBusy}
@@ -783,22 +840,65 @@ export default function ExamForm({ examId }: ExamFormProps) {
               </label>
 
               {subtractsPoints && (
-                <label className="flex items-center gap-2 ml-6 flex-wrap">
-                  <span className="text-white">Cantidad a restar por fallo:</span>
-                  <select
-                    value={penaltyValue}
-                    onChange={(e) => setPenaltyValue(parseFloat(e.currentTarget.value))}
-                    className="px-3 py-1 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
-                    disabled={isBusy}
-                  >
-                    <option value={0}>0</option>
-                    <option value={0.1}>0.1</option>
-                    <option value={0.25}>0.25</option>
-                    <option value={0.33333333}>0.33</option>
-                    <option value={0.5}>0.5</option>
-                  </select>
-                  <span className="text-xs text-gray-400">(fracción de un acierto)</span>
-                </label>
+                <div className="ml-6 flex flex-col gap-3">
+                  <label className="flex items-center gap-2 flex-wrap">
+                    <span className="text-white">Tipo de penalización:</span>
+                    <select
+                      value={penaltyType}
+                      onChange={(e) => {
+                        const t = e.currentTarget.value as 'fraccion' | 'bloque';
+                        setPenaltyType(t);
+                        if (t === 'fraccion') {
+                          setWrongBlockSize(0);
+                          if (penaltyValue === 0) setPenaltyValue(0.25);
+                        } else {
+                          setPenaltyValue(0);
+                          if (wrongBlockSize === 0) setWrongBlockSize(4);
+                        }
+                      }}
+                      className="px-3 py-1 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+                      disabled={isBusy}
+                    >
+                      <option value="fraccion">Fracción por fallo</option>
+                      <option value="bloque">Cada N falladas resta 1 pregunta entera</option>
+                    </select>
+                  </label>
+
+                  {penaltyType === 'fraccion' && (
+                    <label className="flex items-center gap-2 flex-wrap">
+                      <span className="text-white">Cantidad a restar por fallo:</span>
+                      <select
+                        value={penaltyValue}
+                        onChange={(e) => setPenaltyValue(parseFloat(e.currentTarget.value))}
+                        className="px-3 py-1 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+                        disabled={isBusy}
+                      >
+                        <option value={0}>0</option>
+                        <option value={0.1}>0.1</option>
+                        <option value={0.25}>0.25</option>
+                        <option value={0.33333333}>0.33</option>
+                        <option value={0.5}>0.5</option>
+                      </select>
+                      <span className="text-xs text-gray-400">(fracción de un acierto)</span>
+                    </label>
+                  )}
+
+                  {penaltyType === 'bloque' && (
+                    <label className="flex items-center gap-2 flex-wrap">
+                      <span className="text-white">Cada</span>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={wrongBlockSize}
+                        onInput={(e) => setWrongBlockSize(Math.max(0, Math.floor(parseFloat((e.target as HTMLInputElement).value) || 0)))}
+                        className="w-20 px-3 py-1 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+                        disabled={isBusy}
+                      />
+                      <span className="text-white">falladas restan 1 pregunta entera</span>
+                    </label>
+                  )}
+                </div>
               )}
             </>
           )}

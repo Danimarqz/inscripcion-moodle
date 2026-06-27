@@ -34,9 +34,14 @@ type GroupedResult struct {
 // rounded sum of group scores. A group Passes when it has no minimum or its score
 // reaches the minimum.
 //
+// When wrongBlockSize > 0 the per-group wrong penalty switches to block mode:
+// every N wrong answers WITHIN THAT GROUP subtract 1 whole question's worth of
+// credit (group.MaxScore/total), replacing PointsPerWrong. The block count is
+// per group, so wrongs spread across groups don't accumulate.
+//
 // This is the single source of truth for grouped scoring: both the submit path
 // and the batch recalc path call it, so they can never diverge.
-func ComputeGrouped(groups []models.QuestionGroup, questions []models.Question, answers map[uint]string) GroupedResult {
+func ComputeGrouped(groups []models.QuestionGroup, questions []models.Question, answers map[uint]string, wrongBlockSize float64) GroupedResult {
 	res := GroupedResult{Groups: make([]GroupOutcome, 0, len(groups))}
 	for _, g := range groups {
 		correct, incorrect, total := 0, 0, 0
@@ -58,11 +63,20 @@ func ComputeGrouped(groups []models.QuestionGroup, questions []models.Question, 
 		var score float64
 		if total > 0 {
 			ppc := g.MaxScore / float64(total)
-			score = ComputeScore(correct, incorrect, total, Config{
-				Mode:             "absolute",
-				PointsPerCorrect: ppc,
-				PointsPerWrong:   g.PointsPerWrong,
-			})
+			if wrongBlockSize > 0 {
+				// block mode: subtract 1 whole question (ppc) per N wrongs in this group.
+				score = (float64(correct) - math.Floor(float64(incorrect)/wrongBlockSize)) * ppc
+				if score < 0 {
+					score = 0
+				}
+				score = math.Round(score*100) / 100
+			} else {
+				score = ComputeScore(correct, incorrect, total, Config{
+					Mode:             "absolute",
+					PointsPerCorrect: ppc,
+					PointsPerWrong:   g.PointsPerWrong,
+				})
+			}
 			if score > g.MaxScore {
 				score = g.MaxScore
 			}

@@ -24,6 +24,7 @@ var (
 	ErrInvalidQuestionNumbers = errors.New("los números de pregunta deben formar la secuencia 1..N sin huecos ni duplicados")
 	ErrInvalidScoringMode     = errors.New("modo de puntuación no válido")
 	ErrAbsoluteScoringConfig  = errors.New("el modo absoluto requiere puntos por acierto y por fallo no negativos")
+	ErrInvalidWrongBlockSize  = errors.New("el número de falladas por bloque debe ser un entero mayor o igual que 1")
 	ErrInvalidGroups          = errors.New("configuración de grupos no válida: revisa nombre, valoración, penalización, nota mínima y que cada pregunta activa pertenezca a un grupo")
 )
 

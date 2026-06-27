@@ -70,6 +70,55 @@ func TestService_UpdateExam_AbsoluteScoring_PpwZeroAllowed(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestService_UpdateExam_WrongBlockSize_Persists(t *testing.T) {
+	mockExamRepo := new(MockExamRepository)
+	service := New(nil, mockExamRepo, nil, nil, new(MockQuestionRepository))
+
+	examID := uint(1)
+	exam := &models.Exam{ID: examID, Questions: []models.Question{
+		{ID: 1, ExamID: examID, Name: 1, IsActive: true, CorrectOption: "A"},
+	}}
+	req := EditExamRequest{
+		WrongBlockSize: new(4.0),
+		Questions:      []QuestionInput{{ID: new(uint(1)), Name: new(1), CorrectOption: "A"}},
+	}
+	mockExamRepo.On("FindExamByID", mock.Anything, mock.Anything, examID).Return(exam, nil)
+	mockExamRepo.On("UpdateExam", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mockExamRepo.On("RecalculateScores", mock.Anything, mock.Anything, examID).Return(nil)
+
+	updated, err := service.UpdateExam(examID, req)
+	assert.NoError(t, err)
+	if assert.NotNil(t, updated.WrongBlockSize) {
+		assert.Equal(t, 4.0, *updated.WrongBlockSize)
+	}
+	mockExamRepo.AssertExpectations(t) // RecalculateScores must fire (block size changed)
+}
+
+func TestService_UpdateExam_WrongBlockSize_Rejected(t *testing.T) {
+	cases := []struct {
+		name string
+		n    float64
+	}{
+		{"non-integer", 2.5},
+		{"below one", 0.5},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockExamRepo := new(MockExamRepository)
+			service := New(nil, mockExamRepo, nil, nil, new(MockQuestionRepository))
+			examID := uint(1)
+			exam := &models.Exam{ID: examID, Questions: []models.Question{
+				{ID: 1, ExamID: examID, Name: 1, IsActive: true, CorrectOption: "A"},
+			}}
+			mockExamRepo.On("FindExamByID", mock.Anything, mock.Anything, examID).Return(exam, nil)
+
+			_, err := service.UpdateExam(examID, EditExamRequest{WrongBlockSize: new(tc.n)})
+			assert.ErrorIs(t, err, ErrInvalidWrongBlockSize)
+			mockExamRepo.AssertNotCalled(t, "RecalculateScores", mock.Anything, mock.Anything, examID)
+		})
+	}
+}
+
 func TestService_UpdateExam_AbsoluteScoring_Rejected(t *testing.T) {
 	cases := []struct {
 		name string

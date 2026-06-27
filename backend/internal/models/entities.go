@@ -55,6 +55,7 @@ type Exam struct {
 	ScoringMode          string               `gorm:"column:scoring_mode;default:'legacy'" json:"scoring_mode"`
 	PointsPerCorrect     *float64             `gorm:"column:points_per_correct" json:"points_per_correct"`
 	PointsPerWrong       *float64             `gorm:"column:points_per_wrong" json:"points_per_wrong"`
+	WrongBlockSize       *float64             `gorm:"column:wrong_block_size" json:"wrong_block_size"`
 	SecondaryMaxScores   string               `gorm:"column:secondary_max_scores" json:"secondary_max_scores"`
 	PassingCriteriaType  string               `gorm:"column:passing_criteria_type;default:'disabled'" json:"passing_criteria_type"`
 	PassingCriteriaValue *float64             `gorm:"column:passing_criteria_value" json:"passing_criteria_value"`

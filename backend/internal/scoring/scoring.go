@@ -13,12 +13,13 @@ type Config struct {
 	MaxScore         float64 // legacy: max score (default resolved to 100)
 	PointsPerCorrect float64 // absolute: points added per correct answer
 	PointsPerWrong   float64 // absolute: points subtracted per wrong answer (positive magnitude)
+	WrongBlockSize   float64 // legacy: every N wrong answers subtract 1 whole question of credit. 0 = disabled. Mutually exclusive with Subtracts/Penalty.
 }
 
 // ConfigFromExamFields resolves exam fields (with nil pointers) into a Config,
 // applying defaults: empty mode -> "legacy", MaxScore default 100. Centralizes
 // the nil-resolution so every call site behaves identically.
-func ConfigFromExamFields(mode string, subtracts bool, penalty, maxScore, pointsPerCorrect, pointsPerWrong *float64) Config {
+func ConfigFromExamFields(mode string, subtracts bool, penalty, maxScore, pointsPerCorrect, pointsPerWrong, wrongBlockSize *float64) Config {
 	cfg := Config{Mode: mode, Subtracts: subtracts, MaxScore: 100.0}
 	if cfg.Mode == "" {
 		cfg.Mode = "legacy"
@@ -34,6 +35,9 @@ func ConfigFromExamFields(mode string, subtracts bool, penalty, maxScore, points
 	}
 	if pointsPerWrong != nil {
 		cfg.PointsPerWrong = *pointsPerWrong
+	}
+	if wrongBlockSize != nil {
+		cfg.WrongBlockSize = *wrongBlockSize
 	}
 	return cfg
 }
@@ -63,7 +67,10 @@ func ComputeScore(correct, incorrect, total int, cfg Config) float64 {
 		}
 	default: // "" or "legacy"
 		net := float64(correct)
-		if cfg.Subtracts && cfg.Penalty > 0 {
+		switch {
+		case cfg.WrongBlockSize > 0: // block penalty: every N wrong subtract 1 whole question
+			net -= math.Floor(float64(incorrect) / cfg.WrongBlockSize)
+		case cfg.Subtracts && cfg.Penalty > 0:
 			net -= float64(incorrect) * cfg.Penalty
 		}
 		raw = net / float64(total) * cfg.MaxScore

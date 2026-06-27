@@ -16,6 +16,12 @@ func TestComputeScore(t *testing.T) {
 		{"empty mode treated as legacy", 3, 1, 4, Config{Mode: "", MaxScore: 100}, 75.0},
 		{"total 0 -> 0 (legacy)", 0, 0, 0, Config{Mode: "legacy", MaxScore: 100}, 0},
 
+		// --- legacy block penalty: every N wrong subtract 1 whole question ---
+		{"block N=4, 3 wrong -> no deduction", 37, 3, 40, Config{Mode: "legacy", WrongBlockSize: 4, MaxScore: 10}, 9.25},
+		{"block N=4, 4 wrong -> 1 question off", 36, 4, 40, Config{Mode: "legacy", WrongBlockSize: 4, MaxScore: 10}, 8.75},
+		{"block N=4, 8 wrong -> 2 questions off", 32, 8, 40, Config{Mode: "legacy", WrongBlockSize: 4, MaxScore: 10}, 7.5},
+		{"block excludes proportional penalty", 36, 4, 40, Config{Mode: "legacy", WrongBlockSize: 4, Subtracts: true, Penalty: 1.0, MaxScore: 10}, 8.75},
+
 		// --- absolute ---
 		{"absolute 3 correct 1 wrong", 3, 1, 4, Config{Mode: "absolute", PointsPerCorrect: 0.40, PointsPerWrong: 0.10}, 1.10},
 		{"absolute all correct", 4, 0, 4, Config{Mode: "absolute", PointsPerCorrect: 0.40, PointsPerWrong: 0.10}, 1.60},
@@ -38,7 +44,7 @@ func TestConfigFromExamFields(t *testing.T) {
 	f := func(v float64) *float64 { return &v }
 
 	// nil maxScore -> default 100; empty mode -> legacy.
-	cfg := ConfigFromExamFields("", true, f(0.25), nil, nil, nil)
+	cfg := ConfigFromExamFields("", true, f(0.25), nil, nil, nil, nil)
 	if cfg.Mode != "legacy" {
 		t.Fatalf("mode = %q, want legacy", cfg.Mode)
 	}
@@ -50,7 +56,7 @@ func TestConfigFromExamFields(t *testing.T) {
 	}
 
 	// absolute fields resolved.
-	cfg = ConfigFromExamFields("absolute", false, nil, nil, f(0.40), f(0.10))
+	cfg = ConfigFromExamFields("absolute", false, nil, nil, f(0.40), f(0.10), nil)
 	if cfg.Mode != "absolute" || cfg.PointsPerCorrect != 0.40 || cfg.PointsPerWrong != 0.10 {
 		t.Fatalf("unexpected absolute cfg: %+v", cfg)
 	}
