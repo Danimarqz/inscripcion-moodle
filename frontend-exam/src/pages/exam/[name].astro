@@ -11,6 +11,8 @@ let showScore = false;
 let showPercentile = false;
 let showScoreFull = false;
 let validatedTribunal = false;
+let raffleEnabled = false;
+let raffleTerms = "";
 
 try {
   if (examSlugParam) {
@@ -23,6 +25,8 @@ try {
       showPercentile = Boolean(exam.show_percentile);
       showScoreFull = Boolean(exam.show_score_full);
       validatedTribunal = Boolean(exam.validated_tribunal);
+      raffleEnabled = Boolean(exam.raffle_enabled);
+      raffleTerms = exam.raffle_terms ?? "";
     }
   }
 } catch (error) {
@@ -42,6 +46,8 @@ try {
         showPercentile={showPercentile}
         showScoreFull={showScoreFull}
         validatedTribunal={validatedTribunal}
+        raffleEnabled={raffleEnabled}
+        raffleTerms={raffleTerms}
       />
     ) : (
       <div>Examen no encontrado</div>

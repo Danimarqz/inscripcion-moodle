@@ -34,6 +34,7 @@ var (
 	ErrExamNotFound          = errors.New("examen no encontrado")
 	ErrExamNoQuestions       = errors.New("el examen no tiene preguntas configuradas")
 	ErrExamNoActive          = errors.New("el examen no tiene preguntas activas no anuladas configuradas")
+	ErrRaffleNotAccepted     = errors.New("debes leer y aceptar las bases del sorteo")
 	ErrInvalidAnswer         = errors.New("opcion de respuesta no valida")
 	ErrSubmissionNotFound    = errors.New("submission not found")
 	ErrExamNotActive         = errors.New("exam is not active or responses not visible")
@@ -346,6 +347,10 @@ func createSubmission(tx *gorm.DB, req SubmitExamRequest, userID uint) (*models.
 			return nil, nil, nil, ErrExamNotFound
 		}
 		return nil, nil, nil, err
+	}
+
+	if exam.RaffleEnabled && !req.RaffleAccepted {
+		return nil, nil, nil, ErrRaffleNotAccepted
 	}
 
 	if len(exam.Questions) == 0 {

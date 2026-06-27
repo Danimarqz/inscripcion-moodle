@@ -19,6 +19,8 @@ export type Exam = {
   passing_criteria_value?: number | null;
   exam_weight?: number;
   max_merits?: number;
+  raffle_enabled?: boolean;
+  raffle_terms?: string;
 };
 export type QuestionGroup = {
   id?: number;
@@ -139,6 +141,7 @@ export type ExamSubmissionPayload = {
   merits?: number;
   accepts_marketing: boolean;
   eligibility_confirmed?: boolean;
+  raffle_accepted?: boolean;
   result_type: string;
 }
 
@@ -197,6 +200,8 @@ export type ExamCreateWithQuestions = {
   max_merits?: number;
   display_exam_weight?: number | null;
   skip_weights?: boolean;
+  raffle_enabled?: boolean;
+  raffle_terms?: string;
   groups?: QuestionGroup[];
   questions: QuestionCreate[];
 };
@@ -233,6 +238,8 @@ export type ExamEdit = {
   display_exam_weight?: number | null;
   clear_display_weight?: boolean;
   skip_weights?: boolean;
+  raffle_enabled?: boolean;
+  raffle_terms?: string;
   associated_exam_ids?: number[];
   groups?: QuestionGroup[];
   questions: QuestionEdit[];

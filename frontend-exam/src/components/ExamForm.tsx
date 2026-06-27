@@ -46,6 +46,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
   const [examWeight, setExamWeight] = useState(0.5);
   const [maxMerits, setMaxMerits] = useState(100);
   const [skipWeights, setSkipWeights] = useState(false);
+  const [raffleEnabled, setRaffleEnabled] = useState(false);
+  const [raffleTerms, setRaffleTerms] = useState('');
   const [associatedExamIds, setAssociatedExamIds] = useState<number[]>([]);
   const [otherExams, setOtherExams] = useState<Exam[]>([]);
   const [associateModalOpen, setAssociateModalOpen] = useState(false);
@@ -124,6 +126,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setExamWeight(examData.exam_weight ?? 0.5);
       setMaxMerits(examData.max_merits ?? 100);
       setSkipWeights(Boolean(examData.skip_weights));
+      setRaffleEnabled(Boolean(examData.raffle_enabled));
+      setRaffleTerms(examData.raffle_terms ?? '');
       setAssociatedExamIds(examData.associated_exam_ids ?? []);
       setDisplayWeightOverride(examData.display_exam_weight != null);
       setDisplayExamWeight(examData.display_exam_weight ?? examData.exam_weight ?? 0.5);
@@ -259,6 +263,8 @@ export default function ExamForm({ examId }: ExamFormProps) {
       exam_weight: examWeight,
       max_merits: maxMerits,
       skip_weights: skipWeights,
+      raffle_enabled: raffleEnabled,
+      raffle_terms: raffleEnabled ? raffleTerms : '',
       ...(examToEdit ? { associated_exam_ids: associatedExamIds } : {}),
       display_exam_weight: displayWeightOverride ? displayExamWeight : null,
       ...(examToEdit && !displayWeightOverride ? { clear_display_weight: true } : {}),
@@ -1019,6 +1025,33 @@ export default function ExamForm({ examId }: ExamFormProps) {
             Valor maximo que un alumno puede introducir como meritos. Por defecto 100.
           </span>
         </label>
+      </fieldset>
+
+      <fieldset className="mb-6 border border-[#444] rounded-lg p-4" disabled={isBusy}>
+        <legend className="font-bold text-brand-pink px-2">Bases del sorteo</legend>
+        <label className="flex items-center gap-2 mb-4 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={raffleEnabled}
+            onChange={(e) => setRaffleEnabled((e.target as HTMLInputElement).checked)}
+            disabled={isBusy}
+            className="accent-brand-pink"
+          />
+          <span className="text-brand-pink font-bold">Añadir bases de sorteo</span>
+          <span className="text-xs text-gray-400">El alumno deberá aceptarlas para entregar.</span>
+        </label>
+        {raffleEnabled && (
+          <label className="block text-brand-pink font-bold">
+            Texto de las bases:
+            <textarea
+              value={raffleTerms}
+              onInput={(e) => setRaffleTerms((e.target as HTMLTextAreaElement).value)}
+              rows={8}
+              className="w-full mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+              disabled={isBusy}
+            />
+          </label>
+        )}
       </fieldset>
 
       <fieldset className="border border-[#444] p-4 rounded-lg" disabled={isBusy}>

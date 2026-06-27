@@ -64,6 +64,8 @@ type Exam struct {
 	DisplayExamWeight    *float64             `gorm:"column:display_exam_weight" json:"display_exam_weight"`
 	SkipWeights          bool                 `gorm:"column:skip_weights;default:false" json:"skip_weights"`
 	PercentileGroup      *uint                `gorm:"column:percentile_group" json:"percentile_group"`
+	RaffleEnabled        bool                 `gorm:"column:raffle_enabled;default:false" json:"raffle_enabled"`
+	RaffleTerms          string               `gorm:"column:raffle_terms" json:"raffle_terms"`
 	AssociatedExamIDs    []uint               `gorm:"-" json:"associated_exam_ids"` // other exams sharing PercentileGroup; populated on read
 	Questions            []Question           `gorm:"foreignKey:ExamID" json:"questions"`
 	Groups               []QuestionGroup      `gorm:"foreignKey:ExamID" json:"groups"`

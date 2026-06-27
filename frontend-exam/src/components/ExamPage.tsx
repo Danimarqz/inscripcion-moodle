@@ -18,6 +18,7 @@ import QuickResultCheck from './submissions/QuickResultCheck';
 import SubmissionSummary from './submissions/SubmissionSummary';
 import MeritsForm from './submissions/MeritsForm';
 import EligibilityModal from './modals/EligibilityModal';
+import RaffleTermsModal from './modals/RaffleTermsModal';
 import SubmissionIdentityFields from './submissions/SubmissionIdentityFields';
 
 
@@ -28,6 +29,8 @@ interface ExamPageProps {
   showPercentile: boolean;
   showScoreFull: boolean;
   validatedTribunal?: boolean;
+  raffleEnabled?: boolean;
+  raffleTerms?: string;
 }
 
 
@@ -39,6 +42,8 @@ export default function ExamPage({
   showPercentile,
   showScoreFull,
   validatedTribunal = false,
+  raffleEnabled = false,
+  raffleTerms = '',
 }: ExamPageProps) {
   const [studentName, setStudentName] = useState('');
   const [studentSurname, setStudentSurname] = useState('');
@@ -46,6 +51,8 @@ export default function ExamPage({
   const [dni, setDni] = useState('');
   const [resultType, setResultType] = useState('General');
   const [acceptsMarketing, setAcceptsMarketing] = useState(false);
+  const [raffleAccepted, setRaffleAccepted] = useState(false);
+  const [showRaffleModal, setShowRaffleModal] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [autoCheckDisabled, setAutoCheckDisabled] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -93,6 +100,7 @@ export default function ExamPage({
     dispatchExamUi({ type: 'RESET' });
     setAutoCheckDisabled(false);
     setAcceptsMarketing(false);
+    setRaffleAccepted(false);
     resetAnswers();
   }, [examId, dispatchExamUi, resetAnswers]);
 
@@ -182,6 +190,10 @@ export default function ExamPage({
       setFormError('Debes aceptar el uso de tus datos para comunicaciones necesarias.');
       return;
     }
+    if (raffleEnabled && !raffleAccepted) {
+      setFormError('Debes leer y aceptar las bases del sorteo para entregar.');
+      return;
+    }
 
     const answers: Answer[] = Object.entries(userAnswers).reduce<Answer[]>((acc, [questionId, value]) => {
       const numericId = Number(questionId);
@@ -209,6 +221,7 @@ export default function ExamPage({
       merits,
       accepts_marketing: acceptsMarketing,
       eligibility_confirmed: eligibility.allowed,
+      raffle_accepted: raffleAccepted,
       result_type: resultType,
     };
 
@@ -329,6 +342,7 @@ export default function ExamPage({
   return (
     <main>
       <EligibilityModal open={eligibility.showModal} onClose={() => eligibility.setShowModal(false)} />
+      <RaffleTermsModal open={showRaffleModal} terms={raffleTerms} onClose={() => setShowRaffleModal(false)} />
       <a
         href="/"
         className="inline-block mb-6 px-4 py-2 font-bold text-brand-pink border border-brand-pink rounded-md no-underline transition-colors duration-300 ease-in-out hover:text-brand-yellow hover:border-brand-yellow"
@@ -453,6 +467,32 @@ export default function ExamPage({
                 .
               </p>
             </div>
+
+            {raffleEnabled && (
+              <div className="mt-6 text-sm">
+                <label htmlFor="raffle_accepted" className="flex items-start gap-3 text-gray-200">
+                  <input
+                    type="checkbox"
+                    id="raffle_accepted"
+                    name="raffle_accepted"
+                    checked={raffleAccepted}
+                    onChange={(event) => setRaffleAccepted(event.currentTarget.checked)}
+                    className="mt-1 h-4 w-4 rounded border border-[#555] bg-[#2a2d33] text-brand-pink focus:ring-2 focus:ring-brand-yellow/60"
+                  />
+                  <span className="text-gray-300">
+                    He leído y acepto las{' '}
+                    <button
+                      type="button"
+                      onClick={() => setShowRaffleModal(true)}
+                      className="text-brand-pink underline decoration-dotted hover:text-brand-yellow"
+                    >
+                      bases del sorteo
+                    </button>
+                    .
+                  </span>
+                </label>
+              </div>
+            )}
           </>
         )}
 

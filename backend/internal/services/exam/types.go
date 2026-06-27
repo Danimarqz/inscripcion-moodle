@@ -16,6 +16,7 @@ type SubmitExamRequest struct {
 	Answers          []AnswerSubmission `json:"answers"`
 	Merits           *float64           `json:"merits"`
 	AcceptsMarketing bool               `json:"accepts_marketing"`
+	RaffleAccepted   bool               `json:"raffle_accepted"`
 	ResultType       string             `json:"result_type"`
 }
 

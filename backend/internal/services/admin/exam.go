@@ -122,6 +122,8 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 		MaxMerits:            req.MaxMerits,
 		DisplayExamWeight:    req.DisplayExamWeight,
 		SkipWeights:          req.SkipWeights,
+		RaffleEnabled:        req.RaffleEnabled,
+		RaffleTerms:          req.RaffleTerms,
 		Questions:            questions,
 		Groups:               buildGroups(req.Groups, 0),
 	}
@@ -285,6 +287,12 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 	}
 	if req.SkipWeights != nil {
 		exam.SkipWeights = *req.SkipWeights
+	}
+	if req.RaffleEnabled != nil {
+		exam.RaffleEnabled = *req.RaffleEnabled
+	}
+	if req.RaffleTerms != nil {
+		exam.RaffleTerms = *req.RaffleTerms
 	}
 
 	if req.PassingCriteriaType != nil || req.PassingCriteriaValue != nil {
