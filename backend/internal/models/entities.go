@@ -102,6 +102,7 @@ type QuestionGroup struct {
 	PointsPerWrong  float64  `gorm:"column:points_per_wrong" json:"points_per_wrong"`
 	MinPassingScore *float64 `gorm:"column:min_passing_score" json:"min_passing_score"`
 	Eliminatory     bool     `gorm:"column:eliminatory" json:"eliminatory"`
+	PassingPct      *float64 `gorm:"column:passing_pct" json:"passing_pct"`
 }
 
 func (QuestionGroup) TableName() string {

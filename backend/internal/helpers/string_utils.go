@@ -67,7 +67,20 @@ func MatchMaskedDNI(masked, full string) bool {
 		return true
 	}
 	if len(masked) != len(full) {
-		return false
+		// Source mask malformed (wrong number of '*'), so position-by-position
+		// alignment is impossible. Fall back to checking the revealed characters
+		// appear contiguously in the full DNI. Callers gate this with an exact
+		// name+surname match, so false positives are negligible.
+		// ponytail: contiguous block only; make it position-aware if a short
+		// mask ever reveals non-contiguous chars (e.g. "3*2*5").
+		revealed := make([]byte, 0, len(masked))
+		for i := 0; i < len(masked); i++ {
+			m := masked[i]
+			if (m >= '0' && m <= '9') || (m >= 'A' && m <= 'Z') {
+				revealed = append(revealed, m)
+			}
+		}
+		return len(revealed) > 0 && strings.Contains(full, string(revealed))
 	}
 
 	for i := 0; i < len(masked); i++ {

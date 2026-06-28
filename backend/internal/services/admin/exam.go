@@ -72,6 +72,10 @@ func validateScoring(mode string, ppc, ppw, wrongBlockSize *float64) error {
 			return ErrAbsoluteScoringConfig
 		}
 		return nil
+	case "xunta":
+		// Per-group config (passing_pct, min_passing_score, max_score, points_per_wrong)
+		// is validated in validateGroups; exam-level scoring fields are ignored.
+		return nil
 	default:
 		return ErrInvalidScoringMode
 	}
@@ -445,6 +449,9 @@ func validateGroups(groups []QuestionGroupInput, questions []QuestionInput) erro
 		if g.MinPassingScore != nil && (*g.MinPassingScore < 0 || *g.MinPassingScore > g.MaxScore) {
 			return ErrInvalidGroups
 		}
+		if g.PassingPct != nil && (*g.PassingPct <= 0 || *g.PassingPct >= 100) {
+			return ErrInvalidGroups
+		}
 		if positions[g.Position] {
 			return ErrInvalidGroups
 		}
@@ -475,6 +482,7 @@ func buildGroups(inputs []QuestionGroupInput, examID uint) []models.QuestionGrou
 			PointsPerWrong:  in.PointsPerWrong,
 			MinPassingScore: in.MinPassingScore,
 			Eliminatory:     in.Eliminatory,
+			PassingPct:      in.PassingPct,
 		}
 		if in.ID != nil {
 			g.ID = *in.ID

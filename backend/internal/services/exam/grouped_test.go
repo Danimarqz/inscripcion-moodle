@@ -74,13 +74,13 @@ func TestGroupedBreakdown_Xunta_AllCorrect(t *testing.T) {
 
 func TestGroupedBreakdown_Xunta_TheoryFailsEliminatory(t *testing.T) {
 	groups, questions := buildXuntaExam()
-	// Teórico: ppc = 60/80 = 0.75. 50 correct, 30 wrong => 50*0.75 - 30*0.25 = 37.5 - 7.5 = 30 (justo el mínimo, pasa).
-	// Bajamos a 48 correct, 32 wrong => 36 - 8 = 28 < 30 => falla eliminatorio.
-	answers := merge(answerAll(questions, 48, 32, 1), answerAll(questions, 40, 0, 2))
+	// Teórico: ppc = 60/80 = 0.75. Penalización escalada = 0.25*0.75 = 0.1875 por fallo.
+	// 44 correct, 36 wrong => 44*0.75 - 36*0.1875 = 33 - 6.75 = 26.25 < 30 => falla eliminatorio.
+	answers := merge(answerAll(questions, 44, 36, 1), answerAll(questions, 40, 0, 2))
 
 	bd, err := CalculateGroupedBreakdown(groups, questions, answers, 0)
 	assert.NoError(t, err)
-	assert.InDelta(t, 28.0, bd.Groups[0].Score, 0.001)
+	assert.InDelta(t, 26.25, bd.Groups[0].Score, 0.001)
 	assert.False(t, bd.Groups[0].Passed)
 	assert.True(t, bd.Groups[1].Passed)
 }
@@ -104,6 +104,54 @@ func TestGroupedBreakdown_BlockPenalty_PerGroup(t *testing.T) {
 	assert.NoError(t, err)
 	assert.InDelta(t, 56.25, bd.Groups[0].Score, 0.001) // (76 - 1) * 0.75
 	assert.InDelta(t, 40.0, bd.Groups[1].Score, 0.001)  // untouched
+}
+
+// buildXuntaCurveExam is buildXuntaExam plus the Modo Xunta passing percentages:
+// Teórico aprueba al 40% (=30 pts), Práctico al 45% (=20 pts).
+func buildXuntaCurveExam() ([]models.QuestionGroup, []models.Question) {
+	groups, questions := buildXuntaExam()
+	groups[0].PassingPct = fptr(40)
+	groups[1].PassingPct = fptr(45)
+	return groups, questions
+}
+
+func TestGroupedXunta_Curve_Knot(t *testing.T) {
+	groups, questions := buildXuntaCurveExam()
+	// Teórico exactly at 40% (32/80, no wrongs) => 30. Práctico at 45% (18/40) => 20.
+	answers := merge(answerAll(questions, 32, 0, 1), answerAll(questions, 18, 0, 2))
+	bd, err := CalculateGroupedXuntaBreakdown(groups, questions, answers)
+	assert.NoError(t, err)
+	assert.InDelta(t, 30.0, bd.Groups[0].Score, 0.001)
+	assert.InDelta(t, 20.0, bd.Groups[1].Score, 0.001)
+	assert.True(t, bd.Groups[0].Passed)
+	assert.True(t, bd.Groups[1].Passed)
+	assert.InDelta(t, 50.0, bd.Score, 0.001)
+}
+
+func TestGroupedXunta_Curve_Segments(t *testing.T) {
+	groups, questions := buildXuntaCurveExam()
+	// Teórico 70% (56/80) => 30 + (0.3/0.6)*30 = 45. Práctico 0% => 0.
+	bd, err := CalculateGroupedXuntaBreakdown(groups, questions, answerAll(questions, 56, 0, 1))
+	assert.NoError(t, err)
+	assert.InDelta(t, 45.0, bd.Groups[0].Score, 0.001)
+	assert.InDelta(t, 0.0, bd.Groups[1].Score, 0.001)
+
+	// Teórico 20% (16/80) => (0.2/0.4)*30 = 15, below 30 => fails eliminatory.
+	bd, err = CalculateGroupedXuntaBreakdown(groups, questions, answerAll(questions, 16, 0, 1))
+	assert.NoError(t, err)
+	assert.InDelta(t, 15.0, bd.Groups[0].Score, 0.001)
+	assert.False(t, bd.Groups[0].Passed)
+}
+
+func TestGroupedXunta_Curve_PenaltyAndBounds(t *testing.T) {
+	groups, questions := buildXuntaCurveExam()
+	// Teórico 60 correct, 20 wrong => net 55, p=0.6875 => 30 + (0.2875/0.6)*30 = 44.375.
+	answers := merge(answerAll(questions, 60, 20, 1), answerAll(questions, 40, 0, 2))
+	bd, err := CalculateGroupedXuntaBreakdown(groups, questions, answers)
+	assert.NoError(t, err)
+	assert.InDelta(t, 44.38, bd.Groups[0].Score, 0.01) // rounded to 2 decimals
+	assert.InDelta(t, 40.0, bd.Groups[1].Score, 0.001) // all correct, capped at max
+	assert.True(t, bd.Groups[0].Passed)
 }
 
 func TestGroupedBreakdown_BackCompatFlatMatchesUngrouped(t *testing.T) {

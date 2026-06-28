@@ -388,7 +388,11 @@ func createSubmission(tx *gorm.DB, req SubmitExamRequest, userID uint) (*models.
 	var breakdown *ScoreBreakdown
 	var err error
 	if len(exam.Groups) > 0 {
-		breakdown, err = CalculateGroupedBreakdown(exam.Groups, activeQuestions, answersMap, ScoringConfigFromExam(&exam).WrongBlockSize)
+		if exam.ScoringMode == "xunta" {
+			breakdown, err = CalculateGroupedXuntaBreakdown(exam.Groups, activeQuestions, answersMap)
+		} else {
+			breakdown, err = CalculateGroupedBreakdown(exam.Groups, activeQuestions, answersMap, ScoringConfigFromExam(&exam).WrongBlockSize)
+		}
 	} else {
 		breakdown, err = CalculateScoreBreakdownCfg(activeQuestions, answersMap, ScoringConfigFromExam(&exam))
 	}
@@ -757,7 +761,18 @@ func CalculateScoreBreakdownCfg(questions []models.Question, answers map[uint]st
 // returned ScoreBreakdown carries the per-group outcomes so the payload layer can
 // surface them and decide eliminatory pass/fail without reloading anything.
 func CalculateGroupedBreakdown(groups []models.QuestionGroup, questions []models.Question, answers map[uint]string, wrongBlockSize float64) (*ScoreBreakdown, error) {
-	gr := scoring.ComputeGrouped(groups, questions, answers, wrongBlockSize)
+	return breakdownFromGrouped(scoring.ComputeGrouped(groups, questions, answers, wrongBlockSize))
+}
+
+// CalculateGroupedXuntaBreakdown is the Modo Xunta counterpart: same per-group
+// packing, but the per-group grade comes from the piecewise-linear Xunta curve.
+func CalculateGroupedXuntaBreakdown(groups []models.QuestionGroup, questions []models.Question, answers map[uint]string) (*ScoreBreakdown, error) {
+	return breakdownFromGrouped(scoring.ComputeGroupedXunta(groups, questions, answers))
+}
+
+// breakdownFromGrouped packs a GroupedResult into a ScoreBreakdown shared by both
+// grouped scorers so the payload layer surfaces per-group outcomes uniformly.
+func breakdownFromGrouped(gr scoring.GroupedResult) (*ScoreBreakdown, error) {
 	correct, incorrect, total := 0, 0, 0
 	for _, g := range gr.Groups {
 		correct += g.Correct
@@ -1020,6 +1035,9 @@ func fetchScoreBreakdownFromDB(tx *gorm.DB, exam *models.Exam, answersData *mode
 		}
 	}
 	if len(groups) > 0 {
+		if exam.ScoringMode == "xunta" {
+			return CalculateGroupedXuntaBreakdown(groups, questions, answerMap)
+		}
 		return CalculateGroupedBreakdown(groups, questions, answerMap, ScoringConfigFromExam(exam).WrongBlockSize)
 	}
 

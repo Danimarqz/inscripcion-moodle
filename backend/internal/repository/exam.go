@@ -159,7 +159,11 @@ func (r *examRepository) RecalculateScores(ctx context.Context, db *gorm.DB, exa
 		}
 		var score float64
 		if len(groups) > 0 {
-			score = scoring.ComputeGrouped(groups, questions, map[uint]string(*sub.AnswersData), cfg.WrongBlockSize).Total
+			if exam.ScoringMode == "xunta" {
+				score = scoring.ComputeGroupedXunta(groups, questions, map[uint]string(*sub.AnswersData)).Total
+			} else {
+				score = scoring.ComputeGrouped(groups, questions, map[uint]string(*sub.AnswersData), cfg.WrongBlockSize).Total
+			}
 		} else {
 			score = calculateScore(questions, map[uint]string(*sub.AnswersData), cfg)
 		}
@@ -328,7 +332,11 @@ func (r *examRepository) RecalculateScoresForSubmission(ctx context.Context, db 
 
 	var score float64
 	if len(groups) > 0 {
-		score = scoring.ComputeGrouped(groups, questions, map[uint]string(*submission.AnswersData), cfg.WrongBlockSize).Total
+		if exam.ScoringMode == "xunta" {
+			score = scoring.ComputeGroupedXunta(groups, questions, map[uint]string(*submission.AnswersData)).Total
+		} else {
+			score = scoring.ComputeGrouped(groups, questions, map[uint]string(*submission.AnswersData), cfg.WrongBlockSize).Total
+		}
 	} else {
 		score = calculateScore(questions, map[uint]string(*submission.AnswersData), cfg)
 	}

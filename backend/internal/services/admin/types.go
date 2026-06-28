@@ -20,6 +20,7 @@ type QuestionGroupInput struct {
 	PointsPerWrong  float64  `json:"points_per_wrong"`
 	MinPassingScore *float64 `json:"min_passing_score,omitempty"`
 	Eliminatory     bool     `json:"eliminatory"`
+	PassingPct      *float64 `json:"passing_pct,omitempty"`
 }
 
 type CreateExamRequest struct {

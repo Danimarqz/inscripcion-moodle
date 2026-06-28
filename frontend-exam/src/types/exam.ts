@@ -11,7 +11,7 @@ export type Exam = {
   subtracts_points?: boolean;
   penalty_value?: number;
   max_score?: number;
-  scoring_mode?: 'legacy' | 'absolute';
+  scoring_mode?: 'legacy' | 'absolute' | 'xunta';
   points_per_correct?: number;
   points_per_wrong?: number;
   wrong_block_size?: number | null;
@@ -31,6 +31,7 @@ export type QuestionGroup = {
   points_per_wrong: number;
   min_passing_score?: number | null;
   eliminatory: boolean;
+  passing_pct?: number | null;
 };
 
 export type GroupScore = {
@@ -191,7 +192,7 @@ export type ExamCreateWithQuestions = {
   subtracts_points?: boolean;
   penalty_value?: number;
   max_score?: number;
-  scoring_mode?: 'legacy' | 'absolute';
+  scoring_mode?: 'legacy' | 'absolute' | 'xunta';
   points_per_correct?: number;
   points_per_wrong?: number;
   wrong_block_size?: number | null;
@@ -229,7 +230,7 @@ export type ExamEdit = {
   subtracts_points?: boolean;
   penalty_value?: number;
   max_score?: number;
-  scoring_mode?: 'legacy' | 'absolute';
+  scoring_mode?: 'legacy' | 'absolute' | 'xunta';
   points_per_correct?: number;
   points_per_wrong?: number;
   wrong_block_size?: number | null;

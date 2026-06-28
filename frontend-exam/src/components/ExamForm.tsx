@@ -39,7 +39,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
   const [wrongBlockSize, setWrongBlockSize] = useState(0);
   // Which penalty applies (mutually exclusive): fractional per wrong, or block of N.
   const [penaltyType, setPenaltyType] = useState<'fraccion' | 'bloque'>('fraccion');
-  const [scoringMode, setScoringMode] = useState<'legacy' | 'absolute'>('legacy');
+  const [scoringMode, setScoringMode] = useState<'legacy' | 'absolute' | 'xunta'>('legacy');
   const [pointsPerCorrect, setPointsPerCorrect] = useState(0.4);
   const [pointsPerWrong, setPointsPerWrong] = useState(0.1);
   const [maxScore, setMaxScore] = useState(100);
@@ -61,6 +61,9 @@ export default function ExamForm({ examId }: ExamFormProps) {
   // the others, keeping each question's group_position link valid.
   const [groups, setGroups] = useState<QuestionGroup[]>([]);
   const grouped = groups.length > 0;
+  // Modo Xunta: grouped exam scored by per-group passing-% curve; ignores all other
+  // scoring config (penalty type, block size, absolute/legacy).
+  const isXunta = grouped && scoringMode === 'xunta';
 
   useEffect(() => {
     if (authenticating) return;
@@ -122,7 +125,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setSubtractsPoints(Boolean(examData.subtracts_points) || (examData.wrong_block_size ?? 0) > 0);
       setPenaltyValue(examData.penalty_value ?? 0);
       setPenaltyType((examData.wrong_block_size ?? 0) > 0 ? 'bloque' : 'fraccion');
-      setScoringMode((examData.scoring_mode as 'legacy' | 'absolute') ?? 'legacy');
+      setScoringMode((examData.scoring_mode as 'legacy' | 'absolute' | 'xunta') ?? 'legacy');
       setPointsPerCorrect(examData.points_per_correct ?? 0.4);
       setPointsPerWrong(examData.points_per_wrong ?? 0.1);
       setWrongBlockSize(examData.wrong_block_size ?? 0);
@@ -231,6 +234,14 @@ export default function ExamForm({ examId }: ExamFormProps) {
           setError(`La nota mínima del grupo "${g.name || '?'}" debe estar entre 0 y su valoración.`);
           return;
         }
+        if (isXunta && !(g.passing_pct != null && g.passing_pct > 0 && g.passing_pct < 100)) {
+          setError(`En Modo Xunta, el grupo "${g.name || '?'}" necesita un % de aprobado entre 0 y 100.`);
+          return;
+        }
+        if (g.passing_pct != null && (g.passing_pct <= 0 || g.passing_pct >= 100)) {
+          setError(`El % de aprobado del grupo "${g.name || '?'}" debe estar entre 0 y 100.`);
+          return;
+        }
       }
       const validPositions = new Set(groups.map((g) => g.position));
       const unassigned = questions.some(
@@ -290,6 +301,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
             points_per_wrong: g.points_per_wrong,
             min_passing_score: g.min_passing_score ?? null,
             eliminatory: g.eliminatory,
+            passing_pct: g.passing_pct ?? null,
           }))
         : [],
       questions: questions.map((q) => ({
@@ -379,6 +391,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
         points_per_wrong: 0.25,
         min_passing_score: null,
         eliminatory: true,
+        passing_pct: null,
       },
     ]);
   }
@@ -674,6 +687,40 @@ export default function ExamForm({ examId }: ExamFormProps) {
           debe asignarse a un grupo.
         </p>
         {grouped && (
+          <label className="flex items-center gap-2 mb-4 text-brand-pink font-bold">
+            <input
+              type="checkbox"
+              checked={isXunta}
+              onChange={(e) => setScoringMode(e.currentTarget.checked ? 'xunta' : 'legacy')}
+              disabled={isBusy}
+            />
+            Modo Xunta (nota por % de aprobado con curva a tramos)
+          </label>
+        )}
+        {isXunta && (
+          <div className="flex flex-col gap-2 mb-4">
+            <p className="text-xs text-gray-400">
+              Cada grupo: el <strong>% de aprobado</strong> equivale a la <strong>nota mínima</strong>, y el 100% a la
+              <strong> valoración</strong>. Entre medias, regla de 3 (lineal a tramos). Cada fallo resta lo indicado en
+              "Resta por fallo" antes de calcular el %. El resto de configuración de puntuación se ignora.
+            </p>
+            <label className="block text-brand-pink font-bold">
+              Bases para mostrar (opcional):
+              <input
+                type="text"
+                value={secondaryMaxScores}
+                onInput={(e) => setSecondaryMaxScores((e.target as HTMLInputElement).value)}
+                placeholder="Ej: 100,60"
+                className="block w-full mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+                disabled={isBusy}
+              />
+              <span className="text-xs text-gray-400 block mt-1">
+                Separa con comas. La nota se muestra también sobre esas bases (regla de 3 sobre la suma de valoraciones).
+              </span>
+            </label>
+          </div>
+        )}
+        {grouped && !isXunta && (
           <div className="flex flex-col gap-2 mb-4">
             <label className="flex items-center gap-2 flex-wrap">
               <span className="font-bold text-brand-pink">Tipo de penalización:</span>
@@ -737,7 +784,26 @@ export default function ExamForm({ examId }: ExamFormProps) {
                     disabled={isBusy}
                   />
                 </label>
-                {penaltyType === 'fraccion' && (
+                {isXunta && (
+                  <label className="font-bold text-brand-pink">
+                    % aprobado:
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      value={g.passing_pct ?? ''}
+                      onInput={(e) => {
+                        const raw = (e.target as HTMLInputElement).value;
+                        updateGroup(gi, { passing_pct: raw === '' ? null : parseFloat(raw) });
+                      }}
+                      placeholder="40"
+                      className="block w-28 mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+                      disabled={isBusy}
+                    />
+                  </label>
+                )}
+                {(penaltyType === 'fraccion' || isXunta) && (
                   <label className="font-bold text-brand-pink">
                     Resta por fallo:
                     <input
@@ -752,7 +818,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
                   </label>
                 )}
                 <label className="font-bold text-brand-pink">
-                  Nota mínima:
+                  {isXunta ? 'Nota al % aprobado:' : 'Nota mínima:'}
                   <input
                     type="number"
                     step="0.01"
@@ -807,7 +873,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
             <span className="font-bold text-brand-pink">Modo de puntuación:</span>
             <select
               value={scoringMode}
-              onChange={(e) => setScoringMode(e.currentTarget.value as 'legacy' | 'absolute')}
+              onChange={(e) => setScoringMode(e.currentTarget.value as 'legacy' | 'absolute' | 'xunta')}
               className="px-3 py-1 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
               disabled={isBusy}
             >
