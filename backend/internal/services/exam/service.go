@@ -874,8 +874,17 @@ func (s *Service) buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submiss
 	effectiveMax := exam.MaxScore
 	if isGrouped {
 		var sum float64
-		for _, g := range groupOutcomes {
-			sum += g.MaxScore
+		if exam.ScoringMode == "xunta" {
+			// Xunta group outcomes carry the question count in MaxScore (for the
+			// "netas / 80" card), so the total's "sobre 100" base comes from the
+			// group valoraciones instead.
+			for _, g := range exam.Groups {
+				sum += g.MaxScore
+			}
+		} else {
+			for _, g := range groupOutcomes {
+				sum += g.MaxScore
+			}
 		}
 		effectiveMax = &sum
 	} else if exam.ScoringMode == "absolute" && exam.PointsPerCorrect != nil {
