@@ -234,14 +234,6 @@ export default function ExamForm({ examId }: ExamFormProps) {
           setError(`La nota mínima del grupo "${g.name || '?'}" debe estar entre 0 y su valoración.`);
           return;
         }
-        if (isXunta && !(g.passing_pct != null && g.passing_pct > 0 && g.passing_pct < 100)) {
-          setError(`En Modo Xunta, el grupo "${g.name || '?'}" necesita un % de aprobado entre 0 y 100.`);
-          return;
-        }
-        if (g.passing_pct != null && (g.passing_pct <= 0 || g.passing_pct >= 100)) {
-          setError(`El % de aprobado del grupo "${g.name || '?'}" debe estar entre 0 y 100.`);
-          return;
-        }
       }
       const validPositions = new Set(groups.map((g) => g.position));
       const unassigned = questions.some(
@@ -700,9 +692,9 @@ export default function ExamForm({ examId }: ExamFormProps) {
         {isXunta && (
           <div className="flex flex-col gap-2 mb-4">
             <p className="text-xs text-gray-400">
-              Cada grupo: el <strong>% de aprobado</strong> equivale a la <strong>nota mínima</strong>, y el 100% a la
-              <strong> valoración</strong>. Entre medias, regla de 3 (lineal a tramos). Cada fallo resta lo indicado en
-              "Resta por fallo" antes de calcular el %. El resto de configuración de puntuación se ignora.
+              Nota del grupo (tarjeta) = netas escaladas a la valoración. La nota final (sobre 100) aplica el escalado
+              oficial XUNTA sobre las netas de cada grupo (cortes fijos: Teórico 24, Práctico 18) y suma. Cada fallo
+              resta lo indicado en "Resta por fallo". El resto de configuración de puntuación se ignora.
             </p>
             <label className="block text-brand-pink font-bold">
               Bases para mostrar (opcional):
@@ -784,25 +776,6 @@ export default function ExamForm({ examId }: ExamFormProps) {
                     disabled={isBusy}
                   />
                 </label>
-                {isXunta && (
-                  <label className="font-bold text-brand-pink">
-                    % aprobado:
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      value={g.passing_pct ?? ''}
-                      onInput={(e) => {
-                        const raw = (e.target as HTMLInputElement).value;
-                        updateGroup(gi, { passing_pct: raw === '' ? null : parseFloat(raw) });
-                      }}
-                      placeholder="40"
-                      className="block w-28 mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
-                      disabled={isBusy}
-                    />
-                  </label>
-                )}
                 {(penaltyType === 'fraccion' || isXunta) && (
                   <label className="font-bold text-brand-pink">
                     Resta por fallo:
@@ -817,22 +790,24 @@ export default function ExamForm({ examId }: ExamFormProps) {
                     />
                   </label>
                 )}
-                <label className="font-bold text-brand-pink">
-                  {isXunta ? 'Nota al % aprobado:' : 'Nota mínima:'}
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={g.min_passing_score ?? ''}
-                    onInput={(e) => {
-                      const raw = (e.target as HTMLInputElement).value;
-                      updateGroup(gi, { min_passing_score: raw === '' ? null : parseFloat(raw) });
-                    }}
-                    placeholder="(sin mínimo)"
-                    className="block w-28 mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
-                    disabled={isBusy}
-                  />
-                </label>
+                {!isXunta && (
+                  <label className="font-bold text-brand-pink">
+                    Nota mínima:
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={g.min_passing_score ?? ''}
+                      onInput={(e) => {
+                        const raw = (e.target as HTMLInputElement).value;
+                        updateGroup(gi, { min_passing_score: raw === '' ? null : parseFloat(raw) });
+                      }}
+                      placeholder="(sin mínimo)"
+                      className="block w-28 mt-1 px-3 py-2 rounded border border-[#444] bg-[#2a2d33] text-white focus:outline-none focus:border-brand-blue"
+                      disabled={isBusy}
+                    />
+                  </label>
+                )}
                 <label className="flex items-center gap-2 text-brand-pink font-bold">
                   <input
                     type="checkbox"

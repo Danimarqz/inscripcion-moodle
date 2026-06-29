@@ -106,52 +106,54 @@ func TestGroupedBreakdown_BlockPenalty_PerGroup(t *testing.T) {
 	assert.InDelta(t, 40.0, bd.Groups[1].Score, 0.001)  // untouched
 }
 
-// buildXuntaCurveExam is buildXuntaExam plus the Modo Xunta passing percentages:
-// Teórico aprueba al 40% (=30 pts), Práctico al 45% (=20 pts).
-func buildXuntaCurveExam() ([]models.QuestionGroup, []models.Question) {
+// Modo Xunta final-score model: per-group card = netas scaled to valoración
+// (groupScore = p*max). Total = sum of the official linear scaling applied to that
+// scaled score, anchors (cut → max/2) and (total → max) in count units. Cuts fixed:
+// Teórico 24, Práctico 18. A perfect group does NOT reach max (spec quirk).
+
+func TestGroupedXunta_NereaCase(t *testing.T) {
 	groups, questions := buildXuntaExam()
-	groups[0].PassingPct = fptr(40)
-	groups[1].PassingPct = fptr(45)
-	return groups, questions
-}
-
-func TestGroupedXunta_Curve_Knot(t *testing.T) {
-	groups, questions := buildXuntaCurveExam()
-	// Teórico exactly at 40% (32/80, no wrongs) => 30. Práctico at 45% (18/40) => 20.
-	answers := merge(answerAll(questions, 32, 0, 1), answerAll(questions, 18, 0, 2))
+	// Teórico 49 aciertos / 28 fallos => netas 42 => groupScore 42/80*60 = 31.5.
+	// Práctico 30 / 10 => netas 27.5 => groupScore 27.5.
+	answers := merge(answerAll(questions, 49, 28, 1), answerAll(questions, 30, 10, 2))
 	bd, err := CalculateGroupedXuntaBreakdown(groups, questions, answers)
 	assert.NoError(t, err)
-	assert.InDelta(t, 30.0, bd.Groups[0].Score, 0.001)
-	assert.InDelta(t, 20.0, bd.Groups[1].Score, 0.001)
-	assert.True(t, bd.Groups[0].Passed)
-	assert.True(t, bd.Groups[1].Passed)
-	assert.InDelta(t, 50.0, bd.Score, 0.001)
+	assert.InDelta(t, 31.5, bd.Groups[0].Score, 0.001)
+	assert.InDelta(t, 27.5, bd.Groups[1].Score, 0.001)
+	assert.True(t, bd.Groups[0].Passed) // 31.5 >= 24
+	assert.True(t, bd.Groups[1].Passed) // 27.5 >= 18
+	// Per group rounded then summed: 34.02 + 28.64 = 62.66.
+	assert.InDelta(t, 62.66, bd.Score, 0.001)
 }
 
-func TestGroupedXunta_Curve_Segments(t *testing.T) {
-	groups, questions := buildXuntaCurveExam()
-	// Teórico 70% (56/80) => 30 + (0.3/0.6)*30 = 45. Práctico 0% => 0.
-	bd, err := CalculateGroupedXuntaBreakdown(groups, questions, answerAll(questions, 56, 0, 1))
+func TestGroupedXunta_Anchors(t *testing.T) {
+	groups, questions := buildXuntaExam()
+	// groupScore at the cut => contributes max/2. Teórico cut 24 needs groupScore 24
+	// => netas 32 (32/80*60=24). Práctico cut 18 => groupScore 18 => netas 18.
+	atCut := merge(answerAll(questions, 32, 0, 1), answerAll(questions, 18, 0, 2))
+	bd, err := CalculateGroupedXuntaBreakdown(groups, questions, atCut)
 	assert.NoError(t, err)
-	assert.InDelta(t, 45.0, bd.Groups[0].Score, 0.001)
-	assert.InDelta(t, 0.0, bd.Groups[1].Score, 0.001)
+	assert.InDelta(t, 24.0, bd.Groups[0].Score, 0.001)
+	assert.InDelta(t, 18.0, bd.Groups[1].Score, 0.001)
+	assert.InDelta(t, 30.0+20.0, bd.Score, 0.001) // max/2 each
 
-	// Teórico 20% (16/80) => (0.2/0.4)*30 = 15, below 30 => fails eliminatory.
-	bd, err = CalculateGroupedXuntaBreakdown(groups, questions, answerAll(questions, 16, 0, 1))
+	// Perfect: teórico groupScore 60 => 30+30*(60-24)/56 = 49.29 (NOT 60).
+	// Práctico groupScore 40 => 20+20*(40-18)/22 = 40 (reaches max).
+	full := merge(answerAll(questions, 80, 0, 1), answerAll(questions, 40, 0, 2))
+	bd, err = CalculateGroupedXuntaBreakdown(groups, questions, full)
 	assert.NoError(t, err)
-	assert.InDelta(t, 15.0, bd.Groups[0].Score, 0.001)
+	assert.InDelta(t, 49.29+40.0, bd.Score, 0.001)
+}
+
+func TestGroupedXunta_BelowCut(t *testing.T) {
+	groups, questions := buildXuntaExam()
+	// All blank: groupScore 0. Card 0; below cut => not passed; final follows the
+	// line (30 + 30*(0-24)/56 = 17.142857), never the displayed 0.
+	bd, err := CalculateGroupedXuntaBreakdown(groups, questions, map[uint]string{})
+	assert.NoError(t, err)
+	assert.InDelta(t, 0.0, bd.Groups[0].Score, 0.001)
 	assert.False(t, bd.Groups[0].Passed)
-}
-
-func TestGroupedXunta_Curve_PenaltyAndBounds(t *testing.T) {
-	groups, questions := buildXuntaCurveExam()
-	// Teórico 60 correct, 20 wrong => net 55, p=0.6875 => 30 + (0.2875/0.6)*30 = 44.375.
-	answers := merge(answerAll(questions, 60, 20, 1), answerAll(questions, 40, 0, 2))
-	bd, err := CalculateGroupedXuntaBreakdown(groups, questions, answers)
-	assert.NoError(t, err)
-	assert.InDelta(t, 44.38, bd.Groups[0].Score, 0.01) // rounded to 2 decimals
-	assert.InDelta(t, 40.0, bd.Groups[1].Score, 0.001) // all correct, capped at max
-	assert.True(t, bd.Groups[0].Passed)
+	assert.InDelta(t, 17.14+3.64, bd.Score, 0.001) // 20.78
 }
 
 func TestGroupedBreakdown_BackCompatFlatMatchesUngrouped(t *testing.T) {

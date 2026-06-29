@@ -126,62 +126,91 @@ func tallyGroup(g models.QuestionGroup, questions []models.Question, answers map
 //
 // All other exam scoring config (penalty type, block size, absolute/legacy mode)
 // is intentionally ignored: Modo Xunta is self-contained per group.
+//
+// Two distinct numbers come out per group:
+//
+//   - GroupOutcome.Score (shown on the per-group card) = the net-correct ratio
+//     scaled to the group's valoración: clamp(netas/total, 0, 1) * MaxScore.
+//     E.g. 42 netas of 80 over a 60-point group = 31.5.
+//   - the group's contribution to res.Total = the official XUNTA linear scaling
+//     applied to THAT scaled group score, between anchors (cut → MaxScore/2) and
+//     (total → MaxScore):  MaxScore/2 + (MaxScore/2)·(score−cut)/(total−cut).
+//     The anchors (cut, total) are in net-count units per the official spec, while
+//     the input is the scaled score — so a perfect group does NOT reach MaxScore
+//     (e.g. Teórico score 60 → 49.29, not 60). This is intentional per spec.
+//     These do NOT generally equal the displayed per-group scores, so res.Total is
+//     deliberately not the sum of GroupOutcome.Score.
+//
+// netas = correct − incorrect*PointsPerWrong. A group passes when its scaled score
+// reaches the cut. res.Total is rounded to 2 decimals.
 func ComputeGroupedXunta(groups []models.QuestionGroup, questions []models.Question, answers map[uint]string) GroupedResult {
 	res := GroupedResult{Groups: make([]GroupOutcome, 0, len(groups))}
-	for _, g := range groups {
+	for i, g := range groups {
 		correct, incorrect, total := tallyGroup(g, questions, answers)
-		var score float64
+		cut := 0.0
+		if i < len(xuntaCuts) {
+			cut = xuntaCuts[i]
+		}
+
+		var groupScore, finalContribution float64
+		passed := true
 		if total > 0 {
-			net := float64(correct) - float64(incorrect)*g.PointsPerWrong
-			p := net / float64(total)
+			// Per-group card: net ratio scaled to valoración, clamped [0, MaxScore].
+			netas := float64(correct) - float64(incorrect)*g.PointsPerWrong
+			p := netas / float64(total)
 			if p < 0 {
 				p = 0
 			}
 			if p > 1 {
 				p = 1
 			}
-			score = xuntaCurve(p, g)
-			if score < 0 {
-				score = 0
+			groupScore = p * g.MaxScore
+
+			// Final contribution: official linear scaling on the scaled group score.
+			half := g.MaxScore / 2
+			if float64(total) > cut {
+				finalContribution = half + half*(groupScore-cut)/(float64(total)-cut)
+			} else {
+				finalContribution = groupScore // degenerate guard (cut >= total)
 			}
-			if score > g.MaxScore {
-				score = g.MaxScore
+			if finalContribution < 0 {
+				finalContribution = 0
 			}
-			score = math.Round(score*100) / 100
+			if finalContribution > g.MaxScore {
+				finalContribution = g.MaxScore
+			}
+			// Round each group's contribution to 2 decimals before summing (matches
+			// the official worked example: 34.02 + 28.64 = 62.66, not 62.65).
+			finalContribution = math.Round(finalContribution*100) / 100
+			passed = groupScore >= cut
 		}
-		passed := g.MinPassingScore == nil || score >= *g.MinPassingScore
+
+		// Card shows the cut as the minimum (Teórico 24, Práctico 18).
+		minShown := cut
 		res.Groups = append(res.Groups, GroupOutcome{
 			GroupID:         g.ID,
 			Name:            g.Name,
-			Score:           score,
+			Score:           math.Round(groupScore*100) / 100,
 			MaxScore:        g.MaxScore,
 			Correct:         correct,
 			Incorrect:       incorrect,
 			Total:           total,
 			Eliminatory:     g.Eliminatory,
-			MinPassingScore: g.MinPassingScore,
+			MinPassingScore: &minShown,
 			Passed:          passed,
 		})
-		res.Total += score
+		res.Total += finalContribution
 	}
 	res.Total = math.Round(res.Total*100) / 100
 	return res
 }
 
-// xuntaCurve maps a pass rate p in [0,1] to a grade via the two-segment line that
-// pins (pp, ps). When the group lacks a usable passing percentage or passing
-// grade it degrades to the plain p*MaxScore line.
-func xuntaCurve(p float64, g models.QuestionGroup) float64 {
-	if g.PassingPct == nil || g.MinPassingScore == nil || *g.PassingPct <= 0 || *g.PassingPct >= 100 {
-		return p * g.MaxScore
-	}
-	pp := *g.PassingPct / 100
-	ps := *g.MinPassingScore
-	if p <= pp {
-		return (p / pp) * ps
-	}
-	return ps + (p-pp)/(1-pp)*(g.MaxScore-ps)
-}
+// xuntaCuts is the official net-correct (netas) cut per group for Modo Xunta
+// (XUNTA 2026), indexed by group order: [0]=Teórico=24, [1]=Práctico=18. Fixed by
+// spec, not configurable.
+// ponytail: hardcoded for the 2-group Xunta layout; lift to a per-group column if
+// another exam ever needs different cuts.
+var xuntaCuts = []float64{24, 18}
 
 // AllEliminatoryPassed reports whether every eliminatory group met its minimum.
 // An exam with no eliminatory groups trivially passes this gate.
