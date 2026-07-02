@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/inscripcion-moodle/go-backend/internal/models"
+	"github.com/inscripcion-moodle/go-backend/internal/scoring"
+	examservice "github.com/inscripcion-moodle/go-backend/internal/services/exam"
 )
 
 func (s *Service) DeleteSubmission(submissionID uint) (examID uint, err error) {
@@ -24,6 +26,102 @@ func (s *Service) DeleteSubmission(submissionID uint) (examID uint, err error) {
 
 func (s *Service) GetSubmission(submissionID uint) (*models.UserExamSubmission, error) {
 	return s.submissionRepo.FindByID(context.Background(), s.db, submissionID)
+}
+
+// GetSubmissionBreakdown computes the score breakdown for a single submission,
+// reusing the same scoring functions and grouped/Xunta mode selection as the
+// student-facing buildSubmissionPayload (via fetchScoreBreakdownFromDB). Answers
+// are read exclusively from submission.AnswersData (jsonb). Returns nil when the
+// exam has no active, non-cancelled questions.
+func (s *Service) GetSubmissionBreakdown(submissionID uint) (*SubmissionBreakdown, error) {
+	submission, err := s.submissionRepo.FindByID(context.Background(), s.db, submissionID)
+	if err != nil {
+		return nil, err
+	}
+
+	exam, err := s.examRepo.FindExamByID(context.Background(), s.db, submission.ExamID)
+	if err != nil {
+		return nil, err
+	}
+
+	return computeSubmissionBreakdown(exam, submission)
+}
+
+// computeSubmissionBreakdown is the pure (no-DB) breakdown computation shared by
+// the per-submission detail endpoint and the list endpoint. The exam must be
+// loaded with Questions + Groups; answers are read from submission.AnswersData.
+func computeSubmissionBreakdown(exam *models.Exam, submission *models.UserExamSubmission) (*SubmissionBreakdown, error) {
+	var err error
+	// Match fetchScoreBreakdownFromDB: only active, non-cancelled questions count.
+	questions := make([]models.Question, 0, len(exam.Questions))
+	for _, q := range exam.Questions {
+		if q.IsActive && !q.IsCancelled {
+			questions = append(questions, q)
+		}
+	}
+	if len(questions) == 0 {
+		return nil, nil
+	}
+
+	answerMap := make(map[uint]string)
+	if submission.AnswersData != nil {
+		answerMap = map[uint]string(*submission.AnswersData)
+	}
+
+	// Same grouped/Xunta selection as fetchScoreBreakdownFromDB.
+	var bd *examservice.ScoreBreakdown
+	groups := exam.Groups
+	if len(groups) > 0 {
+		if exam.ScoringMode == "xunta" {
+			bd, err = examservice.CalculateGroupedXuntaBreakdown(groups, questions, answerMap)
+		} else {
+			bd, err = examservice.CalculateGroupedBreakdown(groups, questions, answerMap, examservice.ScoringConfigFromExam(exam).WrongBlockSize)
+		}
+	} else {
+		bd, err = examservice.CalculateScoreBreakdownCfg(questions, answerMap, examservice.ScoringConfigFromExam(exam))
+	}
+	if err != nil {
+		return nil, err
+	}
+	if bd == nil {
+		return nil, nil
+	}
+
+	// Global pass: grouped exams pass iff every eliminatory group met its
+	// minimum; flat exams use the exam's passing threshold vs the stored score
+	// (same rule as buildSubmissionPayload's evaluatePassStatus).
+	var isPassed *bool
+	if len(bd.Groups) > 0 {
+		p := scoring.GroupedResult{Groups: bd.Groups}.AllEliminatoryPassed()
+		isPassed = &p
+	} else {
+		isPassed = evaluateFlatPassStatus(submission.Score, exam.PassingThreshold)
+	}
+
+	return &SubmissionBreakdown{
+		Score:            submission.Score,
+		CorrectAnswers:   bd.CorrectAnswers,
+		IncorrectAnswers: bd.IncorrectAnswers,
+		NotAnswered:      bd.NotAnswered,
+		TotalQuestions:   bd.TotalQuestions,
+		IsPassed:         isPassed,
+		Groups:           bd.Groups,
+	}, nil
+}
+
+// evaluateFlatPassStatus mirrors exam.evaluatePassStatus: nil threshold → nil
+// (no pass criteria), nil score → false, otherwise score >= threshold. The
+// scoring math lives in internal/scoring; this is only the pass/fail gate.
+func evaluateFlatPassStatus(score *float64, threshold *float64) *bool {
+	if threshold == nil {
+		return nil
+	}
+	if score == nil {
+		p := false
+		return &p
+	}
+	p := *score >= *threshold
+	return &p
 }
 
 func (s *Service) UpdateSubmission(submissionID uint, req SubmissionUpdateRequest) (*models.UserExamSubmission, error) {
@@ -120,13 +218,35 @@ func (s *Service) updateAnswersFromSubmission(submission *models.UserExamSubmiss
 func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats bool, search, orderBy, orderDir string, moodleSynced *bool, resultType *string) (*ListSubmissionsResult, error) {
 	orderClause := buildSubmissionOrder(strings.TrimSpace(orderBy), strings.TrimSpace(orderDir))
 
-	subs, err := s.submissionRepo.List(context.Background(), s.db, examID, limit, offset, search, orderClause, moodleSynced, resultType)
+	// includeAnswers=true so we can compute the per-row breakdown server-side.
+	// Answers are stripped from each item before serialization (kept off the wire).
+	subs, err := s.submissionRepo.List(context.Background(), s.db, examID, limit, offset, search, orderClause, moodleSynced, resultType, true)
 	if err != nil {
 		return nil, err
 	}
 
+	items := make([]AdminSubmissionListItem, 0, len(subs))
+	if len(subs) > 0 {
+		exam, err := s.examRepo.FindExamByID(context.Background(), s.db, examID)
+		if err != nil {
+			return nil, err
+		}
+		for i := range subs {
+			sub := subs[i]
+			breakdown, bdErr := computeSubmissionBreakdown(exam, &sub)
+			if bdErr != nil {
+				log.Printf("failed to compute breakdown for submission %d: %v", sub.ID, bdErr)
+			}
+			sub.AnswersData = nil // strip heavy answers from the list payload
+			items = append(items, AdminSubmissionListItem{
+				UserExamSubmission: sub,
+				Breakdown:          breakdown,
+			})
+		}
+	}
+
 	result := &ListSubmissionsResult{
-		Submissions: subs,
+		Submissions: items,
 	}
 	if includeStats {
 		totalCount, err := s.submissionRepo.Count(context.Background(), s.db, []uint{examID}, moodleSynced, resultType)

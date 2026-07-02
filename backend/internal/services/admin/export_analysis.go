@@ -7,8 +7,18 @@ import (
 	"strings"
 
 	"github.com/inscripcion-moodle/go-backend/internal/models"
+	"github.com/inscripcion-moodle/go-backend/internal/scoring"
+	examservice "github.com/inscripcion-moodle/go-backend/internal/services/exam"
 	"github.com/xuri/excelize/v2"
 )
+
+// aptoLabel renders a pass/fail flag as the Spanish "Sí"/"No" used in the export.
+func aptoLabel(passed bool) string {
+	if passed {
+		return "Sí"
+	}
+	return "No"
+}
 
 func (s *Service) ExportSubmissionsAnalysis(examID uint, search, orderBy, orderDir string, moodleSynced *bool, resultType *string) (*bytes.Buffer, error) {
 	exam, err := s.examRepo.FindExamByID(context.Background(), s.db, examID)
@@ -18,7 +28,7 @@ func (s *Service) ExportSubmissionsAnalysis(examID uint, search, orderBy, orderD
 
 	const maxLimit = 1000000
 	orderClause := buildSubmissionOrder(orderBy, orderDir)
-	submissions, err := s.submissionRepo.List(context.Background(), s.db, examID, maxLimit, 0, search, orderClause, moodleSynced, resultType)
+	submissions, err := s.submissionRepo.List(context.Background(), s.db, examID, maxLimit, 0, search, orderClause, moodleSynced, resultType, true)
 	if err != nil {
 		return nil, err
 	}
@@ -36,6 +46,18 @@ func (s *Service) ExportSubmissionsAnalysis(examID uint, search, orderBy, orderD
 
 	for _, q := range exam.Questions {
 		questionsMap[q.ID] = q
+	}
+
+	// Group dimension: map each question to its group name (empty when the exam
+	// has no groups). Answers come from AnswersData (jsonb) only, same as scoring.
+	hasGroups := len(exam.Groups) > 0
+	groupNameByQuestion := make(map[uint]string)
+	for _, g := range exam.Groups {
+		for _, q := range exam.Questions {
+			if q.GroupID != nil && *q.GroupID == g.ID {
+				groupNameByQuestion[q.ID] = g.Name
+			}
+		}
 	}
 
 	failures := make(map[uint]int)
@@ -69,6 +91,9 @@ func (s *Service) ExportSubmissionsAnalysis(examID uint, search, orderBy, orderD
 	f.SetCellValue(sheetStats, "A1", "Pregunta")
 	f.SetCellValue(sheetStats, "B1", "Fallos")
 	f.SetCellValue(sheetStats, "C1", "Porcentaje Fallos")
+	if hasGroups {
+		f.SetCellValue(sheetStats, "D1", "Grupo")
+	}
 
 	for i, q := range sortedQuestions {
 		if !q.IsActive || q.IsCancelled {
@@ -99,6 +124,9 @@ func (s *Service) ExportSubmissionsAnalysis(examID uint, search, orderBy, orderD
 		f.SetCellValue(sheetStats, fmt.Sprintf("A%d", currentRow), fmt.Sprintf("%d", q.Name))
 		f.SetCellValue(sheetStats, fmt.Sprintf("B%d", currentRow), failCount)
 		f.SetCellValue(sheetStats, fmt.Sprintf("C%d", currentRow), percent)
+		if hasGroups {
+			f.SetCellValue(sheetStats, fmt.Sprintf("D%d", currentRow), groupNameByQuestion[q.ID])
+		}
 		currentRow++
 	}
 	lastDataRow := currentRow - 1
@@ -130,6 +158,15 @@ func (s *Service) ExportSubmissionsAnalysis(examID uint, search, orderBy, orderD
 	for _, q := range sortedQuestions {
 		headers = append(headers, fmt.Sprintf("P%d - %s", q.Name, q.CorrectOption))
 	}
+	// Per-group columns (only for grouped exams), appended after the answer
+	// columns: one "Nota"/"Apto" pair per group plus a global "Apto".
+	if hasGroups {
+		headers = append(headers, "Apto")
+		for _, g := range exam.Groups {
+			headers = append(headers, fmt.Sprintf("%s Nota", g.Name), fmt.Sprintf("%s Apto", g.Name))
+		}
+	}
+	groupColStart := 10 + len(sortedQuestions)
 
 	for i, h := range headers {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
@@ -176,6 +213,37 @@ func (s *Service) ExportSubmissionsAnalysis(examID uint, search, orderBy, orderD
 				f.SetCellValue(sheetData, cell, "")
 			}
 			colIndex++
+		}
+
+		if hasGroups {
+			// Per-group Nota/Apto + global Apto, computed with the same scoring +
+			// mode selection as GetSubmissionBreakdown (grouped absolute vs Xunta).
+			var bd *examservice.ScoreBreakdown
+			if exam.ScoringMode == "xunta" {
+				bd, err = examservice.CalculateGroupedXuntaBreakdown(exam.Groups, exam.Questions, userAnswers)
+			} else {
+				bd, err = examservice.CalculateGroupedBreakdown(exam.Groups, exam.Questions, userAnswers, examservice.ScoringConfigFromExam(exam).WrongBlockSize)
+			}
+			if err != nil {
+				return nil, err
+			}
+			outcomes := map[uint]scoring.GroupOutcome{}
+			if bd != nil {
+				for _, g := range bd.Groups {
+					outcomes[g.GroupID] = g
+				}
+			}
+			aptoCell, _ := excelize.CoordinatesToCellName(groupColStart, row)
+			f.SetCellValue(sheetData, aptoCell, aptoLabel(bd != nil && scoring.GroupedResult{Groups: bd.Groups}.AllEliminatoryPassed()))
+			col := groupColStart + 1
+			for _, g := range exam.Groups {
+				o := outcomes[g.ID]
+				notaCell, _ := excelize.CoordinatesToCellName(col, row)
+				f.SetCellValue(sheetData, notaCell, o.Score)
+				aptoGCell, _ := excelize.CoordinatesToCellName(col+1, row)
+				f.SetCellValue(sheetData, aptoGCell, aptoLabel(o.Passed))
+				col += 2
+			}
 		}
 	}
 

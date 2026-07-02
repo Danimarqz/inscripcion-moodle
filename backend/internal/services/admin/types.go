@@ -1,6 +1,9 @@
 package admin
 
-import "github.com/inscripcion-moodle/go-backend/internal/models"
+import (
+	"github.com/inscripcion-moodle/go-backend/internal/models"
+	"github.com/inscripcion-moodle/go-backend/internal/scoring"
+)
 
 type QuestionInput struct {
 	ID            *uint   `json:"id,omitempty"`
@@ -79,16 +82,49 @@ type EditExamRequest struct {
 	Questions            []QuestionInput      `json:"questions"`
 }
 
+// AdminSubmissionListItem is one row of the submissions list: the submission
+// (with heavy answers_json stripped) plus its computed score breakdown, so the
+// admin list can show per-group scores + correct/blank/wrong at a glance.
+type AdminSubmissionListItem struct {
+	models.UserExamSubmission
+	Breakdown *SubmissionBreakdown `json:"breakdown,omitempty"`
+}
+
 type ListSubmissionsResult struct {
-	Submissions               []models.UserExamSubmission `json:"submissions"`
-	TotalSubmissions          int64                       `json:"total_submissions,omitempty"`
-	AverageScore              *float64                    `json:"average_score,omitempty"`
-	AverageScoreOfficial      *float64                    `json:"average_score_official,omitempty"`
-	GroupAverageScore         *float64                    `json:"group_average_score,omitempty"`
-	GroupAverageScoreOfficial *float64                    `json:"group_average_score_official,omitempty"`
-	GroupTotalSubmissions     *int64                      `json:"group_total_submissions,omitempty"`
-	GroupExamNames            []string                    `json:"group_exam_names,omitempty"`
-	StatsIncluded             bool                        `json:"stats_included"`
+	Submissions               []AdminSubmissionListItem `json:"submissions"`
+	TotalSubmissions          int64                     `json:"total_submissions,omitempty"`
+	AverageScore              *float64                  `json:"average_score,omitempty"`
+	AverageScoreOfficial      *float64                  `json:"average_score_official,omitempty"`
+	GroupAverageScore         *float64                  `json:"group_average_score,omitempty"`
+	GroupAverageScoreOfficial *float64                  `json:"group_average_score_official,omitempty"`
+	GroupTotalSubmissions     *int64                    `json:"group_total_submissions,omitempty"`
+	GroupExamNames            []string                  `json:"group_exam_names,omitempty"`
+	StatsIncluded             bool                      `json:"stats_included"`
+}
+
+// SubmissionBreakdown is the admin-facing score breakdown for a single
+// submission, mirroring what the student sees: general score, correct/blank/
+// wrong counts, global pass, and per-group outcomes (empty for non-grouped
+// exams). Percentile and merits stay on the submission itself.
+type SubmissionBreakdown struct {
+	Score            *float64               `json:"score"`
+	CorrectAnswers   int                    `json:"correct_answers"`
+	IncorrectAnswers int                    `json:"incorrect_answers"`
+	NotAnswered      int                    `json:"not_answered"`
+	TotalQuestions   int                    `json:"total_questions"`
+	IsPassed         *bool                  `json:"is_passed"`
+	Groups           []scoring.GroupOutcome `json:"groups,omitempty"`
+}
+
+// SubmissionDetailResponse is the GET /admin/results/{id} payload: the full
+// submission (same top-level fields as before — answers are lazy-loaded here,
+// omitted from the list endpoint) plus the score breakdown. Embedding the
+// submission promotes its JSON fields to the top level, so existing clients
+// keep working unchanged; breakdown is additive and omitted when unset (e.g.
+// exam with no active questions). The list endpoint is intentionally unchanged.
+type SubmissionDetailResponse struct {
+	*models.UserExamSubmission
+	Breakdown *SubmissionBreakdown `json:"breakdown,omitempty"`
 }
 
 type OfficialResultsList struct {

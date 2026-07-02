@@ -339,6 +339,7 @@ function SubmissionsViewer({ examId, selectedExamName, token }: SubmissionsViewe
             dni: fullSubmission.dni || user?.dni || '',
             answers: initialAnswers,
             merits: fullSubmission.merits ?? undefined,
+            breakdown: fullSubmission.breakdown ?? null,
         }
       }));
     } catch (err) {

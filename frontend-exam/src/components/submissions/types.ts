@@ -1,5 +1,6 @@
 import { ANSWER_OPTIONS as COMMON_ANSWER_OPTIONS } from '../../constants/answerOptions';
 import type { AnswerOption as COMMON_ANSWER_OPTION } from '../../constants/answerOptions';
+import type { SubmissionBreakdown } from '../../types/exam';
 
 export const ANSWER_OPTIONS = COMMON_ANSWER_OPTIONS;
 export type AnswerOption = COMMON_ANSWER_OPTION;
@@ -15,4 +16,5 @@ export interface EditingState {
   dni: string;
   answers: Record<number, AnswerOption | '-'>;
   merits?: number;
+  breakdown?: SubmissionBreakdown | null;
 }

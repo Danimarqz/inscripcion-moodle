@@ -204,7 +204,17 @@ func (h *AdminController) getSubmission(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "failed to load submission", http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, submission)
+	// Breakdown is an enrichment of the detail payload; a failure to compute it
+	// must not break the core detail/edit flow (which only needs the submission
+	// + answers). Log and continue with an unset (omitted) breakdown.
+	breakdown, err := h.service.GetSubmissionBreakdown(uint(submissionID))
+	if err != nil {
+		log.Printf("failed to load submission breakdown for submission %d: %v", submissionID, err)
+	}
+	writeJSON(w, admin.SubmissionDetailResponse{
+		UserExamSubmission: submission,
+		Breakdown:          breakdown,
+	})
 }
 
 func (h *AdminController) updateSubmission(w http.ResponseWriter, r *http.Request) {

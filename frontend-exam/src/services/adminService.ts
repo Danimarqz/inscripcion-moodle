@@ -195,7 +195,7 @@ export async function downloadSubmissionEmails(
   const API_URL = import.meta.env.PUBLIC_API_URL;
   const response = await fetchWithTimeout(
     `${API_URL}/admin/results/emails?${params.toString()}`,
-    { headers: { Authorization: `Bearer ${token}` } },
+    { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' },
     DOWNLOAD_TIMEOUT_MS,
   );
   if (!response.ok) throw new Error('Error downloading submission emails');
@@ -211,7 +211,7 @@ export async function downloadSubmissionsAnalysis(
   const API_URL = import.meta.env.PUBLIC_API_URL;
   const response = await fetchWithTimeout(
     `${API_URL}/admin/exams/${examId}/results/analysis?${params.toString()}`,
-    { headers: { Authorization: `Bearer ${token}` } },
+    { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' },
     DOWNLOAD_TIMEOUT_MS,
   );
   if (!response.ok) throw new Error('Error downloading analysis');

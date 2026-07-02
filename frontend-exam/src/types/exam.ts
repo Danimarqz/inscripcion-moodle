@@ -98,6 +98,20 @@ export type ExamUser = {
   accepts_marketing?: boolean;
 };
 
+// SubmissionBreakdown mirrors the admin backend SubmissionBreakdown payload
+// (GET /admin/results/{id}). General score and percentile stay on the
+// submission itself; this carries the correct/blank/wrong counts, the global
+// pass status, and the per-group outcomes (empty for non-grouped exams).
+export type SubmissionBreakdown = {
+  score?: number | null;
+  correct_answers: number;
+  incorrect_answers: number;
+  not_answered: number;
+  total_questions: number;
+  is_passed?: boolean | null;
+  groups?: GroupScore[] | null;
+};
+
 export type AdminSubmission = {
   id: number;
   exam_id: number;
@@ -113,6 +127,7 @@ export type AdminSubmission = {
   answers_data?: Record<string, string> | null;
   accepts_marketing?: boolean | null;
   selected_result_type?: string | null;
+  breakdown?: SubmissionBreakdown | null;
 };
 
 export type AdminSubmissionsResponse = {

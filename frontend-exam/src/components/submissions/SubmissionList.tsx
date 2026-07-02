@@ -1,5 +1,7 @@
 import type { AdminSubmission, QuestionEdit } from '../../types/exam';
 import type { AnswerOption, EditingState } from './types';
+import SubmissionBreakdownCard from './SubmissionBreakdownCard';
+import SubmissionBreakdownChips from './SubmissionBreakdownChips';
 
 interface SubmissionListProps {
   submissions: AdminSubmission[];
@@ -97,6 +99,7 @@ export default function SubmissionList({
                     Méritos: {submission.merits ?? 0}
                   </span>
                 </div>
+                <SubmissionBreakdownChips breakdown={submission.breakdown} />
                 <p className="text-xs text-brand-yellow mt-2 opacity-90">
                   Enviado el {new Date(submission.submitted_at).toLocaleString()}
                 </p>
@@ -157,6 +160,7 @@ export default function SubmissionList({
                 <h3 className="text-xl font-semibold mb-4 text-brand-pink">
                   Editar intento ({selectedExamName})
                 </h3>
+                {editingState.breakdown && <SubmissionBreakdownCard breakdown={editingState.breakdown} />}
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="flex flex-col gap-1">
                     <span className="text-sm font-semibold text-brand-blue">Nombre</span>

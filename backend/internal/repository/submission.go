@@ -13,7 +13,7 @@ import (
 type SubmissionRepository interface {
 	FindByID(ctx context.Context, db *gorm.DB, submissionID uint) (*models.UserExamSubmission, error)
 	ExistsByStudentExam(ctx context.Context, db *gorm.DB, email, dni string, examID uint) (bool, error)
-	List(ctx context.Context, db *gorm.DB, examID uint, limit, offset int, search, order string, moodleSynced *bool, resultType *string) ([]models.UserExamSubmission, error)
+	List(ctx context.Context, db *gorm.DB, examID uint, limit, offset int, search, order string, moodleSynced *bool, resultType *string, includeAnswers bool) ([]models.UserExamSubmission, error)
 	Count(ctx context.Context, db *gorm.DB, examIDs []uint, moodleSynced *bool, resultType *string) (int64, error)
 	Delete(ctx context.Context, db *gorm.DB, submissionID uint) error
 	DeleteByExamID(ctx context.Context, db *gorm.DB, examID uint) error
@@ -54,13 +54,16 @@ func (r *submissionRepository) ExistsByStudentExam(ctx context.Context, db *gorm
 	return count > 0, nil
 }
 
-func (r *submissionRepository) List(ctx context.Context, db *gorm.DB, examID uint, limit, offset int, search, order string, moodleSynced *bool, resultType *string) ([]models.UserExamSubmission, error) {
+func (r *submissionRepository) List(ctx context.Context, db *gorm.DB, examID uint, limit, offset int, search, order string, moodleSynced *bool, resultType *string, includeAnswers bool) ([]models.UserExamSubmission, error) {
 	var subs []models.UserExamSubmission
-	// answers_json is intentionally excluded from the list payload; it's heavy
-	// and lazy-loaded per submission via /admin/results/{id} when editing.
+	// answers_json is heavy, so it's excluded from the wire payload by default.
+	// Callers that need it server-side (breakdown computation, analysis export)
+	// pass includeAnswers=true; it's stripped before serialization for the list.
 	query := db.WithContext(ctx).Preload("User").
-		Omit("answers_json").
 		Where("exam_id = ?", examID)
+	if !includeAnswers {
+		query = query.Omit("answers_json")
+	}
 
 	query = query.Joins("LEFT JOIN exam_user ON exam_user.id = user_exam_submission.user_id")
 
@@ -187,9 +190,9 @@ func (r *submissionRepository) GetAverageScore(ctx context.Context, db *gorm.DB,
 		Joins(`LEFT JOIN (
 			SELECT exam_id, user_id, MAX(score) AS score
 			FROM exam_official_result
-			WHERE score IS NOT NULL
+			WHERE score IS NOT NULL AND exam_id IN ?
 			GROUP BY exam_id, user_id
-		) o ON o.exam_id = user_exam_submission.exam_id AND o.user_id = user_exam_submission.user_id`).
+		) o ON o.exam_id = user_exam_submission.exam_id AND o.user_id = user_exam_submission.user_id`, examIDs).
 		Where("user_exam_submission.exam_id IN ? AND user_exam_submission.score IS NOT NULL", examIDs)
 
 	if moodleSynced != nil {
