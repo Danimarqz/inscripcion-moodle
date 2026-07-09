@@ -37,6 +37,7 @@ var (
 		"sermas":      20,
 		"sepad":			133,
 		"prisiones":	146,
+		"defensa":		159,
 	}
 	extraCourses = []int{16, 11}
 )
