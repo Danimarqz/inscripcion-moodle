@@ -70,6 +70,9 @@ export type ExamOut = {
   merits_total?: number | null;
   passed_count?: number | null;
   groups?: GroupScore[];
+  // Entrega sin respuestas (la nota viene del resultado oficial): el backend
+  // omite contadores, grupos y revisión de respuestas.
+  is_official_only?: boolean;
 };
 
 export type Question = {
@@ -185,6 +188,10 @@ export type OfficialResultCheckPayload = {
 
 export type OfficialResultCheckResponse = {
   match: boolean;
+  // El resultado oficial ya trae nota: el alumno no responde preguntas.
+  has_official_score?: boolean;
+  has_official_merits?: boolean;
+  result_type?: string;
 };
 
 export type QuestionCreate = {

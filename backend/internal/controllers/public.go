@@ -264,7 +264,9 @@ func (h *PublicController) CheckOfficialResultMatch(w http.ResponseWriter, r *ht
 	normalizedSurname := examservice.NormalizeDNI(req.Surname)
 	normalizedDNI := examservice.NormalizeDNI(req.DNI)
 	cacheKeyHash := sha256.Sum256(fmt.Appendf(nil, "%d:%s:%s:%s", req.ExamID, normalizedName, normalizedSurname, normalizedDNI))
-	cacheKey := fmt.Sprintf("match_oficial:%x", cacheKeyHash)
+	// v2: el payload cacheado dejó de ser {"match":bool}; con la clave antigua se
+	// seguirían sirviendo respuestas sin has_official_score durante el TTL.
+	cacheKey := fmt.Sprintf("match_oficial_v2:%x", cacheKeyHash)
 
 	if cachedData, ok := h.cache.Get(r.Context(), cacheKey); ok {
 		w.Header().Set("Content-Type", "application/json")
@@ -272,7 +274,7 @@ func (h *PublicController) CheckOfficialResultMatch(w http.ResponseWriter, r *ht
 		return
 	}
 
-	match, err := examservice.CheckOfficialResultMatch(h.db, req)
+	official, err := examservice.FindOfficialResult(h.db, req)
 	if err != nil {
 		status := http.StatusInternalServerError
 		if errors.Is(err, examservice.ErrExamNotFound) {
@@ -282,7 +284,12 @@ func (h *PublicController) CheckOfficialResultMatch(w http.ResponseWriter, r *ht
 		return
 	}
 
-	respPayload := examservice.OfficialResultMatchResponse{Match: match}
+	respPayload := examservice.OfficialResultMatchResponse{Match: official != nil}
+	if official != nil {
+		respPayload.HasOfficialScore = official.Score != nil
+		respPayload.HasOfficialMerits = official.Merits != nil
+		respPayload.ResultType = official.ResultType
+	}
 	respBytes, err := json.Marshal(respPayload)
 	if err != nil {
 		log.Printf("failed to encode response: %v", err)

@@ -35,6 +35,13 @@ type OfficialResultMatchRequest struct {
 
 type OfficialResultMatchResponse struct {
 	Match bool `json:"match"`
+	// HasOfficialScore indica que la fila oficial ya trae nota: el alumno no
+	// tiene que responder las preguntas, solo confirmar sus datos.
+	HasOfficialScore bool `json:"has_official_score"`
+	// HasOfficialMerits indica que los méritos también vienen del oficial.
+	HasOfficialMerits bool `json:"has_official_merits"`
+	// ResultType es la convocatoria de la fila oficial, para no pedírsela al alumno.
+	ResultType string `json:"result_type,omitempty"`
 }
 
 type SubmissionPayload struct {
@@ -60,6 +67,10 @@ type SubmissionPayload struct {
 	MeritsTotal        *int                   `json:"merits_total,omitempty"`
 	PassedCount        *int                   `json:"passed_count,omitempty"`
 	Groups             []scoring.GroupOutcome `json:"groups,omitempty"`
+	// IsOfficialOnly marca las entregas que no llevan respuestas porque la nota
+	// viene del resultado oficial. El frontend no recibe contadores ni revisión
+	// de respuestas en ese caso.
+	IsOfficialOnly bool `json:"is_official_only,omitempty"`
 }
 
 type UpdateMeritsRequest struct {

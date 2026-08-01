@@ -283,7 +283,7 @@ func (s *Service) processSubmission(tx *gorm.DB, req SubmitExamRequest, contactE
 		return nil, ErrDNINotValid
 	}
 
-	match, err := CheckOfficialResultMatch(tx, OfficialResultMatchRequest{
+	official, err := FindOfficialResult(tx, OfficialResultMatchRequest{
 		ExamID:  req.ExamID,
 		Name:    trimmedName,
 		Surname: trimmedSurname,
@@ -292,7 +292,7 @@ func (s *Service) processSubmission(tx *gorm.DB, req SubmitExamRequest, contactE
 	if err != nil {
 		return nil, err
 	}
-	if !match {
+	if official == nil {
 		return nil, fmt.Errorf("este apartado es solo para personas que realizaron el examen oficial. Si no puedes registrar tus resultados y si te presentaste, contacta con nosotros: %s: %w", contactEmail, ErrOfficialResultMissing)
 	}
 
@@ -309,6 +309,12 @@ func (s *Service) processSubmission(tx *gorm.DB, req SubmitExamRequest, contactE
 	}
 	if existingCount > 0 {
 		return nil, errors.New("ya has enviado este examen")
+	}
+
+	// Si el resultado oficial ya trae nota, el alumno no responde preguntas: la
+	// entrega se crea con esa nota. Lo decide el servidor, no el cliente.
+	if official.Score != nil {
+		return s.processOfficialOnlySubmission(tx, req, official, candidate, examRepo, submissionRepo)
 	}
 
 	submission, breakdown, _, err := createSubmission(tx, req, candidate.ID)
@@ -336,6 +342,66 @@ func (s *Service) processSubmission(tx *gorm.DB, req SubmitExamRequest, contactE
 	}
 
 	return payload, nil
+}
+
+// processOfficialOnlySubmission crea la entrega de un alumno cuya fila oficial
+// ya trae nota: no hay respuestas que corregir, solo se registran sus datos.
+// Repite los controles que hace createSubmission (existencia del examen y
+// aceptación del sorteo) porque este camino no pasa por ella.
+func (s *Service) processOfficialOnlySubmission(tx *gorm.DB, req SubmitExamRequest, official *models.ExamOfficialResult, user *models.ExamUser, examRepo repository.ExamRepository, submissionRepo repository.SubmissionRepository) (*SubmissionPayload, error) {
+	var exam models.Exam
+	if err := tx.Preload("Groups").First(&exam, req.ExamID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrExamNotFound
+		}
+		return nil, err
+	}
+
+	if exam.RaffleEnabled && !req.RaffleAccepted {
+		return nil, ErrRaffleNotAccepted
+	}
+
+	resultType := official.ResultType
+	if strings.TrimSpace(resultType) == "" {
+		resultType = req.ResultType
+	}
+
+	score := *official.Score
+	emptyAnswers := models.AnswersJSON{}
+	submission := &models.UserExamSubmission{
+		UserID:             user.ID,
+		ExamID:             req.ExamID,
+		Score:              &score,
+		Merits:             req.Merits, // los oficiales se aplican en memoria; persistirlos bloquearía UpdateMerits
+		Percentile:         new(0.0),
+		SelectedResultType: resultType,
+		AnswersData:        &emptyAnswers,
+	}
+	if err := tx.Create(submission).Error; err != nil {
+		return nil, err
+	}
+
+	// Linkeamos la fila oficial al alumno para que el override y el percentil la
+	// encuentren, pero solo si nadie la había linkado ya (el flujo de Moodle
+	// puede haberla asignado a otra persona por matching difuso).
+	if official.UserID == nil {
+		if err := tx.Model(&models.ExamOfficialResult{}).
+			Where("id = ? AND user_id IS NULL", official.ID).
+			Update("user_id", user.ID).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	submission.User = *user
+	submission.Exam = exam
+
+	message := "Hemos registrado tus datos y tu nota oficial"
+	isPassed := evaluatePassStatus(submission.Score, exam.PassingThreshold)
+	if isPassed != nil && *isPassed {
+		message = "Enhorabuena, hay posibilidades de que pases el corte. El siguiente paso es meter tus méritos, cuando los tengas calculados añádelos"
+	}
+
+	return s.buildSubmissionPayload(tx, &exam, submission, message, nil, examRepo, submissionRepo)
 }
 
 func createSubmission(tx *gorm.DB, req SubmitExamRequest, userID uint) (*models.UserExamSubmission, *ScoreBreakdown, map[uint]string, error) {
@@ -577,20 +643,24 @@ func anySurnameWordMatches(userSurname, apellido1, apellido2 string) bool {
 	return false
 }
 
-func CheckOfficialResultMatch(db *gorm.DB, req OfficialResultMatchRequest) (bool, error) {
+// FindOfficialResult devuelve la fila oficial que corresponde al alumno, o nil
+// si no hay coincidencia. Cuando varias filas casan (p. ej. la misma persona en
+// dos convocatorias) se prefiere la que tiene nota y, a igualdad, el id menor,
+// para que la elección sea determinista.
+func FindOfficialResult(db *gorm.DB, req OfficialResultMatchRequest) (*models.ExamOfficialResult, error) {
 	if req.ExamID == 0 {
-		return false, ErrExamNotFound
+		return nil, ErrExamNotFound
 	}
 
 	name := helpers.NormalizeName(req.Name)
 	surname := helpers.NormalizeName(req.Surname)
 	if name == "" || surname == "" {
-		return false, nil
+		return nil, nil
 	}
 
 	fullDNI := NormalizeDNI(req.DNI)
 	if fullDNI == "" {
-		return false, nil
+		return nil, nil
 	}
 
 	// Camino rápido: dni_search es una columna generada STORED que guarda solo los
@@ -603,10 +673,10 @@ func CheckOfficialResultMatch(db *gorm.DB, req OfficialResultMatchRequest) (bool
 	var results []models.ExamOfficialResult
 	if err := db.Where("exam_id = ? AND dni_search IN ?", req.ExamID, candidates).
 		Find(&results).Error; err != nil {
-		return false, err
+		return nil, err
 	}
-	if matchOfficialRows(results, name, surname, fullDNI) {
-		return true, nil
+	if row := pickOfficialRow(results, name, surname, fullDNI); row != nil {
+		return row, nil
 	}
 
 	// Red de seguridad: una máscara que revelara dígitos NO contiguos no la
@@ -616,9 +686,9 @@ func CheckOfficialResultMatch(db *gorm.DB, req OfficialResultMatchRequest) (bool
 	// idéntico al del escaneo original.
 	var all []models.ExamOfficialResult
 	if err := db.Where("exam_id = ?", req.ExamID).Find(&all).Error; err != nil {
-		return false, err
+		return nil, err
 	}
-	return matchOfficialRows(all, name, surname, fullDNI), nil
+	return pickOfficialRow(all, name, surname, fullDNI), nil
 }
 
 // dniSearchCandidates devuelve cada tramo contiguo de dígitos del DNI completo
@@ -643,9 +713,13 @@ func dniSearchCandidates(fullDNI string) []string {
 	return out
 }
 
-// matchOfficialRows aplica la comprobación flexible de nombre/apellidos y la
-// máscara de DNI sobre las filas dadas, devolviendo true a la primera coincidencia.
-func matchOfficialRows(results []models.ExamOfficialResult, name, surname, fullDNI string) bool {
+// pickOfficialRow aplica la comprobación flexible de nombre/apellidos y la
+// máscara de DNI sobre las filas dadas y devuelve la mejor coincidencia: primero
+// las que traen nota, y entre esas la de id menor. Sin este orden la fila
+// elegida dependería del orden que devolviera MariaDB (la query no lleva ORDER
+// BY) y de si respondió el camino rápido o el escaneo completo.
+func pickOfficialRow(results []models.ExamOfficialResult, name, surname, fullDNI string) *models.ExamOfficialResult {
+	var best *models.ExamOfficialResult
 	for _, res := range results {
 		resName := helpers.NormalizeName(res.Nombre)
 		resApellido1 := helpers.NormalizeName(res.Apellido1)
@@ -671,12 +745,28 @@ func matchOfficialRows(results []models.ExamOfficialResult, name, surname, fullD
 
 		// DNI: comparamos el DNI completo contra la máscara oficial, respetando
 		// las posiciones que esa máscara revela (sin asumir una ventana fija).
-		if helpers.MatchMaskedDNI(res.DniMasked, fullDNI) {
-			return true
+		if !helpers.MatchMaskedDNI(res.DniMasked, fullDNI) {
+			continue
+		}
+
+		if betterOfficialRow(best, &res) {
+			best = &res
 		}
 	}
 
-	return false
+	return best
+}
+
+// betterOfficialRow decide si cand desplaza a la mejor fila encontrada hasta
+// ahora: gana la que tiene nota; a igualdad, la de id menor.
+func betterOfficialRow(best, cand *models.ExamOfficialResult) bool {
+	if best == nil {
+		return true
+	}
+	if (best.Score == nil) != (cand.Score == nil) {
+		return cand.Score != nil
+	}
+	return cand.ID < best.ID
 }
 
 // ScoringConfigFromExam resolves an exam's scoring fields (with nil pointers)
@@ -826,14 +916,18 @@ func evaluatePassStatus(score *float64, threshold *float64) *bool {
 }
 
 // applyOfficialScoreOverride overrides submission score/merits in memory when
-// a linked official result with a score exists.
-func applyOfficialScoreOverride(db *gorm.DB, exam *models.Exam, submission *models.UserExamSubmission) {
+// a linked official result with a score exists. Devuelve true si la fila oficial
+// encontrada trae nota. El orden es explícito (primero las filas con nota, luego
+// por id) porque un alumno puede estar linkado a más de una fila.
+func applyOfficialScoreOverride(db *gorm.DB, exam *models.Exam, submission *models.UserExamSubmission) bool {
 	if submission.UserID == 0 {
-		return
+		return false
 	}
 	var official models.ExamOfficialResult
-	if err := db.Where("exam_id = ? AND user_id = ?", exam.ID, submission.UserID).First(&official).Error; err != nil {
-		return
+	if err := db.Where("exam_id = ? AND user_id = ?", exam.ID, submission.UserID).
+		Order("score IS NULL, id").
+		First(&official).Error; err != nil {
+		return false
 	}
 	if official.Score != nil {
 		v := *official.Score
@@ -843,10 +937,18 @@ func applyOfficialScoreOverride(db *gorm.DB, exam *models.Exam, submission *mode
 		v := *official.Merits
 		submission.Merits = &v
 	}
+	return official.Score != nil
 }
 
 func (s *Service) buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submission *models.UserExamSubmission, message string, breakdown *ScoreBreakdown, examRepo repository.ExamRepository, submissionRepo repository.SubmissionRepository) (*SubmissionPayload, error) {
-	applyOfficialScoreOverride(tx, exam, submission)
+	hasOfficialScore := applyOfficialScoreOverride(tx, exam, submission)
+
+	// Entrega "solo oficial": la nota viene del resultado oficial y no hay
+	// respuestas que corregir. Calcular el breakdown daría 0 aciertos y N en
+	// blanco (y tarjetas de grupo a cero), contradiciendo la nota que se muestra,
+	// así que se omiten contadores, grupos y revisión de respuestas.
+	isOfficialOnly := hasOfficialScore &&
+		(submission.AnswersData == nil || len(*submission.AnswersData) == 0)
 
 	// In absolute mode the effective maximum is points_per_correct * active
 	// questions, not the stored legacy MaxScore (default 100). This keeps the
@@ -854,16 +956,19 @@ func (s *Service) buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submiss
 	// Detect grouped scoring. On the submit path the breakdown carries the group
 	// outcomes; on the check path breakdown is nil, so recompute from the stored
 	// answers (fetchScoreBreakdownFromDB loads the groups itself).
+	// Sin respuestas no hay outcomes por grupo que mostrar.
 	var groupOutcomes []scoring.GroupOutcome
-	if breakdown != nil && len(breakdown.Groups) > 0 {
-		groupOutcomes = breakdown.Groups
-	} else if len(exam.Groups) > 0 {
-		bd, err := fetchScoreBreakdownFromDB(tx, exam, submission.AnswersData)
-		if err != nil {
-			return nil, err
-		}
-		if bd != nil {
-			groupOutcomes = bd.Groups
+	if !isOfficialOnly {
+		if breakdown != nil && len(breakdown.Groups) > 0 {
+			groupOutcomes = breakdown.Groups
+		} else if len(exam.Groups) > 0 {
+			bd, err := fetchScoreBreakdownFromDB(tx, exam, submission.AnswersData)
+			if err != nil {
+				return nil, err
+			}
+			if bd != nil {
+				groupOutcomes = bd.Groups
+			}
 		}
 	}
 	isGrouped := len(groupOutcomes) > 0
@@ -872,7 +977,15 @@ func (s *Service) buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submiss
 	// MaxScore (default 100): grouped = sum of group maxima, absolute =
 	// points_per_correct * active questions.
 	effectiveMax := exam.MaxScore
-	if isGrouped {
+	if isOfficialOnly && len(exam.Groups) > 0 {
+		// En agrupado la base sigue siendo la suma de valoraciones de grupo,
+		// aunque no haya outcomes que calcular.
+		var sum float64
+		for _, g := range exam.Groups {
+			sum += g.MaxScore
+		}
+		effectiveMax = &sum
+	} else if isGrouped {
 		var sum float64
 		if exam.ScoringMode == "xunta" {
 			// Xunta group outcomes carry the question count in MaxScore (for the
@@ -902,6 +1015,7 @@ func (s *Service) buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submiss
 		MaxScore:           effectiveMax,
 		SecondaryMaxScores: exam.SecondaryMaxScores,
 		Groups:             groupOutcomes,
+		IsOfficialOnly:     isOfficialOnly,
 	}
 
 	if exam.ShowScore {
@@ -918,7 +1032,7 @@ func (s *Service) buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submiss
 		payload.TotalSubmissions = total
 	}
 
-	if exam.ShowScoreFull {
+	if exam.ShowScoreFull && !isOfficialOnly {
 		var breakdownData *ScoreBreakdown
 		if breakdown != nil {
 			breakdownCopy := *breakdown
@@ -939,7 +1053,7 @@ func (s *Service) buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submiss
 		}
 	}
 
-	if exam.ValidatedTribunal {
+	if exam.ValidatedTribunal && !isOfficialOnly {
 		review, err := buildAnswersReview(tx, exam, submission)
 		if err != nil {
 			return nil, err

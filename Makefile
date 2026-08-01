@@ -16,6 +16,11 @@
 
 SHELL := /bin/bash
 
+# make usa un bash no interactivo, que no carga nvm desde ~/.zshrc / ~/.bashrc.
+# Sin esto, en WSL `npm` resuelve al npm de Windows en /mnt/c y la instalacion
+# revienta con EISDIR/EPERM. NVM_USE carga nvm en el target que lo necesite.
+NVM_USE := export NVM_DIR="$$HOME/.nvm"; [ -s "$$NVM_DIR/nvm.sh" ] && . "$$NVM_DIR/nvm.sh" >/dev/null;
+
 # Carga deploy.env si existe. Las variables quedan disponibles para los targets
 # y tambien se exportan a los subprocesos (scp/ssh).
 -include deploy.env
@@ -37,7 +42,7 @@ dev-backend:
 	cd backend && go run ./cmd/api
 
 dev-frontend:
-	cd frontend-exam && npm run dev
+	$(NVM_USE) cd frontend-exam && npm run dev
 
 deploy: backend frontend
 
@@ -57,7 +62,7 @@ PROD_API_URL := https://simulador.opositatcae.es/api
 
 build-frontend:
 	@echo "==> Build Astro (PUBLIC_API_URL=$(PROD_API_URL))"
-	cd frontend-exam && PUBLIC_API_URL='$(PROD_API_URL)' npm run build
+	$(NVM_USE) cd frontend-exam && PUBLIC_API_URL='$(PROD_API_URL)' npm run build
 	@echo "==> Empaquetando dist en dist.tar"
 	cd frontend-exam && tar -cf dist.tar dist
 

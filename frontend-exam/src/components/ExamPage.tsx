@@ -95,6 +95,9 @@ export default function ExamPage({
   } = useAnswerManagement(questions);
   const hasActiveQuestions = entries.some(({ question }) => question.is_active !== false);
   const eligibility = useEligibilityCheck(studentName, studentSurname, dni, examId);
+  // Si su resultado oficial ya trae nota, no hay examen que hacer: solo confirma
+  // sus datos. El backend decide lo mismo por su cuenta al recibir la entrega.
+  const { hasOfficialScore, hasOfficialMerits } = eligibility;
 
   useEffect(() => {
     dispatchExamUi({ type: 'RESET' });
@@ -384,7 +387,7 @@ export default function ExamPage({
           eligibilityError={eligibility.error}
         />
 
-        {!hasPreviousSubmission && (
+        {!hasPreviousSubmission && !hasOfficialScore && (
           <div className="mt-6 mb-6">
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Tipo de convocatoria
@@ -417,26 +420,36 @@ export default function ExamPage({
 
         {!hasPreviousSubmission && (
           <>
-            <QuestionList
-              entries={entries}
-              userAnswers={userAnswers}
-              onSetAnswer={setAnswer}
-              onClearAnswer={clearAnswer}
-            />
+            {hasOfficialScore ? (
+              <p className="mt-6 rounded-lg border border-brand-blue/50 bg-brand-blue/10 p-4 text-sm text-brand-blue">
+                Ya tenemos tu nota del examen oficial, así que no necesitas responder las preguntas.
+                Solo confirma tus datos {hasOfficialMerits ? '' : 'y, si los tienes calculados, tus méritos '}
+                para registrar tu resultado.
+              </p>
+            ) : (
+              <QuestionList
+                entries={entries}
+                userAnswers={userAnswers}
+                onSetAnswer={setAnswer}
+                onClearAnswer={clearAnswer}
+              />
+            )}
 
-            <div className="mt-8 mb-6 p-4 rounded-lg bg-[#2a2d33] border border-[#555]">
-               <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Puntuación de méritos (Opcional)
-               </label>
-               <input
-                 type="number"
-                 step="0.001"
-                 min="0"
-                 placeholder="0"
-                 name="merits"
-                 className="w-full px-4 py-3 rounded-lg bg-[#1f2229] border border-[#555] text-white focus:ring-2 focus:ring-brand-pink focus:border-transparent transition-all"
-               />
-            </div>
+            {!hasOfficialMerits && (
+              <div className="mt-8 mb-6 p-4 rounded-lg bg-[#2a2d33] border border-[#555]">
+                 <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Puntuación de méritos (Opcional)
+                 </label>
+                 <input
+                   type="number"
+                   step="0.001"
+                   min="0"
+                   placeholder="0"
+                   name="merits"
+                   className="w-full px-4 py-3 rounded-lg bg-[#1f2229] border border-[#555] text-white focus:ring-2 focus:ring-brand-pink focus:border-transparent transition-all"
+                 />
+              </div>
+            )}
 
             <div className="mt-8 space-top-3 text-sm">
               <label htmlFor="accepts_marketing" className="flex items-start gap-3 text-gray-200">
@@ -502,7 +515,13 @@ export default function ExamPage({
             className="btn-brand w-full text-lg mt-4 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
             disabled={!eligibility.allowed || eligibility.checking || isSubmitting}
           >
-            {eligibility.checking ? 'Comprobando...' : isSubmitting ? 'Enviando...' : 'Entregar Examen'}
+            {eligibility.checking
+              ? 'Comprobando...'
+              : isSubmitting
+                ? 'Enviando...'
+                : hasOfficialScore
+                  ? 'Confirmar mis datos'
+                  : 'Entregar Examen'}
           </button>
         )}
         {formError && (
