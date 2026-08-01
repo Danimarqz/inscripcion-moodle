@@ -422,9 +422,7 @@ export default function ExamPage({
           <>
             {hasOfficialScore ? (
               <p className="mt-6 rounded-lg border border-brand-blue/50 bg-brand-blue/10 p-4 text-sm text-brand-blue">
-                Ya tenemos tu nota del examen oficial, así que no necesitas responder las preguntas.
-                Solo confirma tus datos {hasOfficialMerits ? '' : 'y, si los tienes calculados, tus méritos '}
-                para registrar tu resultado.
+                PUBLICADAS NOTAS OFICIALES <br></br> <br></br>{hasOfficialMerits ? '' : 'Completa tus MÉRITOS y verás tu POSICIÓN en relación al resto de opositores.'}
               </p>
             ) : (
               <QuestionList
