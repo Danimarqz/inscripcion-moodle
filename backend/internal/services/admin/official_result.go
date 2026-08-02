@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/inscripcion-moodle/go-backend/internal/models"
+	"time"
 )
 
 func buildOfficialResultsOrder(orderBy, orderDir string) string {
@@ -54,7 +55,9 @@ func buildOfficialResultsOrder(orderBy, orderDir string) string {
 
 func (s *Service) ListOfficialResults(examID uint, limit, offset int, resultType, search string, hasUser *bool, orderBy, orderDir string) (*OfficialResultsList, error) {
 	orderClause := buildOfficialResultsOrder(orderBy, orderDir)
-	results, total, err := s.officialRepo.List(context.Background(), s.db, examID, resultType, search, hasUser, offset, limit, orderClause)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	results, total, err := s.officialRepo.List(queryCtx, s.db, examID, resultType, search, hasUser, offset, limit, orderClause)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +88,9 @@ func (s *Service) CreateOfficialResult(examID uint, req CreateOfficialResultRequ
 		return nil, err
 	}
 
-	existing, err := s.officialRepo.FindByExamAndDNI(context.Background(), s.db, examID, newResult.DniMasked)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	existing, err := s.officialRepo.FindByExamAndDNI(queryCtx, s.db, examID, newResult.DniMasked)
 	if err == nil && existing != nil {
 		return nil, ErrOfficialResultExists
 	}
@@ -106,7 +111,9 @@ func (s *Service) CreateOfficialResult(examID uint, req CreateOfficialResultRequ
 	newResult.Score = req.Score
 	newResult.Merits = req.Merits
 
-	if err := s.officialRepo.Create(context.Background(), s.db, &newResult); err != nil {
+	queryCtx, queryCancel = context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	if err := s.officialRepo.Create(queryCtx, s.db, &newResult); err != nil {
 		return nil, err
 	}
 
@@ -114,7 +121,9 @@ func (s *Service) CreateOfficialResult(examID uint, req CreateOfficialResultRequ
 }
 
 func (s *Service) UpdateOfficialResult(id uint, req EditOfficialResultRequest) (*models.ExamOfficialResult, error) {
-	result, err := s.officialRepo.FindByID(context.Background(), s.db, id)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	result, err := s.officialRepo.FindByID(queryCtx, s.db, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrOfficialResultNotFound
@@ -146,7 +155,9 @@ func (s *Service) UpdateOfficialResult(id uint, req EditOfficialResultRequest) (
 		return nil, ErrInvalidOfficialResult
 	}
 
-	if err := s.officialRepo.Update(context.Background(), s.db, result); err != nil {
+	queryCtx, queryCancel = context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	if err := s.officialRepo.Update(queryCtx, s.db, result); err != nil {
 		return nil, err
 	}
 
@@ -154,7 +165,9 @@ func (s *Service) UpdateOfficialResult(id uint, req EditOfficialResultRequest) (
 }
 
 func (s *Service) DeleteOfficialResult(id uint) error {
-	_, err := s.officialRepo.FindByID(context.Background(), s.db, id)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	_, err := s.officialRepo.FindByID(queryCtx, s.db, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrOfficialResultNotFound
@@ -162,5 +175,7 @@ func (s *Service) DeleteOfficialResult(id uint) error {
 		return err
 	}
 
-	return s.officialRepo.Delete(context.Background(), s.db, id)
+	queryCtx, queryCancel = context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	return s.officialRepo.Delete(queryCtx, s.db, id)
 }

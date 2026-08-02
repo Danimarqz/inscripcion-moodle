@@ -29,9 +29,10 @@ type Server struct {
 	httpServer *http.Server
 	db         *gorm.DB
 	cache      *redis.Client
+	ctx        context.Context
 }
 
-func New(cfg *config.Config) (*Server, error) {
+func New(ctx context.Context, cfg *config.Config) (*Server, error) {
 	db, err := storage.NewMariaDB(cfg)
 	if err != nil {
 		return nil, err
@@ -76,7 +77,7 @@ func New(cfg *config.Config) (*Server, error) {
 		MaxAge:           300,
 	}))
 
-	rateLimiter := middleware.NewRateLimiter(cfg.RateLimitRequests, cfg.RateLimitWindow)
+	rateLimiter := middleware.NewRateLimiter(ctx, cfg.RateLimitRequests, cfg.RateLimitWindow)
 	router.Use(rateLimiter.Middleware)
 
 	router.Post("/register", registerController.Register)
@@ -108,6 +109,7 @@ func New(cfg *config.Config) (*Server, error) {
 		httpServer: httpServer,
 		db:         db,
 		cache:      cache,
+		ctx:        ctx,
 	}, nil
 }
 

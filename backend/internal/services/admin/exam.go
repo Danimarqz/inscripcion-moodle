@@ -12,14 +12,19 @@ import (
 
 	"github.com/inscripcion-moodle/go-backend/internal/models"
 	examservice "github.com/inscripcion-moodle/go-backend/internal/services/exam"
+	"time"
 )
 
 func (s *Service) ListExams() ([]models.Exam, error) {
-	return s.examRepo.ListExams(context.Background(), s.db)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	return s.examRepo.ListExams(queryCtx, s.db)
 }
 
 func (s *Service) GetExam(examID uint) (*models.Exam, error) {
-	exam, err := s.examRepo.FindExamByIDLite(context.Background(), s.db, examID)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	exam, err := s.examRepo.FindExamByIDLite(queryCtx, s.db, examID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrExamNotFound
@@ -27,20 +32,30 @@ func (s *Service) GetExam(examID uint) (*models.Exam, error) {
 		return nil, err
 	}
 	if exam.PercentileGroup != nil {
-		s.db.Model(&models.Exam{}).
-			Where("percentile_group = ? AND id <> ?", *exam.PercentileGroup, examID).
-			Pluck("id", &exam.AssociatedExamIDs)
+		queryCtx, queryCancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer queryCancel()
+		ids, err := s.examRepo.FindAssociatedExamIDs(queryCtx, s.db, examID, *exam.PercentileGroup)
+		if err != nil {
+			return nil, err
+		}
+		exam.AssociatedExamIDs = ids
 	}
-	if s.db != nil {
-		s.db.Where("exam_id = ?", examID).Order("position asc").Find(&exam.Groups)
+	queryCtx, queryCancel = context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	groups, err := s.examRepo.FindGroupsByExamID(queryCtx, s.db, examID)
+	if err != nil {
+		return nil, err
 	}
+	exam.Groups = groups
 	return exam, nil
 }
 
 // GetExamQuestions returns an exam's questions, fetched on demand so the exam
 // config read (GetExam) can stay lightweight.
 func (s *Service) GetExamQuestions(examID uint) ([]models.Question, error) {
-	return s.examRepo.FindQuestionsByExamID(context.Background(), s.db, examID)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	return s.examRepo.FindQuestionsByExamID(queryCtx, s.db, examID)
 }
 
 // normalizeMode maps an empty scoring mode to the legacy default so the
@@ -86,7 +101,9 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 		return nil, ErrExamNoQuestions
 	}
 
-	exists, err := s.examRepo.CountByName(context.Background(), s.db, req.Name)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	exists, err := s.examRepo.CountByName(queryCtx, s.db, req.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +164,9 @@ func (s *Service) CreateExam(req CreateExamRequest) (*models.Exam, error) {
 		return nil, ErrActiveQuestions
 	}
 
-	if err := s.examRepo.CreateExam(context.Background(), s.db, exam); err != nil {
+	queryCtx, queryCancel = context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	if err := s.examRepo.CreateExam(queryCtx, s.db, exam); err != nil {
 		return nil, err
 	}
 
@@ -224,7 +243,9 @@ func validateQuestionNumbers(inputs []QuestionInput) error {
 }
 
 func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, error) {
-	exam, err := s.examRepo.FindExamByID(context.Background(), s.db, examID)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	exam, err := s.examRepo.FindExamByID(queryCtx, s.db, examID)
 	if err != nil {
 		return nil, err
 	}
@@ -345,7 +366,9 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 	}
 
 	if len(toDelete) > 0 {
-		if err := s.questionRepo.DeleteQuestions(context.Background(), s.db, toDelete); err != nil {
+		queryCtx, queryCancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer queryCancel()
+		if err := s.questionRepo.DeleteQuestions(queryCtx, s.db, toDelete); err != nil {
 			return nil, err
 		}
 	}
@@ -389,25 +412,33 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 	}
 
 	exam.Questions = updatedQuestions
-	if err := s.examRepo.UpdateExam(context.Background(), s.db, exam); err != nil {
+	queryCtx, queryCancel = context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	if err := s.examRepo.UpdateExam(queryCtx, s.db, exam); err != nil {
 		return nil, err
 	}
 
 	if req.SubtractsPoints != nil || req.PenaltyValue != nil || req.MaxScore != nil ||
 		req.ScoringMode != nil || req.PointsPerCorrect != nil || req.PointsPerWrong != nil ||
 		req.WrongBlockSize != nil || len(req.Questions) > 0 || len(req.Groups) > 0 {
-		if err := s.examRepo.RecalculateScores(context.Background(), s.db, exam.ID); err != nil {
+		queryCtx, queryCancel = context.WithTimeout(context.Background(), 3*time.Minute)
+		defer queryCancel()
+		if err := s.examRepo.RecalculateScores(queryCtx, s.db, exam.ID); err != nil {
 			return nil, fmt.Errorf("failed to recalculate scores: %w", err)
 		}
 	}
 
 	if req.AssociatedExamIDs != nil {
-		affected, err := s.examRepo.SetPercentileGroup(context.Background(), s.db, exam.ID, *req.AssociatedExamIDs)
+		queryCtx, queryCancel = context.WithTimeout(context.Background(), 3*time.Minute)
+		defer queryCancel()
+		affected, err := s.examRepo.SetPercentileGroup(queryCtx, s.db, exam.ID, *req.AssociatedExamIDs)
 		if err != nil {
 			return nil, fmt.Errorf("failed to set percentile group: %w", err)
 		}
 		for _, id := range affected {
-			if err := s.examRepo.RecalculatePercentiles(context.Background(), s.db, id); err != nil {
+			queryCtx, queryCancel = context.WithTimeout(context.Background(), 3*time.Minute)
+			defer queryCancel()
+			if err := s.examRepo.RecalculatePercentiles(queryCtx, s.db, id); err != nil {
 				return nil, fmt.Errorf("failed to recalculate percentiles: %w", err)
 			}
 		}
@@ -417,8 +448,13 @@ func (s *Service) UpdateExam(examID uint, req EditExamRequest) (*models.Exam, er
 }
 
 func (s *Service) DeleteExam(examID uint) error {
+	// Timeout generoso: dentro de la transaccion se borran submissions, preguntas,
+	// resultados oficiales y el examen.
+	// Un timeout mas ajustado provocaria rollback de toda la operacion, que es caro
+	// pero preferible a dejar la request colgada indefinidamente.
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
 	return s.db.Transaction(func(tx *gorm.DB) error {
-		ctx := context.Background()
 		if err := s.submissionRepo.DeleteByExamID(ctx, tx, examID); err != nil {
 			return err
 		}

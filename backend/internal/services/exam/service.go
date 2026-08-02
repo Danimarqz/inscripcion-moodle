@@ -587,7 +587,9 @@ func (s *Service) UpdateMerits(req UpdateMeritsRequest) (*UpdateMeritsResponse, 
 	}
 
 	if req.Merits != nil && threshold != nil {
-		pos, total, err := s.submissionRepo.GetMeritsRanking(context.Background(), s.db, req.ExamID, submission.ID, *threshold, submission.Exam.ExamWeight, submission.Exam.SkipWeights)
+		queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer queryCancel()
+		pos, total, err := s.submissionRepo.GetMeritsRanking(queryCtx, s.db, req.ExamID, submission.ID, *threshold, submission.Exam.ExamWeight, submission.Exam.SkipWeights)
 		if err == nil {
 			resp.MeritsPosition = pos
 			resp.MeritsTotal = total
@@ -888,7 +890,9 @@ func ComputePassingThreshold(db *gorm.DB, exam *models.Exam, examRepo repository
 		if exam.PassingCriteriaValue == nil {
 			return nil
 		}
-		avg, err := examRepo.GetTop10AverageScore(context.Background(), db, exam.ID)
+		queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer queryCancel()
+		avg, err := examRepo.GetTop10AverageScore(queryCtx, db, exam.ID)
 		if err != nil || avg == nil {
 			return nil
 		}
@@ -1043,7 +1047,9 @@ func (s *Service) buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submiss
 		}
 		effectiveMax = &sum
 	} else if exam.ScoringMode == "absolute" && exam.PointsPerCorrect != nil {
-		n, err := examRepo.CountActiveQuestions(context.Background(), tx, exam.ID)
+		queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer queryCancel()
+		n, err := examRepo.CountActiveQuestions(queryCtx, tx, exam.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -1134,7 +1140,9 @@ func (s *Service) buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submiss
 	}
 
 	if payload.CanEditMerits && submission.Merits != nil && threshold != nil {
-		pos, total, err := submissionRepo.GetMeritsRanking(context.Background(), tx, exam.ID, submission.ID, *threshold, exam.ExamWeight, exam.SkipWeights)
+		queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer queryCancel()
+		pos, total, err := submissionRepo.GetMeritsRanking(queryCtx, tx, exam.ID, submission.ID, *threshold, exam.ExamWeight, exam.SkipWeights)
 		if err == nil {
 			payload.MeritsPosition = pos
 			payload.MeritsTotal = total

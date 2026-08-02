@@ -45,31 +45,31 @@ type OfficialResultMatchResponse struct {
 }
 
 type SubmissionPayload struct {
-	Message            string                 `json:"message"`
-	Score              *float64               `json:"score"`
-	Merits             *float64               `json:"merits"`
-	WeightedScore      *float64               `json:"weighted_score,omitempty"`
-	ExamWeight         *float64               `json:"exam_weight,omitempty"`
-	Percentile         *float64               `json:"percentile"`
-	Position           *int                   `json:"position"`
-	TotalSubmissions   *int                   `json:"total_submissions"`
-	CorrectAnswers     *int                   `json:"correct_answers"`
-	TotalQuestions     *int                   `json:"total_questions"`
-	IncorrectAnswers   *int                   `json:"incorrect_answers"`
-	NotAnswered        *int                   `json:"not_answered"`
-	AnswersReview      []AnswerReview         `json:"answers_review,omitempty"`
-	MaxScore           *float64               `json:"max_score,omitempty"`
-	SecondaryMaxScores string                 `json:"secondary_max_scores,omitempty"`
-	IsPassed           *bool                  `json:"is_passed"`
-	CanEditMerits      bool                   `json:"can_edit_merits"`
+	Message            string         `json:"message"`
+	Score              *float64       `json:"score"`
+	Merits             *float64       `json:"merits"`
+	WeightedScore      *float64       `json:"weighted_score,omitempty"`
+	ExamWeight         *float64       `json:"exam_weight,omitempty"`
+	Percentile         *float64       `json:"percentile"`
+	Position           *int           `json:"position"`
+	TotalSubmissions   *int           `json:"total_submissions"`
+	CorrectAnswers     *int           `json:"correct_answers"`
+	TotalQuestions     *int           `json:"total_questions"`
+	IncorrectAnswers   *int           `json:"incorrect_answers"`
+	NotAnswered        *int           `json:"not_answered"`
+	AnswersReview      []AnswerReview `json:"answers_review,omitempty"`
+	MaxScore           *float64       `json:"max_score,omitempty"`
+	SecondaryMaxScores string         `json:"secondary_max_scores,omitempty"`
+	IsPassed           *bool          `json:"is_passed"`
+	CanEditMerits      bool           `json:"can_edit_merits"`
 	// AllowMeritsEdit permite reescribir los méritos ya guardados tantas veces
 	// como quiera el alumno.
-	AllowMeritsEdit bool `json:"allow_merits_edit"`
-	MaxMerits          *float64               `json:"max_merits,omitempty"`
-	MeritsPosition     *int                   `json:"merits_position,omitempty"`
-	MeritsTotal        *int                   `json:"merits_total,omitempty"`
-	PassedCount        *int                   `json:"passed_count,omitempty"`
-	Groups             []scoring.GroupOutcome `json:"groups,omitempty"`
+	AllowMeritsEdit bool                   `json:"allow_merits_edit"`
+	MaxMerits       *float64               `json:"max_merits,omitempty"`
+	MeritsPosition  *int                   `json:"merits_position,omitempty"`
+	MeritsTotal     *int                   `json:"merits_total,omitempty"`
+	PassedCount     *int                   `json:"passed_count,omitempty"`
+	Groups          []scoring.GroupOutcome `json:"groups,omitempty"`
 	// IsOfficialOnly marca las entregas que no llevan respuestas porque la nota
 	// viene del resultado oficial. El frontend no recibe contadores ni revisión
 	// de respuestas en ese caso.

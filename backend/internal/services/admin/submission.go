@@ -7,25 +7,35 @@ import (
 	"log"
 	"maps"
 	"strings"
+	"time"
 
 	"github.com/inscripcion-moodle/go-backend/internal/models"
 	"github.com/inscripcion-moodle/go-backend/internal/scoring"
 	examservice "github.com/inscripcion-moodle/go-backend/internal/services/exam"
 )
 
+// recalcSem limits concurrent recalculate goroutines. Max 5.
+var recalcSem = make(chan struct{}, 5)
+
 func (s *Service) DeleteSubmission(submissionID uint) (examID uint, err error) {
-	submission, err := s.submissionRepo.FindByID(context.Background(), s.db, submissionID)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	submission, err := s.submissionRepo.FindByID(queryCtx, s.db, submissionID)
 	if err != nil {
 		return 0, err
 	}
-	if err := s.submissionRepo.Delete(context.Background(), s.db, submissionID); err != nil {
+	queryCtx, queryCancel = context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	if err := s.submissionRepo.Delete(queryCtx, s.db, submissionID); err != nil {
 		return 0, err
 	}
 	return submission.ExamID, nil
 }
 
 func (s *Service) GetSubmission(submissionID uint) (*models.UserExamSubmission, error) {
-	return s.submissionRepo.FindByID(context.Background(), s.db, submissionID)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	return s.submissionRepo.FindByID(queryCtx, s.db, submissionID)
 }
 
 // GetSubmissionBreakdown computes the score breakdown for a single submission,
@@ -34,12 +44,16 @@ func (s *Service) GetSubmission(submissionID uint) (*models.UserExamSubmission, 
 // are read exclusively from submission.AnswersData (jsonb). Returns nil when the
 // exam has no active, non-cancelled questions.
 func (s *Service) GetSubmissionBreakdown(submissionID uint) (*SubmissionBreakdown, error) {
-	submission, err := s.submissionRepo.FindByID(context.Background(), s.db, submissionID)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	submission, err := s.submissionRepo.FindByID(queryCtx, s.db, submissionID)
 	if err != nil {
 		return nil, err
 	}
 
-	exam, err := s.examRepo.FindExamByID(context.Background(), s.db, submission.ExamID)
+	queryCtx, queryCancel = context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	exam, err := s.examRepo.FindExamByID(queryCtx, s.db, submission.ExamID)
 	if err != nil {
 		return nil, err
 	}
@@ -125,12 +139,14 @@ func evaluateFlatPassStatus(score *float64, threshold *float64) *bool {
 }
 
 func (s *Service) UpdateSubmission(submissionID uint, req SubmissionUpdateRequest) (*models.UserExamSubmission, error) {
-	submission, err := s.submissionRepo.FindByID(context.Background(), s.db, submissionID)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	submission, err := s.submissionRepo.FindByID(queryCtx, s.db, submissionID)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := s.updateUserFromSubmission(submission.User, req); err != nil {
+	if err := s.updateUserFromSubmission(&submission.User, req); err != nil {
 		return nil, err
 	}
 
@@ -142,19 +158,26 @@ func (s *Service) UpdateSubmission(submissionID uint, req SubmissionUpdateReques
 		submission.Merits = req.Merits
 	}
 
-	if err := s.submissionRepo.Update(context.Background(), s.db, submission); err != nil {
+	queryCtx, queryCancel = context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	if err := s.submissionRepo.Update(queryCtx, s.db, submission); err != nil {
 		return nil, err
 	}
 
 	go s.recalculateScoresForSubmissionAsync(submission.ExamID, submission.ID)
 
-	return s.submissionRepo.FindByID(context.Background(), s.db, submissionID)
+	queryCtx, queryCancel = context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	return s.submissionRepo.FindByID(queryCtx, s.db, submissionID)
 }
 
 // recalculateScoresForSubmissionAsync runs the score and percentile recalculation in a separate
 // transaction and context, making it safe to run in a background goroutine.
 // It optimizes by recalculating the score for a single submission, but recalculates percentiles for all.
 func (s *Service) recalculateScoresForSubmissionAsync(examID uint, submissionID uint) {
+	recalcSem <- struct{}{}
+	defer func() { <-recalcSem }()
+
 	ctx := context.Background()
 
 	tx := s.db.WithContext(ctx).Begin()
@@ -174,26 +197,26 @@ func (s *Service) recalculateScoresForSubmissionAsync(examID uint, submissionID 
 	}
 }
 
-func (s *Service) updateUserFromSubmission(user models.ExamUser, req SubmissionUpdateRequest) error {
-	updated := false
+func (s *Service) updateUserFromSubmission(user *models.ExamUser, req SubmissionUpdateRequest) error {
+	updates := make(map[string]any)
 	if req.Name != "" && user.Name != req.Name {
 		user.Name = req.Name
-		updated = true
+		updates["name"] = req.Name
 	}
 	if req.Surname != "" && user.Surname != req.Surname {
 		user.Surname = req.Surname
-		updated = true
+		updates["surname"] = req.Surname
 	}
 	if req.Email != "" && user.Email != req.Email {
 		user.Email = req.Email
-		updated = true
+		updates["email"] = req.Email
 	}
 	if req.DNI != "" && user.DNI != req.DNI {
 		user.DNI = req.DNI
-		updated = true
+		updates["dni"] = req.DNI
 	}
-	if updated && user.ID != 0 {
-		if err := s.db.Model(&user).Updates(user).Error; err != nil {
+	if len(updates) > 0 && user.ID != 0 {
+		if err := s.db.Model(&models.ExamUser{ID: user.ID}).Updates(updates).Error; err != nil {
 			return err
 		}
 	}
@@ -220,14 +243,18 @@ func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats b
 
 	// includeAnswers=true so we can compute the per-row breakdown server-side.
 	// Answers are stripped from each item before serialization (kept off the wire).
-	subs, err := s.submissionRepo.List(context.Background(), s.db, examID, limit, offset, search, orderClause, moodleSynced, resultType, true)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	subs, err := s.submissionRepo.List(queryCtx, s.db, examID, limit, offset, search, orderClause, moodleSynced, resultType, true)
 	if err != nil {
 		return nil, err
 	}
 
 	items := make([]AdminSubmissionListItem, 0, len(subs))
 	if len(subs) > 0 {
-		exam, err := s.examRepo.FindExamByID(context.Background(), s.db, examID)
+		queryCtx, queryCancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer queryCancel()
+		exam, err := s.examRepo.FindExamByID(queryCtx, s.db, examID)
 		if err != nil {
 			return nil, err
 		}
@@ -249,12 +276,16 @@ func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats b
 		Submissions: items,
 	}
 	if includeStats {
-		totalCount, err := s.submissionRepo.Count(context.Background(), s.db, []uint{examID}, moodleSynced, resultType)
+		queryCtx, queryCancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer queryCancel()
+		totalCount, err := s.submissionRepo.Count(queryCtx, s.db, []uint{examID}, moodleSynced, resultType)
 		if err != nil {
 			return nil, err
 		}
 
-		avg, avgOfficial, _, err := s.submissionRepo.GetAverageScore(context.Background(), s.db, examID, moodleSynced, resultType, false)
+		queryCtx, queryCancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer queryCancel()
+		avg, avgOfficial, _, err := s.submissionRepo.GetAverageScore(queryCtx, s.db, examID, moodleSynced, resultType, false)
 		if err != nil {
 			return nil, err
 		}
@@ -266,12 +297,16 @@ func (s *Service) ListSubmissions(examID uint, limit, offset int, includeStats b
 
 		// Always compute the group aggregate too (cheap) so the "compare against
 		// group" toggle is a client-side switch — no extra round-trip per toggle.
-		groupAvg, groupOfficial, examIDs, err := s.submissionRepo.GetAverageScore(context.Background(), s.db, examID, moodleSynced, resultType, true)
+		queryCtx, queryCancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer queryCancel()
+		groupAvg, groupOfficial, examIDs, err := s.submissionRepo.GetAverageScore(queryCtx, s.db, examID, moodleSynced, resultType, true)
 		if err != nil {
 			return nil, err
 		}
 		if len(examIDs) > 1 {
-			groupCount, err := s.submissionRepo.Count(context.Background(), s.db, examIDs, moodleSynced, resultType)
+			queryCtx, queryCancel = context.WithTimeout(context.Background(), 30*time.Second)
+			defer queryCancel()
+			groupCount, err := s.submissionRepo.Count(queryCtx, s.db, examIDs, moodleSynced, resultType)
 			if err != nil {
 				return nil, err
 			}

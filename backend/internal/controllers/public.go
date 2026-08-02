@@ -109,8 +109,14 @@ func (h *PublicController) SubmitExam(w http.ResponseWriter, r *http.Request) {
 			log.Printf("failed to close request body: %v", err)
 		}
 	}()
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB
 	var req examservice.SubmitExamRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, constants.InvalidRequest, http.StatusBadRequest)
 		return
 	}
@@ -202,8 +208,14 @@ func (h *PublicController) CheckSubmission(w http.ResponseWriter, r *http.Reques
 			log.Printf("failed to close request body: %v", err)
 		}
 	}()
+	r.Body = http.MaxBytesReader(w, r.Body, 512<<10) // 512 KiB
 	var req examservice.SubmissionCheckRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, constants.InvalidRequest, http.StatusBadRequest)
 		return
 	}
@@ -249,8 +261,14 @@ func (h *PublicController) CheckOfficialResultMatch(w http.ResponseWriter, r *ht
 			log.Printf("failed to close request body: %v", err)
 		}
 	}()
+	r.Body = http.MaxBytesReader(w, r.Body, 512<<10) // 512 KiB
 	var req examservice.OfficialResultMatchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, constants.InvalidRequest, http.StatusBadRequest)
 		return
 	}
@@ -309,8 +327,14 @@ func (h *PublicController) UpdateMerits(w http.ResponseWriter, r *http.Request) 
 			log.Printf("failed to close request body: %v", err)
 		}
 	}()
+	r.Body = http.MaxBytesReader(w, r.Body, 512<<10) // 512 KiB
 	var req examservice.UpdateMeritsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, constants.InvalidRequest, http.StatusBadRequest)
 		return
 	}

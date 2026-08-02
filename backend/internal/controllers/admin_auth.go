@@ -204,7 +204,7 @@ func (h *AdminController) requireAuth(next http.Handler) http.Handler {
 		}
 
 		if adminBytes, err := json.Marshal(admin); err == nil {
-			h.cache.Set(r.Context(), cacheKey, adminBytes, 30*24*time.Hour)
+			h.cache.Set(r.Context(), cacheKey, adminBytes, 15*time.Minute)
 		}
 
 		ctx := context.WithValue(r.Context(), adminContextKey, &admin)

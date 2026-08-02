@@ -179,6 +179,12 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 
 	// Pass 1: Match against existing ExamUsers
 	for i := range officialResults {
+		select {
+		case <-r.Context().Done():
+			log.Printf("sync: client disconnected, stopping (exam_id=%d)", examID)
+			return
+		default:
+		}
 		res := &officialResults[i]
 
 		resFullName := normalizeForMatch(res.Nombre + res.Apellido1)
@@ -289,6 +295,12 @@ func (h *AdminController) syncOfficialResultsMoodle(w http.ResponseWriter, r *ht
 	// Pass 2: Match remaining against Moodle DB and auto-create ExamUser
 	log.Printf("syncOfficialResultsMoodle: fetched %d users from Moodle DB. Proceeding to match %d unlinked official results.", len(moodleUsers), len(remainingResults))
 	for idx, res := range remainingResults {
+		select {
+		case <-r.Context().Done():
+			log.Printf("sync: client disconnected, stopping (exam_id=%d)", examID)
+			return
+		default:
+		}
 		// ponytail: throttle 1/10 so big lists don't flood the stream.
 		if idx%10 == 0 || idx == len(remainingResults)-1 {
 			ev, _ := json.Marshal(map[string]any{"status": "syncing", "current": idx + 1, "total": len(remainingResults), "matched": matchedCount, "name": res.Nombre + " " + res.Apellido1})

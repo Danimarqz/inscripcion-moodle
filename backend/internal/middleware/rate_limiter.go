@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"strings"
@@ -16,13 +17,14 @@ type limiterEntry struct {
 }
 
 type RateLimiter struct {
+	ctx      context.Context
 	requests int
 	window   time.Duration
 	mu       sync.RWMutex
 	limiters map[string]*limiterEntry
 }
 
-func NewRateLimiter(requests int, window time.Duration) *RateLimiter {
+func NewRateLimiter(ctx context.Context, requests int, window time.Duration) *RateLimiter {
 	if requests <= 0 {
 		requests = 60
 	}
@@ -30,6 +32,7 @@ func NewRateLimiter(requests int, window time.Duration) *RateLimiter {
 		window = time.Minute
 	}
 	rl := &RateLimiter{
+		ctx:      ctx,
 		requests: requests,
 		window:   window,
 		limiters: make(map[string]*limiterEntry),
@@ -41,15 +44,20 @@ func NewRateLimiter(requests int, window time.Duration) *RateLimiter {
 func (rl *RateLimiter) cleanupLoop() {
 	ticker := time.NewTicker(rl.window)
 	defer ticker.Stop()
-	for range ticker.C {
-		threshold := time.Now().Add(-3 * rl.window)
-		rl.mu.Lock()
-		for key, entry := range rl.limiters {
-			if entry.lastSeen.Before(threshold) {
-				delete(rl.limiters, key)
+	for {
+		select {
+		case <-ticker.C:
+			threshold := time.Now().Add(-3 * rl.window)
+			rl.mu.Lock()
+			for key, entry := range rl.limiters {
+				if entry.lastSeen.Before(threshold) {
+					delete(rl.limiters, key)
+				}
 			}
+			rl.mu.Unlock()
+		case <-rl.ctx.Done():
+			return
 		}
-		rl.mu.Unlock()
 	}
 }
 

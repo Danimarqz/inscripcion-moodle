@@ -16,16 +16,16 @@ func main() {
 		log.Fatalf("load config: %v", err)
 	}
 
-	srv, err := server.New(cfg)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	srv, err := server.New(ctx, cfg)
 	if err != nil {
 		log.Fatalf("initialize server: %v", err)
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
 	if err := srv.Start(ctx); err != nil {
-		log.Fatalf("server shutdown: %v", err)
+		log.Fatalf("server error: %v", err)
 	}
 
 	if err := context.Cause(ctx); err != nil {

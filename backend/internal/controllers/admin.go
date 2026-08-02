@@ -87,7 +87,7 @@ func NewAdminController(db *gorm.DB, cacheClient *redis.Client, authService *aut
 }
 
 func (h *AdminController) RegisterRoutes(r chi.Router) {
-	loginLimiter := middleware.NewRateLimiter(5, time.Minute)
+	loginLimiter := middleware.NewRateLimiter(context.Background(), 5, time.Minute)
 	r.Post("/create-admin", h.createAdmin)
 	r.With(loginLimiter.Middleware).Post("/login", h.login)
 	r.Post("/logout", h.logout)

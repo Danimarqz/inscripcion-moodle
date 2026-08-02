@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/inscripcion-moodle/go-backend/internal/models"
 	"github.com/inscripcion-moodle/go-backend/internal/scoring"
 	examservice "github.com/inscripcion-moodle/go-backend/internal/services/exam"
 	"github.com/xuri/excelize/v2"
+	"time"
 )
 
 // aptoLabel renders a pass/fail flag as the Spanish "Sí"/"No" used in the export.
@@ -21,14 +23,21 @@ func aptoLabel(passed bool) string {
 }
 
 func (s *Service) ExportSubmissionsAnalysis(examID uint, search, orderBy, orderDir string, moodleSynced *bool, resultType *string) (*bytes.Buffer, error) {
-	exam, err := s.examRepo.FindExamByID(context.Background(), s.db, examID)
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer queryCancel()
+	exam, err := s.examRepo.FindExamByID(queryCtx, s.db, examID)
 	if err != nil {
 		return nil, err
 	}
 
-	const maxLimit = 1000000
+	const maxLimit = 50000
 	orderClause := buildSubmissionOrder(orderBy, orderDir)
-	submissions, err := s.submissionRepo.List(context.Background(), s.db, examID, maxLimit, 0, search, orderClause, moodleSynced, resultType, true)
+	queryCtx, queryCancel = context.WithTimeout(context.Background(), 3*time.Minute)
+	defer queryCancel()
+	submissions, err := s.submissionRepo.List(queryCtx, s.db, examID, maxLimit, 0, search, orderClause, moodleSynced, resultType, true)
+	if err == nil && len(submissions) >= maxLimit {
+		log.Printf("WARNING: ExportSubmissionsAnalysis exam_id=%d reached maxLimit=%d (got %d submissions). Data may be truncated.", examID, maxLimit, len(submissions))
+	}
 	if err != nil {
 		return nil, err
 	}
