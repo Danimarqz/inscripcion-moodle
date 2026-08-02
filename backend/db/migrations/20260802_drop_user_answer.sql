@@ -1,0 +1,15 @@
+-- 20260802_drop_user_answer.sql
+-- Elimina la tabla legacy user_answer (una fila por respuesta). El dual-write se
+-- retiró hace tiempo: las respuestas viven en user_exam_submission.answers_json,
+-- que las cubre al 100% (0 entregas con filas en user_answer y JSON vacío).
+--
+-- Ocupaba 39,5 MB (22 de ellos en índices) frente a los 9,2 MB de la tabla de
+-- entregas, por pagar el overhead de fila 494.276 veces.
+--
+-- Backup previo: user_answer_backup_20260802.sql.gz (2,6 MB) en ~bitnami del
+-- servidor. Restaurar con: zcat <fichero> | mysql -u root -p examen_app
+--
+-- IMPORTANTE: aplicar DESPUÉS de desplegar el backend que ya no referencia la
+-- tabla; el binario anterior la borra en cascada al eliminar entregas.
+-- AutoMigrate is disabled; apply manually.
+DROP TABLE IF EXISTS user_answer;

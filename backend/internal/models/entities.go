@@ -137,25 +137,13 @@ type UserExamSubmission struct {
 	AnswersData        *AnswersJSON `gorm:"column:answers_json;type:json" json:"answers_data"`
 	SubmittedAt        time.Time    `gorm:"column:submitted_at;autoCreateTime;index:idx_user_exam_submission_submitted_at" json:"submitted_at"`
 	User               ExamUser     `gorm:"foreignKey:UserID" json:"user"`
-	// Exam/Answers are loaded for scoring logic, never returned to clients —
-	// json:"-" keeps the (often empty) association objects out of list payloads.
-	Exam    Exam         `gorm:"foreignKey:ExamID" json:"-"`
-	Answers []UserAnswer `gorm:"foreignKey:SubmissionID" json:"-"`
+	// Exam is loaded for scoring logic, never returned to clients — json:"-"
+	// keeps the (often empty) association object out of list payloads.
+	Exam Exam `gorm:"foreignKey:ExamID" json:"-"`
 }
 
 func (UserExamSubmission) TableName() string {
 	return "user_exam_submission"
-}
-
-type UserAnswer struct {
-	ID           uint   `gorm:"column:id;primaryKey" json:"id"`
-	SubmissionID uint   `gorm:"column:submission_id;index:idx_user_answer_submission" json:"submission_id"`
-	QuestionID   uint   `gorm:"column:question_id;index:idx_user_answer_question" json:"question_id"`
-	Answer       string `gorm:"column:answer" json:"answer"`
-}
-
-func (UserAnswer) TableName() string {
-	return "user_answer"
 }
 
 type AdminUser struct {

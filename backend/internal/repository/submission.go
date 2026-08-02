@@ -19,8 +19,6 @@ type SubmissionRepository interface {
 	DeleteByExamID(ctx context.Context, db *gorm.DB, examID uint) error
 	GetAverageScore(ctx context.Context, db *gorm.DB, examID uint, moodleSynced *bool, resultType *string, group bool) (avg *float64, avgOfficial *float64, examIDs []uint, err error)
 	Update(ctx context.Context, db *gorm.DB, submission *models.UserExamSubmission) error
-	SaveAnswer(ctx context.Context, db *gorm.DB, answer *models.UserAnswer) error   // Phase 1: dual-write
-	CreateAnswer(ctx context.Context, db *gorm.DB, answer *models.UserAnswer) error // Phase 1: dual-write
 	GetMeritsRanking(ctx context.Context, db *gorm.DB, examID uint, submissionID uint, passingThreshold float64, examWeight float64, skipWeights bool) (position *int, total *int, err error)
 }
 
@@ -131,37 +129,14 @@ func (r *submissionRepository) Count(ctx context.Context, db *gorm.DB, examIDs [
 }
 
 func (r *submissionRepository) Delete(ctx context.Context, db *gorm.DB, submissionID uint) error {
-	// Atomic delete of submission and answers
-	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("submission_id = ?", submissionID).Delete(&models.UserAnswer{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Delete(&models.UserExamSubmission{}, submissionID).Error; err != nil {
-			return err
-		}
-		return nil
-	})
+	// Las respuestas viven en la columna answers_json de la propia entrega, así
+	// que borrarla se lleva las respuestas con ella. La tabla user_answer que
+	// hubo que limpiar aparte se eliminó (migración 20260802_drop_user_answer).
+	return db.WithContext(ctx).Delete(&models.UserExamSubmission{}, submissionID).Error
 }
 
 func (r *submissionRepository) DeleteByExamID(ctx context.Context, db *gorm.DB, examID uint) error {
-	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var submissionIDs []uint
-		if err := tx.Model(&models.UserExamSubmission{}).
-			Where("exam_id = ?", examID).
-			Pluck("id", &submissionIDs).Error; err != nil {
-			return err
-		}
-
-		if len(submissionIDs) > 0 {
-			if err := tx.Where("submission_id IN (?)", submissionIDs).Delete(&models.UserAnswer{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("id IN (?)", submissionIDs).Delete(&models.UserExamSubmission{}).Error; err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	return db.WithContext(ctx).Where("exam_id = ?", examID).Delete(&models.UserExamSubmission{}).Error
 }
 
 func (r *submissionRepository) GetAverageScore(ctx context.Context, db *gorm.DB, examID uint, moodleSynced *bool, resultType *string, group bool) (avg *float64, avgOfficial *float64, examIDs []uint, err error) {
@@ -228,14 +203,6 @@ func (r *submissionRepository) GetAverageScore(ctx context.Context, db *gorm.DB,
 
 func (r *submissionRepository) Update(ctx context.Context, db *gorm.DB, submission *models.UserExamSubmission) error {
 	return db.WithContext(ctx).Save(submission).Error
-}
-
-func (r *submissionRepository) SaveAnswer(ctx context.Context, db *gorm.DB, answer *models.UserAnswer) error {
-	return db.WithContext(ctx).Save(answer).Error
-}
-
-func (r *submissionRepository) CreateAnswer(ctx context.Context, db *gorm.DB, answer *models.UserAnswer) error {
-	return db.WithContext(ctx).Create(answer).Error
 }
 
 // GetMeritsRanking ranks submissions by weighted (score + merits). Official
