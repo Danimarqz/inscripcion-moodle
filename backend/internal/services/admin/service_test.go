@@ -105,6 +105,16 @@ func (m *MockExamRepository) CountActiveQuestions(ctx context.Context, db *gorm.
 	return args.Int(0), args.Error(1)
 }
 
+func (m *MockExamRepository) FindAssociatedExamIDs(ctx context.Context, db *gorm.DB, examID uint, percentileGroup uint) ([]uint, error) {
+	args := m.Called(ctx, db, examID, percentileGroup)
+	return args.Get(0).([]uint), args.Error(1)
+}
+
+func (m *MockExamRepository) FindGroupsByExamID(ctx context.Context, db *gorm.DB, examID uint) ([]models.QuestionGroup, error) {
+	args := m.Called(ctx, db, examID)
+	return args.Get(0).([]models.QuestionGroup), args.Error(1)
+}
+
 type MockQuestionRepository struct {
 	mock.Mock
 }
@@ -149,6 +159,7 @@ func TestService_GetExam(t *testing.T) {
 	expectedExam := &models.Exam{Name: "Test Exam"}
 
 	mockRepo.On("FindExamByIDLite", mock.Anything, mock.Anything, uint(1)).Return(expectedExam, nil)
+	mockRepo.On("FindGroupsByExamID", mock.Anything, mock.Anything, uint(1)).Return([]models.QuestionGroup{}, nil)
 
 	exam, err := service.GetExam(1)
 	assert.NoError(t, err)

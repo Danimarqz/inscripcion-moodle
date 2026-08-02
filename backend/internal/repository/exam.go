@@ -29,6 +29,8 @@ type ExamRepository interface {
 	SetPercentileGroup(ctx context.Context, db *gorm.DB, examID uint, memberIDs []uint) ([]uint, error)
 	GetTop10AverageScore(ctx context.Context, db *gorm.DB, examID uint) (*float64, error)
 	CountActiveQuestions(ctx context.Context, db *gorm.DB, examID uint) (int, error)
+	FindGroupsByExamID(ctx context.Context, db *gorm.DB, examID uint) ([]models.QuestionGroup, error)
+	FindAssociatedExamIDs(ctx context.Context, db *gorm.DB, examID uint, percentileGroup uint) ([]uint, error)
 }
 
 type examRepository struct{}
@@ -387,4 +389,22 @@ func calculateScore(questions []models.Question, answers map[uint]string, cfg sc
 		}
 	}
 	return scoring.ComputeScore(correct, incorrect, total, cfg)
+}
+
+func (r *examRepository) FindAssociatedExamIDs(ctx context.Context, db *gorm.DB, examID uint, percentileGroup uint) ([]uint, error) {
+	var ids []uint
+	if err := db.WithContext(ctx).Model(&models.Exam{}).
+		Where("percentile_group = ? AND id <> ?", percentileGroup, examID).
+		Pluck("id", &ids).Error; err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+func (r *examRepository) FindGroupsByExamID(ctx context.Context, db *gorm.DB, examID uint) ([]models.QuestionGroup, error) {
+	var groups []models.QuestionGroup
+	if err := db.WithContext(ctx).Where("exam_id = ?", examID).Order("position asc").Find(&groups).Error; err != nil {
+		return nil, err
+	}
+	return groups, nil
 }
