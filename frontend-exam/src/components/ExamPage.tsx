@@ -20,6 +20,10 @@ import MeritsForm from './submissions/MeritsForm';
 import EligibilityModal from './modals/EligibilityModal';
 import RaffleTermsModal from './modals/RaffleTermsModal';
 import SubmissionIdentityFields from './submissions/SubmissionIdentityFields';
+import ExamResultTypeSelector from './exam/ExamResultTypeSelector';
+import ExamMarketingSection from './exam/ExamMarketingSection';
+import ExamSubmitSection from './exam/ExamSubmitSection';
+import ExamOfficialNotice from './exam/ExamOfficialNotice';
 
 
 interface ExamPageProps {
@@ -59,7 +63,7 @@ export default function ExamPage({
   const [savedMerits, setSavedMerits] = useState<number | null>(null);
   const [updatedWeightedScore, setUpdatedWeightedScore] = useState<number | null>(null);
 
-  const [examUiState, dispatchExamUi] = useExamUi();
+  const { state: examUiState, checkSuccess, submitSuccess, reset, checkStart, checkError, submitError } = useExamUi();
   const {
     checking,
     hasPreviousSubmission,
@@ -101,12 +105,12 @@ export default function ExamPage({
   const { hasOfficialScore, hasOfficialMerits } = eligibility;
 
   useEffect(() => {
-    dispatchExamUi({ type: 'RESET' });
+    reset();
     setAutoCheckDisabled(false);
     setAcceptsMarketing(false);
     setRaffleAccepted(false);
     resetAnswers();
-  }, [examId, dispatchExamUi, resetAnswers]);
+  }, [examId, resetAnswers]);
 
   const allowResultPreview =
     showScore || showPercentile || showScoreFull || validatedTribunal;
@@ -129,19 +133,19 @@ export default function ExamPage({
 
     if (!isValidEmail(normalizedEmail) || !validateDniNie(normalizedDni)) return;
 
-    dispatchExamUi({ type: 'CHECK_START' });
+    checkStart();
 
     try {
       const data: ExamOut = await checkSubmission({ email: normalizedEmail, dni: normalizedDni, exam_id: examId });
       const payload = getResultPayload(data, 'check');
-      dispatchExamUi({ type: 'CHECK_SUCCESS', payload });
+      checkSuccess(payload);
       setAutoCheckDisabled(true);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '';
       if (message && message !== 'submission not found') {
-        dispatchExamUi({ type: 'CHECK_ERROR', payload: message });
+        checkError(message);
       } else {
-        dispatchExamUi({ type: 'CHECK_ERROR' });
+        checkError();
       }
     }
   }
@@ -234,10 +238,7 @@ export default function ExamPage({
       const result = await submitExam(payload);
       const payloadResult = getResultPayload(result, 'submit');
 
-      dispatchExamUi({
-        type: 'SUBMIT_SUCCESS',
-        payload: payloadResult,
-      });
+      submitSuccess(payloadResult);
       setAutoCheckDisabled(true);
       setStudentName('');
       setStudentSurname('');
@@ -262,7 +263,7 @@ export default function ExamPage({
         setFormError(message);
       }
 
-      dispatchExamUi({ type: 'SUBMIT_ERROR', payload: message });
+      submitError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -295,28 +296,29 @@ export default function ExamPage({
   const resultsSummary =
     submissionMessage ? (
       <SubmissionSummary
-        message={submissionMessage}
-        review={answersReview}
+        uiState={{
+          ...examUiState,
+          submissionMessage,
+          answersReview,
+          score: latestScore,
+          percentile: latestPercentile,
+          maxScore,
+          secondaryMaxScores,
+          isPassed,
+          canEditMerits,
+          allowMeritsEdit,
+          maxMerits,
+          merits: savedMerits ?? currentMerits,
+          weightedScore: updatedWeightedScore ?? weightedScore,
+          examWeight,
+          meritsPosition,
+          meritsTotal,
+          passedCount,
+        }}
+        groups={resultGroups ?? undefined}
         showScore={showScore}
         showScoreFull={showScoreFull}
         showPercentile={showPercentile}
-        score={latestScore}
-        correctAnswers={correctAnswers}
-        incorrectAnswers={incorrectAnswers}
-        notAnswered={notAnswered}
-        totalQuestions={totalQuestions}
-        percentile={latestPercentile}
-        position={position}
-        totalSubmissions={totalSubmissions}
-        maxScore={maxScore}
-        secondaryMaxScores={secondaryMaxScores}
-        isPassed={isPassed}
-        groups={resultGroups}
-        merits={savedMerits ?? currentMerits}
-        weightedScore={updatedWeightedScore ?? weightedScore}
-        examWeight={examWeight}
-        meritsPosition={meritsPosition}
-        meritsTotal={meritsTotal}
         email={email}
         dni={dni}
         examId={examId}
@@ -390,21 +392,7 @@ export default function ExamPage({
         />
 
         {!hasPreviousSubmission && !hasOfficialScore && (
-          <div className="mt-6 mb-6">
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Tipo de convocatoria
-            </label>
-            <select
-              value={resultType}
-              onChange={(e) => setResultType((e.target as HTMLSelectElement).value)}
-              className="w-full px-4 py-3 rounded-lg bg-[#2a2d33] border border-[#555] text-white focus:ring-2 focus:ring-brand-pink focus:border-transparent transition-all"
-            >
-              <option value="General">General</option>
-              <option value="Promoción interna">Promoción interna</option>
-              <option value="Discapacidad">Discapacidad</option>
-              <option value="Otros">Otros</option>
-            </select>
-          </div>
+          <ExamResultTypeSelector value={resultType} onChange={setResultType} />
         )}
 
         {checking && (
@@ -423,9 +411,7 @@ export default function ExamPage({
         {!hasPreviousSubmission && (
           <>
             {hasOfficialScore ? (
-              <p className="mt-6 rounded-lg border border-brand-blue/50 bg-brand-blue/10 p-4 text-sm text-brand-blue">
-                PUBLICADAS NOTAS OFICIALES <br></br> <br></br>{hasOfficialMerits ? '' : 'Completa tus MÉRITOS y verás tu POSICIÓN en relación al resto de opositores.'}
-              </p>
+              <ExamOfficialNotice hasOfficialMerits={hasOfficialMerits} />
             ) : (
               <QuestionList
                 entries={entries}
@@ -451,83 +437,25 @@ export default function ExamPage({
               </div>
             )}
 
-            <div className="mt-8 space-top-3 text-sm">
-              <label htmlFor="accepts_marketing" className="flex items-start gap-3 text-gray-200">
-                <input
-                  type="checkbox"
-                  id="accepts_marketing"
-                  name="accepts_marketing"
-                  required
-                  checked={acceptsMarketing}
-                  onChange={(event) => setAcceptsMarketing(event.currentTarget.checked)}
-                  className="mt-1 h-4 w-4 rounded border border-[#555] bg-[#2a2d33] text-brand-pink focus:ring-2 focus:ring-brand-yellow/60"
-                />
-                <span className="text-gray-300">
-                  Acepto recibir por email recordatorios y novedades sobre nuevas oposiciones.
-                </span>
-              </label>
-              <p className="text-xs leading-relaxed text-gray-400">
-                Al entregar confirmas que utilizaremos tus datos solo para corregir tu simulacro y gestionar el servicio;
-                no usamos cookies de seguimiento. Consulta la{' '}
-                <a
-                  href="/politica-de-privacidad"
-                  className="text-brand-pink underline decoration-dotted hover:text-brand-yellow"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Política de privacidad
-                </a>
-                .
-              </p>
-            </div>
-
-            {raffleEnabled && (
-              <div className="mt-6 text-sm">
-                <label htmlFor="raffle_accepted" className="flex items-start gap-3 text-gray-200">
-                  <input
-                    type="checkbox"
-                    id="raffle_accepted"
-                    name="raffle_accepted"
-                    checked={raffleAccepted}
-                    onChange={(event) => setRaffleAccepted(event.currentTarget.checked)}
-                    className="mt-1 h-4 w-4 rounded border border-[#555] bg-[#2a2d33] text-brand-pink focus:ring-2 focus:ring-brand-yellow/60"
-                  />
-                  <span className="text-gray-300">
-                    He leído y acepto las{' '}
-                    <button
-                      type="button"
-                      onClick={() => setShowRaffleModal(true)}
-                      className="text-brand-pink underline decoration-dotted hover:text-brand-yellow"
-                    >
-                      bases del sorteo
-                    </button>
-                    .
-                  </span>
-                </label>
-              </div>
-            )}
-          </>
+            <ExamMarketingSection
+              acceptsMarketing={acceptsMarketing}
+              raffleEnabled={raffleEnabled}
+              raffleAccepted={raffleAccepted}
+              raffleTerms={raffleTerms}
+              onMarketingChange={setAcceptsMarketing}
+              onRaffleChange={setRaffleAccepted}
+              onShowRaffleTerms={() => setShowRaffleModal(true)}
+            />          </>
         )}
 
-        {!hasPreviousSubmission && (
-          <button
-            type="submit"
-            className="btn-brand w-full text-lg mt-4 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-            disabled={!eligibility.allowed || eligibility.checking || isSubmitting}
-          >
-            {eligibility.checking
-              ? 'Comprobando...'
-              : isSubmitting
-                ? 'Enviando...'
-                : hasOfficialScore
-                  ? 'Confirmar mis datos'
-                  : 'Entregar Examen'}
-          </button>
-        )}
-        {formError && (
-          <p className="text-center text-red-500 bg-red-500/10 border border-red-500 p-4 rounded-md mt-6">{formError}</p>
-        )}
-      </form>
+                <ExamSubmitSection
+          hasPreviousSubmission={hasPreviousSubmission}
+          hasOfficialScore={hasOfficialScore}
+          eligibilityAllowed={eligibility.allowed}
+          eligibilityChecking={eligibility.checking}
+          isSubmitting={isSubmitting}
+          formError={formError}
+        />      </form>
     </main>
   );
 }

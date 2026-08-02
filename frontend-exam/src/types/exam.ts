@@ -389,7 +389,6 @@ export type ExamUiState = {
   passedCount: number | null;
   groups: GroupScore[] | null;
 };
-
 export type ExamResultPayload = {
   score: number | null;
   percentile: number | null;

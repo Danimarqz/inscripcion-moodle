@@ -1,35 +1,18 @@
 import { Fragment } from 'preact';
 import { useState } from 'preact/hooks';
-import type { AnswerReview, GroupScore } from '../../types/exam';
+import type { AnswerReview, GroupScore, ExamUiState } from '../../types/exam';
 import FeedbackVideoPlayer from './FeedbackVideoPlayer';
 import GroupScoreCards from './GroupScoreCards';
 
 interface SubmissionSummaryProps {
-  message: string;
-  review: AnswerReview[] | null;
+  email: string;
+  dni: string;
+  examId: number;
   showScore: boolean;
   showScoreFull: boolean;
   showPercentile: boolean;
-  score: number | null;
-  correctAnswers: number | null;
-  incorrectAnswers?: number | null;
-  notAnswered?: number | null;
-  totalQuestions: number | null;
-  percentile: number | null;
-  position: number | null;
-  totalSubmissions: number | null;
-  maxScore?: number | null;
-  secondaryMaxScores?: string | null;
-  isPassed?: boolean | null;
-  merits?: number | null;
-  weightedScore?: number | null;
-  examWeight?: number | null;
-  meritsPosition?: number | null;
-  meritsTotal?: number | null;
-  groups?: GroupScore[] | null;
-  email?: string;
-  dni?: string;
-  examId?: number;
+  uiState: ExamUiState;
+  groups?: GroupScore[];
 }
 
 // describeAnswer derives the display values shared by the desktop table and the
@@ -53,32 +36,36 @@ function describeAnswer(item: AnswerReview, index: number) {
 }
 
 export default function SubmissionSummary({
-  message,
-  review,
+  uiState,
+  groups: groupsProp,
   showScore,
   showScoreFull,
   showPercentile,
-  score,
-  correctAnswers,
-  incorrectAnswers,
-  notAnswered,
-  totalQuestions,
-  percentile,
-  position,
-  totalSubmissions,
-  maxScore,
-  secondaryMaxScores,
-  isPassed,
-  weightedScore,
-  examWeight,
-  groups,
-  email = '',
-  dni = '',
+  email,
+  dni,
   examId,
 }: SubmissionSummaryProps) {
+  const {
+    submissionMessage: message,
+    answersReview: review,
+    score,
+    correctAnswers,
+    incorrectAnswers,
+    notAnswered,
+    totalQuestions,
+    percentile,
+    position,
+    totalSubmissions,
+    maxScore,
+    secondaryMaxScores,
+    isPassed,
+    weightedScore,
+    examWeight,
+  } = uiState;
+  const groups = groupsProp ?? uiState.groups;
   const [openVideoId, setOpenVideoId] = useState<number | null>(null);
   const hasVideoColumn = Array.isArray(review) && review.some(r => r.has_feedback_video);
-  const trimmedMessage = message.trim();
+  const trimmedMessage = (message ?? "").trim();
   if (!trimmedMessage) return null;
 
   const sentenceMatch = trimmedMessage.match(/.*?[.!?](?:\s|$)/);
