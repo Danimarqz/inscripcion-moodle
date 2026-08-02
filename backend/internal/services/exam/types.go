@@ -62,6 +62,9 @@ type SubmissionPayload struct {
 	SecondaryMaxScores string                 `json:"secondary_max_scores,omitempty"`
 	IsPassed           *bool                  `json:"is_passed"`
 	CanEditMerits      bool                   `json:"can_edit_merits"`
+	// AllowMeritsEdit permite reescribir los méritos ya guardados tantas veces
+	// como quiera el alumno.
+	AllowMeritsEdit bool `json:"allow_merits_edit"`
 	MaxMerits          *float64               `json:"max_merits,omitempty"`
 	MeritsPosition     *int                   `json:"merits_position,omitempty"`
 	MeritsTotal        *int                   `json:"merits_total,omitempty"`

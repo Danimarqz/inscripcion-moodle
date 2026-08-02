@@ -122,6 +122,7 @@ export function buildResultPayload(
     secondary_max_scores: config.showScore ? result.secondary_max_scores : undefined,
     isPassed: result.is_passed ?? null,
     canEditMerits: result.can_edit_merits ?? false,
+    allowMeritsEdit: result.allow_merits_edit ?? false,
     maxMerits: result.max_merits ?? 100,
     merits: result.merits ?? null,
     weightedScore: result.weighted_score ?? null,

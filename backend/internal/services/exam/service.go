@@ -546,6 +546,7 @@ func (s *Service) UpdateMerits(req UpdateMeritsRequest) (*UpdateMeritsResponse, 
 	})
 	if err := queryDB.
 		Preload("Exam").
+		Preload("User").
 		Joins("JOIN exam_user ON exam_user.id = user_exam_submission.user_id").
 		Where("exam_user.dni = ? AND LOWER(exam_user.email) = ? AND user_exam_submission.exam_id = ?", normalizedDNI, normalizedEmail, req.ExamID).
 		First(&submission).Error; err != nil {
@@ -555,19 +556,14 @@ func (s *Service) UpdateMerits(req UpdateMeritsRequest) (*UpdateMeritsResponse, 
 		return nil, err
 	}
 
-	if submission.Merits != nil {
+	if submission.Merits != nil && !submission.Exam.AllowMeritsEdit {
 		return nil, ErrMeritsAlreadySet
 	}
 
-	// Use official score for pass evaluation when a linked official result exists
+	// Use official score for pass evaluation when an official result exists
 	effectiveScore := submission.Score
-	if submission.UserID != 0 {
-		var official models.ExamOfficialResult
-		if err := s.db.Where("exam_id = ? AND user_id = ?", submission.Exam.ID, submission.UserID).First(&official).Error; err == nil {
-			if official.Score != nil {
-				effectiveScore = official.Score
-			}
-		}
+	if official := findOfficialForSubmission(s.db, &submission.Exam, &submission); official != nil && official.Score != nil {
+		effectiveScore = official.Score
 	}
 
 	threshold := submission.Exam.PassingThreshold
@@ -915,18 +911,64 @@ func evaluatePassStatus(score *float64, threshold *float64) *bool {
 	return &passed
 }
 
+// findOfficialForSubmission busca la fila oficial del alumno. Primero por link
+// directo (user_id) y, si no lo hay, repitiendo el matching por DNI/nombre del
+// envío: quien entregó antes de que se importaran los resultados oficiales no
+// tiene fila linkada y si no, seguiría viendo su nota estimada en vez de la
+// oficial.
+func findOfficialForSubmission(db *gorm.DB, exam *models.Exam, submission *models.UserExamSubmission) *models.ExamOfficialResult {
+	if submission.UserID != 0 {
+		var official models.ExamOfficialResult
+		if err := db.Where("exam_id = ? AND user_id = ?", exam.ID, submission.UserID).
+			Order("score IS NULL, id").
+			First(&official).Error; err == nil {
+			return &official
+		}
+	}
+	if submission.User.DNI == "" {
+		return nil
+	}
+	official, err := FindOfficialResult(db, OfficialResultMatchRequest{
+		ExamID:  exam.ID,
+		Name:    submission.User.Name,
+		Surname: submission.User.Surname,
+		DNI:     submission.User.DNI,
+	})
+	if err != nil {
+		return nil
+	}
+	if official == nil {
+		return nil
+	}
+	// Solo se acepta si nadie más la tiene asignada: el matching difuso no debe
+	// robarle la nota a la persona a la que ya está linkada.
+	if official.UserID != nil {
+		if *official.UserID != submission.UserID {
+			return nil
+		}
+		return official
+	}
+	// Se persiste el link para que el siguiente acceso salga por user_id: el
+	// matching por DNI puede acabar escaneando el examen entero (>12k filas en
+	// los más grandes) y esta función está en rutas públicas calientes. El
+	// WHERE ... IS NULL evita pisar un link creado en paralelo.
+	if submission.UserID != 0 {
+		if err := db.Model(&models.ExamOfficialResult{}).
+			Where("id = ? AND user_id IS NULL", official.ID).
+			Update("user_id", submission.UserID).Error; err != nil {
+			log.Printf("failed to link official result %d to user %d: %v", official.ID, submission.UserID, err)
+		}
+	}
+	return official
+}
+
 // applyOfficialScoreOverride overrides submission score/merits in memory when
 // a linked official result with a score exists. Devuelve true si la fila oficial
 // encontrada trae nota. El orden es explícito (primero las filas con nota, luego
 // por id) porque un alumno puede estar linkado a más de una fila.
 func applyOfficialScoreOverride(db *gorm.DB, exam *models.Exam, submission *models.UserExamSubmission) bool {
-	if submission.UserID == 0 {
-		return false
-	}
-	var official models.ExamOfficialResult
-	if err := db.Where("exam_id = ? AND user_id = ?", exam.ID, submission.UserID).
-		Order("score IS NULL, id").
-		First(&official).Error; err != nil {
+	official := findOfficialForSubmission(db, exam, submission)
+	if official == nil {
 		return false
 	}
 	if official.Score != nil {
@@ -1074,14 +1116,19 @@ func (s *Service) buildSubmissionPayload(tx *gorm.DB, exam *models.Exam, submiss
 	}
 	payload.IsPassed = isPassed
 	payload.CanEditMerits = isPassed != nil && *isPassed
+	payload.AllowMeritsEdit = exam.AllowMeritsEdit
 	mm := exam.MaxMerits
 	payload.MaxMerits = &mm
 
 	if threshold != nil {
 		var passedCount int64
-		tx.Model(&models.UserExamSubmission{}).
-			Where("exam_id = ? AND score >= ?", exam.ID, *threshold).
-			Count(&passedCount)
+		tx.Raw(`
+			SELECT COUNT(DISTINCT s.id)
+			FROM user_exam_submission s
+			LEFT JOIN exam_official_result o
+				ON o.exam_id = s.exam_id AND o.user_id = s.user_id AND o.score IS NOT NULL
+			WHERE s.exam_id = ? AND COALESCE(o.score, s.score) >= ?`,
+			exam.ID, *threshold).Scan(&passedCount)
 		pc := int(passedCount)
 		payload.PassedCount = &pc
 	}
@@ -1127,10 +1174,17 @@ func getSubmissionPositionData(tx *gorm.DB, submission *models.UserExamSubmissio
 		return nil, new(totalSubmissions), nil
 	}
 
+	// La nota que cuenta es la oficial cuando existe, igual que en el percentil
+	// (RecalculatePercentiles) y en el ranking de méritos. submission.Score ya
+	// viene con el override aplicado.
 	var better int64
-	if err := tx.Model(&models.UserExamSubmission{}).
-		Where("exam_id = ? AND score IS NOT NULL AND score > ? AND id != ?", submission.ExamID, *submission.Score, submission.ID).
-		Count(&better).Error; err != nil {
+	if err := tx.Raw(`
+		SELECT COUNT(DISTINCT s.id)
+		FROM user_exam_submission s
+		LEFT JOIN exam_official_result o
+			ON o.exam_id = s.exam_id AND o.user_id = s.user_id AND o.score IS NOT NULL
+		WHERE s.exam_id = ? AND s.id != ? AND COALESCE(o.score, s.score) > ?`,
+		submission.ExamID, submission.ID, *submission.Score).Scan(&better).Error; err != nil {
 		return nil, nil, err
 	}
 	position := int(better) + 1

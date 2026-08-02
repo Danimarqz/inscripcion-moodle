@@ -89,3 +89,6 @@ pnpm-debug.log*
 deploy.ps1
 deploy.sh
 deploy.env
+
+
+*.pem

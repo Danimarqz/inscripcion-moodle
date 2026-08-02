@@ -47,6 +47,7 @@ type CreateExamRequest struct {
 	MaxMerits            float64              `json:"max_merits"`
 	DisplayExamWeight    *float64             `json:"display_exam_weight,omitempty"`
 	SkipWeights          bool                 `json:"skip_weights"`
+	AllowMeritsEdit      bool                 `json:"allow_merits_edit"`
 	RaffleEnabled        bool                 `json:"raffle_enabled"`
 	RaffleTerms          string               `json:"raffle_terms"`
 	Groups               []QuestionGroupInput `json:"groups"`
@@ -75,6 +76,7 @@ type EditExamRequest struct {
 	DisplayExamWeight    *float64             `json:"display_exam_weight,omitempty"`
 	ClearDisplayWeight   *bool                `json:"clear_display_weight,omitempty"`
 	SkipWeights          *bool                `json:"skip_weights,omitempty"`
+	AllowMeritsEdit      *bool                `json:"allow_merits_edit,omitempty"`
 	RaffleEnabled        *bool                `json:"raffle_enabled,omitempty"`
 	RaffleTerms          *string              `json:"raffle_terms,omitempty"`
 	AssociatedExamIDs    *[]uint              `json:"associated_exam_ids,omitempty"`

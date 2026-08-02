@@ -7,6 +7,7 @@ interface MeritsFormProps {
   dni: string;
   examId: number;
   canEditMerits: boolean;
+  allowMeritsEdit?: boolean;
   hasPreviousSubmission: boolean;
   currentMerits: number | null;
   maxMerits: number | null;
@@ -25,6 +26,7 @@ export default function MeritsForm({
   dni,
   examId,
   canEditMerits,
+  allowMeritsEdit = false,
   hasPreviousSubmission,
   currentMerits,
   maxMerits,
@@ -52,7 +54,8 @@ export default function MeritsForm({
 
   const effectivePosition = localMeritsPosition ?? meritsPosition;
   const effectiveTotal = localMeritsTotal ?? meritsTotal;
-  const meritsLocked = currentMerits !== null || meritsSaved;
+  // Con allowMeritsEdit el alumno puede reescribir sus méritos las veces que quiera.
+  const meritsLocked = !allowMeritsEdit && (currentMerits !== null || meritsSaved);
 
   // Compute weighted score client-side from current values
 
@@ -92,7 +95,7 @@ export default function MeritsForm({
 
   return (
     <div className="mt-6 rounded-2xl border border-brand-yellow/60 bg-brand-yellow/5 p-6 shadow-[0_10px_25px_rgba(255,200,50,0.1)]">
-      <h3 className="text-lg font-semibold text-brand-yellow mb-3">{meritsLocked ? 'Méritos guardados' : 'Añadir méritos'}</h3>
+      <h3 className="text-lg font-semibold text-brand-yellow mb-3">{meritsLocked ? 'Méritos guardados' : currentMerits !== null || meritsSaved ? 'Modificar méritos' : 'Añadir méritos'}</h3>
       <form onSubmit={handleMeritsSubmit} className="flex flex-col gap-3">
         <label className="block text-sm text-gray-300">
           Puntuación de méritos:
@@ -114,7 +117,7 @@ export default function MeritsForm({
             disabled={meritsSubmitting}
             className="btn-brand w-full text-base disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
           >
-            {meritsSubmitting ? 'Guardando...' : 'Guardar méritos'}
+            {meritsSubmitting ? 'Guardando...' : currentMerits !== null || meritsSaved ? 'Actualizar méritos' : 'Guardar méritos'}
           </button>
         )}
         {meritsMessage && (

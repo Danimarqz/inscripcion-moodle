@@ -78,6 +78,7 @@ export default function ExamPage({
     secondaryMaxScores,
     isPassed,
     canEditMerits,
+    allowMeritsEdit,
     maxMerits,
     merits: currentMerits,
     weightedScore,
@@ -328,6 +329,7 @@ export default function ExamPage({
       dni={dni}
       examId={examId}
       canEditMerits={canEditMerits}
+      allowMeritsEdit={allowMeritsEdit}
       hasPreviousSubmission={hasPreviousSubmission}
       currentMerits={currentMerits}
       maxMerits={maxMerits}

@@ -20,6 +20,7 @@ export type Exam = {
   passing_criteria_value?: number | null;
   exam_weight?: number;
   max_merits?: number;
+  allow_merits_edit?: boolean;
   raffle_enabled?: boolean;
   raffle_terms?: string;
 };
@@ -62,6 +63,7 @@ export type ExamOut = {
   secondary_max_scores?: string | null;
   is_passed?: boolean | null;
   can_edit_merits?: boolean;
+  allow_merits_edit?: boolean;
   max_merits?: number | null;
   merits?: number | null;
   weighted_score?: number | null;
@@ -225,6 +227,7 @@ export type ExamCreateWithQuestions = {
   max_merits?: number;
   display_exam_weight?: number | null;
   skip_weights?: boolean;
+  allow_merits_edit?: boolean;
   raffle_enabled?: boolean;
   raffle_terms?: string;
   groups?: QuestionGroup[];
@@ -264,6 +267,7 @@ export type ExamEdit = {
   display_exam_weight?: number | null;
   clear_display_weight?: boolean;
   skip_weights?: boolean;
+  allow_merits_edit?: boolean;
   raffle_enabled?: boolean;
   raffle_terms?: string;
   associated_exam_ids?: number[];
@@ -375,6 +379,7 @@ export type ExamUiState = {
   secondaryMaxScores: string | null;
   isPassed: boolean | null;
   canEditMerits: boolean;
+  allowMeritsEdit: boolean;
   maxMerits: number | null;
   merits: number | null;
   weightedScore: number | null;
@@ -400,6 +405,7 @@ export type ExamResultPayload = {
   secondary_max_scores?: string | null;
   isPassed: boolean | null;
   canEditMerits: boolean;
+  allowMeritsEdit: boolean;
   maxMerits: number | null;
   merits: number | null;
   weightedScore: number | null;

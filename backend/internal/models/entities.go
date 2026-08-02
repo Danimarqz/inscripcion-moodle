@@ -64,6 +64,7 @@ type Exam struct {
 	MaxMerits            float64              `gorm:"column:max_merits;default:100" json:"max_merits"`
 	DisplayExamWeight    *float64             `gorm:"column:display_exam_weight" json:"display_exam_weight"`
 	SkipWeights          bool                 `gorm:"column:skip_weights;default:false" json:"skip_weights"`
+	AllowMeritsEdit      bool                 `gorm:"column:allow_merits_edit;default:false" json:"allow_merits_edit"`
 	PercentileGroup      *uint                `gorm:"column:percentile_group" json:"percentile_group"`
 	RaffleEnabled        bool                 `gorm:"column:raffle_enabled;default:false" json:"raffle_enabled"`
 	RaffleTerms          string               `gorm:"column:raffle_terms" json:"raffle_terms"`

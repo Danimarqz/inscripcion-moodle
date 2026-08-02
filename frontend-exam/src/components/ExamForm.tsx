@@ -49,6 +49,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
   const [examWeight, setExamWeight] = useState(0.5);
   const [maxMerits, setMaxMerits] = useState(100);
   const [skipWeights, setSkipWeights] = useState(false);
+  const [allowMeritsEdit, setAllowMeritsEdit] = useState(false);
   const [raffleEnabled, setRaffleEnabled] = useState(false);
   const [raffleTerms, setRaffleTerms] = useState('');
   const [associatedExamIds, setAssociatedExamIds] = useState<number[]>([]);
@@ -136,6 +137,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
       setExamWeight(examData.exam_weight ?? 0.5);
       setMaxMerits(examData.max_merits ?? 100);
       setSkipWeights(Boolean(examData.skip_weights));
+      setAllowMeritsEdit(Boolean(examData.allow_merits_edit));
       setRaffleEnabled(Boolean(examData.raffle_enabled));
       setRaffleTerms(examData.raffle_terms ?? '');
       setAssociatedExamIds(examData.associated_exam_ids ?? []);
@@ -279,6 +281,7 @@ export default function ExamForm({ examId }: ExamFormProps) {
       exam_weight: examWeight,
       max_merits: maxMerits,
       skip_weights: skipWeights,
+      allow_merits_edit: allowMeritsEdit,
       raffle_enabled: raffleEnabled,
       raffle_terms: raffleEnabled ? raffleTerms : '',
       ...(examToEdit ? { associated_exam_ids: associatedExamIds } : {}),
@@ -1165,6 +1168,18 @@ export default function ExamForm({ examId }: ExamFormProps) {
           <span className="text-xs text-gray-400 block mt-1">
             Valor maximo que un alumno puede introducir como meritos. Por defecto 100.
           </span>
+        </label>
+
+        <label className="flex items-center gap-2 mt-4 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={allowMeritsEdit}
+            onChange={(e) => setAllowMeritsEdit((e.target as HTMLInputElement).checked)}
+            disabled={isBusy}
+            className="accent-brand-pink"
+          />
+          <span className="text-brand-pink font-bold">Permitir modificar meritos</span>
+          <span className="text-xs text-gray-400">El alumno puede reescribir sus meritos las veces que quiera</span>
         </label>
       </fieldset>
 
