@@ -13,6 +13,10 @@
 #   make build-backend   # compila el binario sin subirlo
 #   make build-frontend  # build de Astro sin subirlo
 #   make test            # tests del backend Go
+#   make test-frontend   # tests de vitest
+#   make test-all        # ambos
+#
+# deploy/backend/frontend corren sus tests antes de compilar y subir.
 
 SHELL := /bin/bash
 
@@ -29,7 +33,7 @@ export
 REMOTE := $(RemoteUser)@$(RemoteHost)
 
 .PHONY: dev dev-backend dev-frontend deploy backend frontend build-backend build-frontend \
-        upload-backend upload-frontend test check-deploy-env
+        upload-backend upload-frontend test test-frontend test-all check-deploy-env
 
 dev:
 	@echo "==> Arrancando backend (:8080) y frontend-exam (:4321). Ctrl+C para parar."
@@ -46,11 +50,12 @@ dev-frontend:
 
 deploy: backend frontend
 
-backend: check-deploy-env build-backend upload-backend
+# Los tests corren antes de compilar: si fallan, no se sube nada al servidor.
+backend: check-deploy-env test build-backend upload-backend
 	@echo "==> Ejecutando update-backend.sh en el servidor"
 	ssh $(REMOTE) './update-backend.sh'
 
-frontend: check-deploy-env build-frontend upload-frontend
+frontend: check-deploy-env test-frontend build-frontend upload-frontend
 	@echo "==> Ejecutando update-astro.sh en el servidor"
 	ssh $(REMOTE) './update-astro.sh'
 
@@ -75,7 +80,14 @@ upload-frontend: check-deploy-env
 	scp frontend-exam/dist.tar '$(REMOTE):$(FrontendDest)'
 
 test:
+	@echo "==> Tests backend (Go)"
 	cd backend && go test ./...
+
+test-frontend:
+	@echo "==> Tests frontend (vitest)"
+	$(NVM_USE) cd frontend-exam && npm test
+
+test-all: test test-frontend
 
 check-deploy-env:
 	@if [[ -z "$(RemoteUser)" || -z "$(RemoteHost)" || -z "$(BackendDest)" || -z "$(FrontendDest)" ]]; then \
