@@ -9,7 +9,9 @@ import (
 )
 
 // fptr is a tiny helper for *float64 group minimums.
-func fptr(v float64) *float64 { return &v }
+//
+//go:fix inline
+func fptr(v float64) *float64 { return new(v) }
 
 // buildXuntaExam builds the two-group Xunta exam: Teórico (60 pts / 80 preguntas /
 // -0.25 / mín 30 / eliminatorio) y Práctico (40 pts / 40 preguntas / -0.25 / mín 20

@@ -137,48 +137,48 @@ func BenchmarkImportOfficialResultsExcel(b *testing.B) {
 	exam := &models.Exam{ID: 123, Name: "Oficial", IsActive: true}
 	// Create a large excel file
 	rows := make([][]string, 1000)
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		rows[i] = []string{"12345678A", "GARCIA", "LOPEZ", "MARIA"}
 	}
-	
-	// We need a temporary directory for the excel file that persists across benchmark iterations 
+
+	// We need a temporary directory for the excel file that persists across benchmark iterations
 	// or we create it once. Creating it once is better.
-    // However, writeSimpleExcel uses testing.T which we don't have here efficiently without mocking T 
-    // or adapting writeSimpleExcel.
-    // Let's adapt writeSimpleExcel to not require *testing.T or duplicate logic slightly for benchmark.
-    
-    f := excelize.NewFile()
+	// However, writeSimpleExcel uses testing.T which we don't have here efficiently without mocking T
+	// or adapting writeSimpleExcel.
+	// Let's adapt writeSimpleExcel to not require *testing.T or duplicate logic slightly for benchmark.
+
+	f := excelize.NewFile()
 	sheetName := "Sheet1"
 	f.SetSheetName("Sheet1", sheetName)
 	for i, row := range rows {
 		cell, _ := excelize.CoordinatesToCellName(1, i+1)
 		f.SetSheetRow(sheetName, cell, &row)
 	}
-    
-    dir, _ := os.MkdirTemp("", "excel-bench")
+
+	dir, _ := os.MkdirTemp("", "excel-bench")
 	defer os.RemoveAll(dir)
 	filePath := filepath.Join(dir, "bench.xlsx")
 	f.SaveAs(filePath)
 
 	db, _ := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	db.AutoMigrate(&models.ExamOfficialResult{})
-    
-    // We don't want to benchmark DB setup, just the import process
-    
+
+	// We don't want to benchmark DB setup, just the import process
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-        b.StopTimer()
-        // Re-open file to simulate fresh request
-        f, _ := os.Open(filePath)
-        // Clear DB to avoid growing infinitely
-        db.Exec("DELETE FROM exam_official_result")
-        svc := &Service{repo: &stubExamRepository{exam: exam}, db: db}
-        b.StartTimer()
-        
+		b.StopTimer()
+		// Re-open file to simulate fresh request
+		f, _ := os.Open(filePath)
+		// Clear DB to avoid growing infinitely
+		db.Exec("DELETE FROM exam_official_result")
+		svc := &Service{repo: &stubExamRepository{exam: exam}, db: db}
+		b.StartTimer()
+
 		_, err := svc.ImportOfficialResultsExcel(context.Background(), exam.ID, f, true)
-        if err != nil {
-            b.Fatal(err)
-        }
-        f.Close()
+		if err != nil {
+			b.Fatal(err)
+		}
+		f.Close()
 	}
 }

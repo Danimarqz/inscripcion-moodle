@@ -48,14 +48,12 @@ func (s *Service) VerifyPassword(hash, password string) bool {
 func (s *Service) CreateToken(username string) (string, error) {
 	now := time.Now().UTC()
 	claims := claims{
-		Username: username,
-		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    "inscripcion-moodle",
-			Audience:  jwt.ClaimStrings{"inscripcion-moodle-admin"},
-			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(s.tokenTTL)),
-			Subject:   username,
-		},
+		Username:  username,
+		Issuer:    "inscripcion-moodle",
+		Audience:  jwt.ClaimStrings{"inscripcion-moodle-admin"},
+		IssuedAt:  jwt.NewNumericDate(now),
+		ExpiresAt: jwt.NewNumericDate(now.Add(s.tokenTTL)),
+		Subject:   username,
 	}
 
 	token := jwt.NewWithClaims(jwt.GetSigningMethod(s.algorithm), claims)
@@ -63,7 +61,7 @@ func (s *Service) CreateToken(username string) (string, error) {
 }
 
 func (s *Service) ParseToken(tokenStr string) (string, error) {
-	token, err := jwt.ParseWithClaims(tokenStr, &claims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenStr, &claims{}, func(token *jwt.Token) (any, error) {
 		if token.Method.Alg() != s.algorithm {
 			return nil, errors.New("unexpected signing algorithm")
 		}

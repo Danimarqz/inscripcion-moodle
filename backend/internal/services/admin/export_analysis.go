@@ -45,7 +45,7 @@ func (s *Service) ExportSubmissionsAnalysis(examID uint, search, orderBy, orderD
 	questionsMap := make(map[uint]models.Question)
 	sortedQuestions := make([]models.Question, len(exam.Questions))
 	copy(sortedQuestions, exam.Questions)
-	for i := 0; i < len(sortedQuestions); i++ {
+	for i := range sortedQuestions {
 		for j := i + 1; j < len(sortedQuestions); j++ {
 			if sortedQuestions[i].Name > sortedQuestions[j].Name {
 				sortedQuestions[i], sortedQuestions[j] = sortedQuestions[j], sortedQuestions[i]
@@ -150,9 +150,11 @@ func (s *Service) ExportSubmissionsAnalysis(examID uint, search, orderBy, orderD
 					Values:     fmt.Sprintf("Estadísticas!$B$2:$B$%d", lastDataRow),
 				},
 			},
-			Title: []excelize.RichTextRun{
-				{
-					Text: "Fallos por Pregunta",
+			Title: excelize.ChartTitle{
+				Paragraph: []excelize.RichTextRun{
+					{
+						Text: "Fallos por Pregunta",
+					},
 				},
 			},
 		}); err != nil {

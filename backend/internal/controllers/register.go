@@ -31,8 +31,7 @@ func (h *RegisterController) Register(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB
 	var data registerservice.Data
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-		var maxErr *http.MaxBytesError
-		if errors.As(err, &maxErr) {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
 			return
 		}

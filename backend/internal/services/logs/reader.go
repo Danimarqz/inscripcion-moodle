@@ -81,7 +81,7 @@ func ListFiles(dir, pattern string, filter ReadFilter) ([]FileInfo, error) {
 	}
 	seen := make(map[string]struct{})
 	var matches []string
-	for _, p := range strings.Split(pattern, ",") {
+	for p := range strings.SplitSeq(pattern, ",") {
 		p = strings.TrimSpace(p)
 		if p == "" {
 			continue

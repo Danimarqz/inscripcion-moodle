@@ -64,7 +64,7 @@ func Call(ctx context.Context, cfg *config.Config, client *http.Client, function
 		return nil, fmt.Errorf("moodle error on %s: %s", function, strings.TrimSpace(string(body)))
 	}
 
-	var decoded map[string]interface{}
+	var decoded map[string]any
 	if err := json.Unmarshal(body, &decoded); err == nil {
 		if exception, ok := decoded["exception"]; ok && exception != nil {
 			msg := strings.ToLower(fmt.Sprint(decoded["message"]))

@@ -112,8 +112,7 @@ func (h *PublicController) SubmitExam(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB
 	var req examservice.SubmitExamRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		var maxErr *http.MaxBytesError
-		if errors.As(err, &maxErr) {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
 			return
 		}
@@ -211,8 +210,7 @@ func (h *PublicController) CheckSubmission(w http.ResponseWriter, r *http.Reques
 	r.Body = http.MaxBytesReader(w, r.Body, 512<<10) // 512 KiB
 	var req examservice.SubmissionCheckRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		var maxErr *http.MaxBytesError
-		if errors.As(err, &maxErr) {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
 			return
 		}
@@ -264,8 +262,7 @@ func (h *PublicController) CheckOfficialResultMatch(w http.ResponseWriter, r *ht
 	r.Body = http.MaxBytesReader(w, r.Body, 512<<10) // 512 KiB
 	var req examservice.OfficialResultMatchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		var maxErr *http.MaxBytesError
-		if errors.As(err, &maxErr) {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
 			return
 		}
@@ -330,8 +327,7 @@ func (h *PublicController) UpdateMerits(w http.ResponseWriter, r *http.Request) 
 	r.Body = http.MaxBytesReader(w, r.Body, 512<<10) // 512 KiB
 	var req examservice.UpdateMeritsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		var maxErr *http.MaxBytesError
-		if errors.As(err, &maxErr) {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
 			return
 		}

@@ -258,16 +258,13 @@ func mapLambdaStatus(status int) error {
 
 // isNotFound reports whether err is an S3 NotFound / NoSuchKey error.
 func isNotFound(err error) bool {
-	var nf *types.NotFound
-	if errors.As(err, &nf) {
+	if _, ok := errors.AsType[*types.NotFound](err); ok {
 		return true
 	}
-	var nsk *types.NoSuchKey
-	if errors.As(err, &nsk) {
+	if _, ok := errors.AsType[*types.NoSuchKey](err); ok {
 		return true
 	}
-	var apiErr smithy.APIError
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
 		switch apiErr.ErrorCode() {
 		case "NotFound", "NoSuchKey", "404":
 			return true
@@ -286,8 +283,7 @@ func isNotFound(err error) bool {
 
 // isAccessDenied reports whether err is an S3 access-denied / permissions error.
 func isAccessDenied(err error) bool {
-	var apiErr smithy.APIError
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
 		code := apiErr.ErrorCode()
 		if code == "AccessDenied" || code == "AccessDeniedException" || code == "Forbidden" {
 			return true

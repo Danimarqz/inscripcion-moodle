@@ -200,8 +200,8 @@ func formatMonth(value string) string {
 
 func decodeSignature(signature string) ([]byte, error) {
 	raw := signature
-	if idx := strings.Index(signature, ","); idx >= 0 {
-		raw = signature[idx+1:]
+	if _, after, ok := strings.Cut(signature, ","); ok {
+		raw = after
 	}
 	raw = strings.TrimSpace(raw)
 	decoded, err := base64.StdEncoding.DecodeString(raw)

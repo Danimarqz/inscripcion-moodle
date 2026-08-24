@@ -79,7 +79,7 @@ func buildMariaDSN(raw string) (string, error) {
 		return "", fmt.Errorf("parse database url: %w", err)
 	}
 
-	baseScheme := strings.Split(parsed.Scheme, "+")[0]
+	baseScheme, _, _ := strings.Cut(parsed.Scheme, "+")
 	if baseScheme != "mysql" && baseScheme != "mariadb" {
 		return "", fmt.Errorf("unsupported database scheme %q", parsed.Scheme)
 	}

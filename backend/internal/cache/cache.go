@@ -56,7 +56,7 @@ func (c *Cache) Scan(ctx context.Context, cursor uint64, match string, count int
 	return c.cache.Scan(ctx, cursor, match, count).Iterator()
 }
 
-func (c *Cache) SAdd(ctx context.Context, key string, members ...interface{}) error {
+func (c *Cache) SAdd(ctx context.Context, key string, members ...any) error {
 	if c.cache == nil {
 		return nil
 	}

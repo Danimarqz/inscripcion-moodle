@@ -10,16 +10,16 @@ import (
 
 // WarmupReport summarises a warm-up pass.
 type WarmupReport struct {
-	Total     int           `json:"total"`
-	Built     int           `json:"built"`
-	Cached    int           `json:"cached"`
-	Failed    int           `json:"failed"`
-	Errors    []string      `json:"errors,omitempty"`
-	StartedAt time.Time     `json:"started_at"`
-	EndedAt   time.Time     `json:"ended_at"`
-	Duration  time.Duration `json:"duration"`
-	InProgress bool         `json:"in_progress"`
-	Cancelled  bool         `json:"cancelled,omitempty"`
+	Total      int           `json:"total"`
+	Built      int           `json:"built"`
+	Cached     int           `json:"cached"`
+	Failed     int           `json:"failed"`
+	Errors     []string      `json:"errors,omitempty"`
+	StartedAt  time.Time     `json:"started_at"`
+	EndedAt    time.Time     `json:"ended_at"`
+	Duration   time.Duration `json:"duration"`
+	InProgress bool          `json:"in_progress"`
+	Cancelled  bool          `json:"cancelled,omitempty"`
 }
 
 // WarmupTracker holds the live state of an in-flight warm-up so the admin UI
@@ -124,9 +124,7 @@ func (w *WarmupTracker) runLocked(ctx context.Context, dir, pattern string, conc
 		}
 		fi := fi
 		sem <- struct{}{}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			defer func() { <-sem }()
 
 			cached := false
@@ -156,7 +154,7 @@ func (w *WarmupTracker) runLocked(ctx context.Context, dir, pattern string, conc
 				w.report.Built++
 			}
 			w.mu.Unlock()
-		}()
+		})
 	}
 	wg.Wait()
 

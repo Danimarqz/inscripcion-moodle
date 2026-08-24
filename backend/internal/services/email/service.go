@@ -142,11 +142,9 @@ func buildMessage(from, to, subject, body string, attachments []Attachment, bcc 
 		fmt.Fprintf(&buf, "Content-Transfer-Encoding: base64\r\n\r\n")
 		encoded := base64.StdEncoding.EncodeToString(attachment.Content)
 		for i := 0; i < len(encoded); i += 76 {
-			end := i + 76
-			if end > len(encoded) {
-				end = len(encoded)
-			}
-			buf.WriteString(encoded[i:end] + "\r\n")
+			end := min(i+76, len(encoded))
+			buf.WriteString(encoded[i:end])
+			buf.WriteString("\r\n")
 		}
 	}
 	fmt.Fprintf(&buf, "--%s--\r\n", boundary)

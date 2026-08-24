@@ -90,7 +90,7 @@ func postRegistrationToGSheet(ctx context.Context, client *http.Client, endpoint
 		return fmt.Errorf("google sheets responded with %d", resp.StatusCode)
 	}
 
-	var response map[string]interface{}
+	var response map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return fmt.Errorf("invalid response from Google Sheets: %w", err)
 	}

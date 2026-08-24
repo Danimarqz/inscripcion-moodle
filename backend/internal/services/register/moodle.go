@@ -35,9 +35,9 @@ var (
 		"xunta":       89,
 		"sas":         19,
 		"sermas":      20,
-		"sepad":			133,
-		"prisiones":	146,
-		"defensa":		159,
+		"sepad":       133,
+		"prisiones":   146,
+		"defensa":     159,
 	}
 	extraCourses = []int{16, 11}
 )
@@ -175,7 +175,7 @@ func (s *Service) findExistingUser(ctx context.Context, email string) ([]moodle.
 }
 
 func parseUserID(body []byte) (int, error) {
-	var users []map[string]interface{}
+	var users []map[string]any
 	if err := json.Unmarshal(body, &users); err != nil {
 		return 0, err
 	}
