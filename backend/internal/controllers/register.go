@@ -43,6 +43,12 @@ func (h *RegisterController) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	data.Modality = strings.TrimSpace(data.Modality)
+	if !registerservice.ValidModality(data.Modality) {
+		http.Error(w, constants.InvalidRequest, http.StatusBadRequest)
+		return
+	}
+
 	if strings.TrimSpace(data.Email) == "" || strings.TrimSpace(data.DNI) == "" || strings.TrimSpace(data.Name) == "" || strings.TrimSpace(data.Surname) == "" {
 		http.Error(w, constants.AllFieldsRequired, http.StatusBadRequest)
 		return

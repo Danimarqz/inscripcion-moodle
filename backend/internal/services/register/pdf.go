@@ -110,7 +110,9 @@ func generatePDF(data Data) ([]byte, error) {
 	pdf.SetFont("Arial", "B", 10)
 	pdf.CellFormat(40, 8, translator("Modalidad:"), "", 0, "", false, 0, "")
 	pdf.SetFont("Arial", "", 10)
-	pdf.CellFormat(50, 8, translator(data.Modality), "", 0, "", false, 0, "")
+	// 62mm: "MINISTERIOS - PAGO ÚNICO - 360 €" mide 60,6mm en Arial 10; con 50 invadia la
+	// columna "Forma de pago:".
+	pdf.CellFormat(62, 8, translator(modalityLabel(data.Modality)), "", 0, "", false, 0, "")
 	pdf.SetFont("Arial", "B", 10)
 	pdf.CellFormat(40, 8, translator("Forma de pago:"), "", 0, "", false, 0, "")
 	pdf.SetFont("Arial", "", 10)

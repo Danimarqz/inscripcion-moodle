@@ -36,6 +36,45 @@ var courseLabels = map[string]string{
 	"sepad":       "SEPAD",
 }
 
+// pagoUnico une importe de la hoja y etiqueta del PDF: con dos mapas separados, anadir
+// un codigo nuevo sin su etiqueta dejaba un alta valida cuyo PDF imprimia el slug.
+type pagoUnico struct {
+	amount string
+	label  string
+}
+
+// pagoUnicoModalities traduce el value legible por maquina del formulario a su importe de
+// pago unico y a su etiqueta legible; las modalidades mensuales siguen siendo texto libre.
+var pagoUnicoModalities = map[string]pagoUnico{
+	"ministerios-pago-unico-360": {amount: "360 EUR", label: "MINISTERIOS - PAGO ÚNICO - 360 €"},
+}
+
+// monthlyModalities son las opciones que estaban publicadas cuando el value era el texto
+// visible; un navegador con el HTML viejo en cache sigue enviandolas.
+var monthlyModalities = map[string]struct{}{
+	"40€/mes (2 temas/mes)":  {},
+	"60€/mes (3 temas/mes)":  {},
+	"80€/mes (4 temas/mes)":  {},
+	"100€/mes (5 temas/mes)": {},
+	"120€/mes (6 temas/mes)": {},
+}
+
+// ValidModality es el allowlist que evita que un POST arbitrario entre en la hoja de cobros.
+func ValidModality(modality string) bool {
+	if _, ok := pagoUnicoModalities[modality]; ok {
+		return true
+	}
+	_, ok := monthlyModalities[modality]
+	return ok
+}
+
+func modalityLabel(modality string) string {
+	if pu, ok := pagoUnicoModalities[modality]; ok {
+		return pu.label
+	}
+	return modality
+}
+
 var (
 	amountRegex = regexp.MustCompile(`(\d+[\.,]?\d*)`)
 	groupRegex  = regexp.MustCompile(`\(([^)]+)\)`)
@@ -50,7 +89,7 @@ func postRegistrationToGSheet(ctx context.Context, client *http.Client, endpoint
 		"GRUPO":                extractGroup(data.Modality),
 		"IMPORTE/MES":          extractAmount(data.Modality),
 		"PRIMER PAGO":          formatFirstPaymentMonth(data.StartDate),
-		"OBSERVACIONES":        buildObservaciones(data.Payment),
+		"OBSERVACIONES":        buildObservaciones(data.Payment, data.Modality),
 		"FECHA ALTA":           time.Now().Format("02/01/2006"),
 		"Nombre":               normalizeString(data.Name),
 		"Apellido":             normalizeString(data.Surname),
@@ -138,6 +177,9 @@ func extractGroup(modality string) string {
 	if modality == "" {
 		return ""
 	}
+	if _, ok := pagoUnicoModalities[modality]; ok {
+		return ""
+	}
 	if matches := groupRegex.FindStringSubmatch(modality); len(matches) == 2 {
 		return strings.TrimSpace(matches[1])
 	}
@@ -148,6 +190,9 @@ func extractAmount(modality string) string {
 	if modality == "" {
 		return ""
 	}
+	if pu, ok := pagoUnicoModalities[modality]; ok {
+		return pu.amount
+	}
 	if matches := amountRegex.FindStringSubmatch(modality); len(matches) == 2 {
 		amount := strings.ReplaceAll(matches[1], ",", ".")
 		return fmt.Sprintf("%s EUR/mes", amount)
@@ -155,11 +200,15 @@ func extractAmount(modality string) string {
 	return modality
 }
 
-func buildObservaciones(payment string) string {
-	if payment == "" {
-		return ""
+func buildObservaciones(payment, modality string) string {
+	var partes []string
+	if pu, ok := pagoUnicoModalities[modality]; ok {
+		partes = append(partes, "Pago único "+pu.amount)
 	}
-	return "Forma de pago: " + payment
+	if payment != "" {
+		partes = append(partes, "Forma de pago: "+payment)
+	}
+	return strings.Join(partes, " | ")
 }
 
 func normalizeString(value string) string {
