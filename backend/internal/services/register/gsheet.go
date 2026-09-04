@@ -49,23 +49,17 @@ var pagoUnicoModalities = map[string]pagoUnico{
 	"ministerios-pago-unico-360": {amount: "360 EUR", label: "MINISTERIOS - PAGO ÚNICO - 360 €"},
 }
 
-// monthlyModalities son las opciones que estaban publicadas cuando el value era el texto
-// visible; un navegador con el HTML viejo en cache sigue enviandolas.
-var monthlyModalities = map[string]struct{}{
-	"40€/mes (2 temas/mes)":  {},
-	"60€/mes (3 temas/mes)":  {},
-	"80€/mes (4 temas/mes)":  {},
-	"100€/mes (5 temas/mes)": {},
-	"120€/mes (6 temas/mes)": {},
-}
+// monthlyModality valida la forma de las modalidades mensuales, cuyo value sigue siendo el
+// texto visible. Con una lista literal de precios, cambiarlos en el HTML rechazaba todas las
+// altas mensuales hasta tocar tambien este fichero.
+var monthlyModality = regexp.MustCompile(`^\d{2,3}€/mes \(\d+ temas/mes\)$`)
 
 // ValidModality es el allowlist que evita que un POST arbitrario entre en la hoja de cobros.
 func ValidModality(modality string) bool {
 	if _, ok := pagoUnicoModalities[modality]; ok {
 		return true
 	}
-	_, ok := monthlyModalities[modality]
-	return ok
+	return monthlyModality.MatchString(modality)
 }
 
 func modalityLabel(modality string) string {

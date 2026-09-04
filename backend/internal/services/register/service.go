@@ -23,7 +23,9 @@ func New(cfg *config.Config) *Service {
 	return &Service{
 		cfg: cfg,
 		client: &http.Client{
-			Timeout: 15 * time.Second,
+			// Apps Script redirige a script.googleusercontent.com y pasa de 15s con facilidad;
+			// el ctx de Register (1 min) sigue siendo el límite real.
+			Timeout: 45 * time.Second,
 		},
 		moodleClient: moodle.New(cfg),
 	}
@@ -34,6 +36,7 @@ func (s *Service) Register(ctx context.Context, data Data) (*Result, error) {
 		pdfBytes       []byte
 		moodleFailed   bool
 		gsheetConflict bool
+		gsheetFailed   bool
 		moodleUsername string
 	)
 	// aumentar tiempo de ejecución para llamdas a moodle
@@ -68,8 +71,11 @@ func (s *Service) Register(ctx context.Context, data Data) (*Result, error) {
 				gsheetConflict = true
 				return nil
 			}
-			log.Printf("register: gsheet error: %v", err)
-			return err
+			// No abortamos: Moodle ya puede haber creado al usuario y el reintento chocaría con
+			// el duplicado. El admin recibe el PDF y el aviso para meter la fila a mano.
+			log.Printf("register: gsheet error (alta NO escrita en la hoja) dni=%s email=%s: %v", data.DNI, data.Email, err)
+			gsheetFailed = true
+			return nil
 		}
 		return nil
 	})
@@ -78,7 +84,7 @@ func (s *Service) Register(ctx context.Context, data Data) (*Result, error) {
 		return nil, err
 	}
 
-	if err := sendEmails(s.cfg, data.Email, pdfBytes, data.Name, data.Surname, moodleFailed, moodleUsername, data.DNI, gsheetConflict); err != nil {
+	if err := sendEmails(s.cfg, data.Email, pdfBytes, data.Name, data.Surname, moodleFailed, moodleUsername, data.DNI, gsheetConflict, gsheetFailed); err != nil {
 		log.Printf("register: email send error: %v", err)
 	}
 

@@ -37,6 +37,13 @@ func TestSheetColumnsPerModality(t *testing.T) {
 	}
 }
 
+// Un precio mensual nuevo publicado solo en el HTML debe seguir siendo válido.
+func TestValidModalityAcceptsUnlistedMonthlyPrice(t *testing.T) {
+	if !ValidModality("140€/mes (7 temas/mes)") {
+		t.Error("ValidModality(140€/mes (7 temas/mes)) = false, want true")
+	}
+}
+
 func TestValidModalityRejectsUnknown(t *testing.T) {
 	for _, m := range []string{"hacked", "", "MINISTERIOS- PAGO UNICO- 360EUR"} {
 		if ValidModality(m) {

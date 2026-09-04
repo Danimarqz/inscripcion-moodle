@@ -8,7 +8,7 @@ import (
 	"github.com/inscripcion-moodle/go-backend/internal/services/email"
 )
 
-func sendEmails(cfg *config.Config, recipient string, pdf []byte, name, surname string, moodleError bool, moodleUsername string, dni string, gsheetConflict bool) error {
+func sendEmails(cfg *config.Config, recipient string, pdf []byte, name, surname string, moodleError bool, moodleUsername string, dni string, gsheetConflict, gsheetFailed bool) error {
 	subject := "Confirmación de inscripción"
 	errorMessage := ""
 	errorMessageUser := ""
@@ -19,12 +19,16 @@ func sendEmails(cfg *config.Config, recipient string, pdf []byte, name, surname 
 	}
 
 	body := fmt.Sprintf("Hola %s %s,\nGracias por completar tu inscripción. Adjuntamos el PDF generado con tus datos.%s\n\nUn saludo,\nEquipo de OpositaTCAE", name, surname, errorMessageUser)
-	
+
 	adminSubject := subject
 	adminWarning := ""
 	if moodleError || gsheetConflict {
 		adminSubject = "⚠️ (REPETIDO) " + subject
 		adminWarning = "\n[AVISO: Este usuario ya estaba registrado en Moodle o en la Hoja de Inscripciones y ha vuelto a intentar matricularse. Revisa sus datos.]\n"
+	}
+	if gsheetFailed {
+		adminSubject = "⚠️ (FALTA EN LA HOJA) " + subject
+		adminWarning += "\n[AVISO: No se pudo escribir el alta en la Hoja de Inscripciones. Añade la fila a mano con los datos del PDF adjunto.]\n"
 	}
 
 	adminBody := fmt.Sprintf("Hola %s %s,\n%s%s\nInfo enviada al usuario: %s, Gracias por completar tu inscripción. Adjuntamos el PDF generado con tus datos.\n\nUn saludo,\nEquipo de OpositaTCAE", name, surname, adminWarning, errorMessage, errorMessageUser)

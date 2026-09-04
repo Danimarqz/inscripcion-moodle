@@ -68,29 +68,31 @@ func (s *Service) createMoodleUser(ctx context.Context, data Data) (bool, string
 	var userID int
 	body, err := s.callMoodle(ctx, "core_user_create_users", payload)
 	if err != nil {
-		if errors.Is(err, moodle.ErrUserAlreadyExists) {
-			users, findErr := s.findExistingUser(ctx, data.Email)
+		// Moodle lanza el duplicado como invalid_parameter_exception y solo detalla el motivo
+		// en debuginfo, que prod oculta con el debug desactivado: preguntamos por el email
+		// en vez de intentar reconocer el mensaje de error.
+		users, findErr := s.findExistingUser(ctx, data.Email)
+		if findErr != nil || len(users) == 0 {
+			if !errors.Is(err, moodle.ErrUserAlreadyExists) {
+				return false, "", err
+			}
 			if findErr != nil {
 				return true, "", findErr
 			}
-			if len(users) == 0 {
-				return true, "", fmt.Errorf("moodle user exists but no user found")
-			}
-			userID := users[0].ID
-			moodleUsername := users[0].Username
-
-			// Actualizar la contraseña al DNI en mayúsculas
-			updatePayload := url.Values{
-				"users[0][id]":       {strconv.Itoa(userID)},
-				"users[0][password]": {generatePassword(data.DNI)},
-			}
-			if _, updateErr := s.callMoodle(ctx, "core_user_update_users", updatePayload); updateErr != nil {
-				log.Printf("failed to update existing moodle user password %s: %v", data.Email, updateErr)
-			}
-
-			return true, moodleUsername, s.enrolUserInCourses(ctx, userID, resolveCourses(data.Course))
+			return true, "", fmt.Errorf("moodle user exists but no user found")
 		}
-		return false, "", err
+		existingID := users[0].ID
+
+		// Actualizar la contraseña al DNI en mayúsculas
+		updatePayload := url.Values{
+			"users[0][id]":       {strconv.Itoa(existingID)},
+			"users[0][password]": {generatePassword(data.DNI)},
+		}
+		if _, updateErr := s.callMoodle(ctx, "core_user_update_users", updatePayload); updateErr != nil {
+			log.Printf("failed to update existing moodle user password %s: %v", data.Email, updateErr)
+		}
+
+		return true, users[0].Username, s.enrolUserInCourses(ctx, existingID, resolveCourses(data.Course))
 	}
 	userID, err = parseUserID(body)
 	if err != nil {
